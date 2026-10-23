@@ -6,7 +6,7 @@ export type Action = 'left' | 'right' | 'jump' | 'power';
 export interface CharacterDef {
   id: string;
   name: string;
-  /** Path under the universe's assets/. Optional: a placeholder shape is drawn if missing. */
+  /** URL of the image, resolved by the universe from its assets/ folder. Placeholder shape if missing. */
   image?: string;
   poses?: { run?: string; jump?: string };
   sounds?: { pick?: string; jump?: string; win?: string };

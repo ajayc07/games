@@ -1,16 +1,16 @@
 import type { CharacterDef, UniverseManifest } from '../../core/types';
+import { asset } from './assets';
 import { PlaceholderScene } from './scenes/PlaceholderScene';
 
-// No images or sounds yet (placeholders first, D-009). Real files will be named after the id,
-// e.g. assets/mario.png, assets/donkeykong.png.
+// Files live in ./assets/ and are named after the character id (D-009). No sounds yet.
 const characters: CharacterDef[] = [
-  { id: 'mario', name: 'Mario', powerAnimation: 'fireball' },
-  { id: 'luigi', name: 'Luigi', powerAnimation: 'fireball' },
-  { id: 'peach', name: 'Peach', powerAnimation: 'sparkle' },
-  { id: 'toad', name: 'Toad', powerAnimation: 'spin' },
-  { id: 'bowser', name: 'Bowser', powerAnimation: 'roar' },
-  { id: 'yoshi', name: 'Yoshi', powerAnimation: 'tongue' },
-  { id: 'donkeykong', name: 'Donkey Kong', powerAnimation: 'groundpound' },
+  { id: 'mario', name: 'Mario', image: asset('mario.avif'), powerAnimation: 'fireball' },
+  { id: 'luigi', name: 'Luigi', image: asset('luigi.avif'), powerAnimation: 'fireball' },
+  { id: 'peach', name: 'Peach', image: asset('peach.avif'), powerAnimation: 'sparkle' },
+  { id: 'toad', name: 'Toad', image: asset('toad.avif'), powerAnimation: 'spin' },
+  { id: 'bowser', name: 'Bowser', image: asset('bowser.avif'), powerAnimation: 'roar' },
+  { id: 'yoshi', name: 'Yoshi', image: asset('yoshi.avif'), powerAnimation: 'tongue' },
+  { id: 'donkeykong', name: 'Donkey Kong', image: asset('donkeykong.avif'), powerAnimation: 'groundpound' },
 ];
 
 export const manifest: UniverseManifest = {
