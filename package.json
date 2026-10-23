@@ -1,0 +1,30 @@
+{
+  "name": "games",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Athi's Game: a gentle Mario-style platformer for a 3-year-old.",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vite-plugin-pwa": "2.0.0",
+    "workbox-core": "7.4.1",
+    "workbox-expiration": "7.4.1",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
+    "workbox-strategies": "7.4.1"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
