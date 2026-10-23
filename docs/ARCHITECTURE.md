@@ -72,11 +72,26 @@ Levels are plain JSON in `universes/<id>/levels/`. Format may evolve; keep a `ve
 - `demo: true` plays a short "watch me" ghost demo of the new control before the player tries.
 - Falls respawn the player a short distance back. No failure state.
 
+## Screen layout (D-013)
+`core/ui/layout.ts`: logical height is always 720, logical width follows the screen (960..1680). `getLayout()` gives
+`width`, `height`, `safeRect` (central 960x720 for gameplay-critical content), `insets` (device safe areas, logical units),
+`anchor(corner, dx, dy)` for UI, and `bindToScene(scene, fn)` to re-layout on resize/rotation.
+
 ## Input
-`InputManager` merges: on-screen touch buttons (sized from screen short edge, adjustable by parent setting), keyboard (arrows/WASD + Space), Gamepad API. It exposes `isDown(action)`, `justPressed(action)` and emits events. Multi-touch required. Optionally records per-press timing for later progress tracking.
+`core/input/InputManager` (one per scene) merges DOM pointer events (touch + mouse), keyboard and gamepads (bindings in
+`core/input/bindings.ts`, D-015). API: `configure({ enabled, tapAnywhereJumps })`, `isDown`, `justPressed`, `justReleased`
+(one frame), `press`/`release` events and `onPress` with timestamps. The pure state logic is `core/input/actionState.ts`
+(unit-tested): every device input is a "source"; the merged state is derived after tap-anywhere mapping and enabled filtering.
+`core/ui/TouchControls` draws the buttons, shows only enabled actions (none in tap-anywhere mode) and provides the hit test;
+pointers are re-tested on every move, and Left/Right split their shared band at the midpoint so a sliding thumb never hits a gap.
+Size comes from the short edge times `buttonScale` (`?buttonScale=` for now). Blur, visibility change and pointer cancel release everything.
 
 ## Audio
-`AudioManager` unlocks the Web Audio context on the first touch/click/key. Sound ids map to files via manifest; if a file is missing, a generated placeholder beep is used. Shared sounds (coin, jump, win, gentle "try again") are generic; per-character sounds are pick / jump / win.
+`core/audio/AudioManager` (`audio` singleton) unlocks Web Audio on the first touch/click/key. `register(id, { file?, synth?, volume? })`,
+`play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, pick, power).
+Never throws; a failed file logs one warning. Per-sound cap of 3 voices and a 40 ms retrigger gap (`voiceLimiter.ts`, unit-tested);
+a compressor on the master bus prevents clipping. `setMuted`, `setMasterVolume`, `state` (locked/running).
+Shared sounds are generic; per-character sounds (pick / jump / win) will be registered from the universe manifest.
 
 ## Storage
 Per-universe keys: `{ chosenCharacterId, levelStars: Record<levelId, 0..3>, settings }`. Progress is shared across characters within a universe. Parent settings: sound on/off, button size, unlock-all.

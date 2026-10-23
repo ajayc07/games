@@ -1,6 +1,6 @@
 import type { CharacterDef, UniverseManifest } from '../../core/types';
 import { asset } from './assets';
-import { PlaceholderScene } from './scenes/PlaceholderScene';
+import { InputLabScene } from './scenes/InputLabScene';
 
 // Files live in ./assets/ and are named after the character id (D-009). No sounds yet.
 const characters: CharacterDef[] = [
@@ -26,6 +26,7 @@ export const manifest: UniverseManifest = {
   ],
   unlock: { openAtATime: 3 },
   start(game) {
-    game.scene.add(PlaceholderScene.KEY, PlaceholderScene, true);
+    // Input Lab is the only screen for now; later it moves behind ?lab=1.
+    game.scene.add(InputLabScene.KEY, InputLabScene, true);
   },
 };

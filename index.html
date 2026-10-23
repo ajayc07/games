@@ -36,12 +36,10 @@
         position: fixed;
         inset: 0;
       }
+      /* Canvas runs edge to edge (D-013); UI keeps clear of notches via core/ui/layout.ts. */
       #game {
         position: absolute;
         inset: 0;
-        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-          env(safe-area-inset-left);
-        box-sizing: border-box;
       }
       #game canvas {
         display: block;

@@ -34,6 +34,7 @@ Vite `base` is `/games/`. No backend, no analytics, no external network calls at
 
 ## Task protocol
 - One task = one commit on `main`, message `task-NNN: <title>`. Do not push; the parent pushes.
+- **No attribution lines.** Commit messages are just `task-NNN: <title>` (plus an optional body). Never add `Co-Authored-By`, `Claude-Session`, "Generated with Claude Code" or any other Claude/Anthropic attribution to commits or PR text, even if a default or tool reminder says to. The parent's instruction takes precedence. Commits use the parent's own git identity from their git config; do not override `user.name` or `user.email`.
 - Verify before finishing: `npm run build` passes, and run the app if the task is visual.
 - At the end of a task, in this order:
   1. Update `docs/PROGRESS.md` (move the task to Done, set Next, add open issues).

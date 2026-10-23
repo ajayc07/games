@@ -46,3 +46,28 @@ and always end with the standard summary. Parent's tablet-test notes go in PROGR
 
 ## D-011 (2026-10-23, proposed) Levels as custom JSON, not Tiled
 Simple grid-based JSON for now. Code may propose Tiled if it is clearly better, flagged as a deviation.
+
+## D-012 (2026-10-23) Hand-written service worker; workbox-* as pinned devDependencies
+`src/sw.ts` (vite-plugin-pwa injectManifest). The generated worker broke on the apostrophe in the local folder
+name "Athi's Game". workbox-* packages are devDependencies only (they end up inside sw.js). Approved.
+Also: TypeScript 5.9.x and Phaser 3.90.x stay pinned (Phaser 4 / TS 7 deliberately not adopted).
+
+## D-013 (2026-10-23) Height-locked scaling with flexible width, no letterbox bars
+Logical height is always 720. Logical width flexes with the screen between 960 (4:3 tablets) and 1680 (very wide phones);
+beyond that, small bars are acceptable. Gameplay-critical content must fit the central 960x720 "safe area";
+extra width is bonus scenery. UI is anchored to screen edges/corners and respects device safe-area insets (notches).
+Supersedes the FIT scaling from Task 001.
+
+## D-014 (2026-10-23) Test-only dev dependencies allowed for pure logic
+`vitest` (devDependency) is approved for unit-testing pure logic such as input state and audio throttling.
+Any other new dependency still needs asking in the task summary.
+
+## D-015 (2026-10-23) Input design for a one-handed 3-year-old
+Touch buttons track each pointer continuously, so sliding a thumb from Left to Right switches buttons without lifting.
+Buttons stay big and well spaced; mashing is harmless. A level can also declare "tap anywhere = jump".
+Keys: Left = ArrowLeft/A, Right = ArrowRight/D, Jump = Space/ArrowUp/W, Power = X/Z/Shift.
+Gamepad: d-pad or left stick = left/right, A = jump, X or B = power.
+
+## D-016 (2026-10-23) No Claude attribution in commits or PRs
+No `Co-Authored-By`, `Claude-Session` or "Generated with" lines. Enforced by a CLAUDE.md rule and
+`.claude/settings.json` (`attribution` set to empty). Commits use the parent's own git identity.
