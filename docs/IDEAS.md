@@ -27,3 +27,6 @@ Question raised: how far is this from something sellable? Answer for now: the en
 **Commercial extras to plan later:** licensed or original audio and voices, store packaging (Capacitor for Android/iOS, icon, listing, screenshots), kids' privacy rules (Google Play Families, COPPA, India's data protection law; the offline, no-tracking design helps), a business model (one-time price is typical), and a market check. Get legal advice before launching.
 
 **Status:** parked. Finish the private Athiran version first; keep code universe-agnostic so an original universe can be added later.
+
+## 2026-10-24: Replay variety (D-044)
+He got bored replaying the same level. Ideas, simplest first: (1) on replay, shuffle bubble and coin positions inside safe zones (seeded per play) so each run differs; (2) a free-play level with endless bubbles to pop and no flag; (3) more bubble types (bigger, smaller, different coin counts, a rare rainbow bubble); (4) a daily/random "surprise" dot on the map. Build only after Task 009 and with the parent's say-so.

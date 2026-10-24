@@ -234,3 +234,22 @@ Still to judge on the tablet: the 1 s hold-to-exit, whether he drags the map awa
 - Stars: 1 for finishing; coin thresholds as declared per level.
 - New level legend entries `o` and `O`; the demo script format gains the action `power` (validated against `controls.enabled` like the others).
 - Order unchanged after this: 008 Grass 5 move+jump, 009 parent view.
+
+## D-042 (2026-10-24) Task 007 review outcomes
+Approved all seven deviations: small bubbles half a tile lower so every robot, ball and colour can reach them; a Power press during the cooldown is remembered for 0.3 s (the 4th held shot comes about 70 ms late with the 3-ball cap); shot hit size 14 px; the demo has three shots (two ahead, one behind the start, so it shows turning round) plus a short walk so the coins land, with bubbles regrowing and the demo finger staying down 350 ms (Grass 3's demo too); the bubble behind the start sits in the upper row so the buttons do not hide it; coins fly to the robot; wider spread for the big bubble's 6 coins and a light outline on the green robot's shot.
+Architect review of the sheets (844x390, 1280x800, big-bubble blocker): Left, Right and Power do not overlap, Power is clearly distinct, the big bubble reads as a soft blocker.
+Parent question: Jump stays out of Grass 4 (D-041 stands); it comes back in Grass 5.
+Open for the tablet: pop sounds by ear, does he find Power, is the big bubble fun or a block, stars 22/34 and the 0.3 s cooldown are first guesses. Known and accepted: bottom-row bubbles near the screen edge can pass behind the buttons, far from the robot.
+
+## D-043 (2026-10-24) The control ladder ends with an "everything together" level
+Parent asked that all buttons eventually work together. Updated order:
+- 008 Grass 5 "Move and Jump": Left, Right and Jump, with gaps (walking, so he can stop at the edge and jump; falls float back, D-019).
+- 009 Grass 6 "Everything": Left, Right, Jump and Power together. Gaps to jump and bubbles to pop (some over gaps), nothing requiring more than one action at a time. Button layout for four buttons is decided in that task (Left/Right bottom-left; Jump and Power bottom-right, Power biggest or Jump biggest to be judged on the tablet).
+- 010 Parent view (sound, button size, unlock-all, reset progress).
+Grass 5 and 6 are new, separate levels; earlier levels keep their single new control.
+
+## D-044 (2026-10-24) Second tablet session
+Findings: everything built so far (picker, map, Grass 1-4, hold-to-exit) worked on the tablet with no problems; he enjoyed popping bubbles; he got bored after replaying the same level many times. Parent expects him to handle the next stages.
+Decisions:
+- Plan stands: 008 Grass 5, 009 Grass 6 "Everything", 010 parent view.
+- Replay boredom is now the main risk, not control difficulty. Direction: make a replay feel different without adding rules. Candidate (to design after 009, not before): optional per-play variation, e.g. bubble and coin positions shuffled within safe zones on replay, or a different bubble pattern each play. Parked in docs/IDEAS.md; the parent view (010) may later offer an "endless/free play" level. Do not build before the control ladder is complete.

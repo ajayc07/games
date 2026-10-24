@@ -1,7 +1,7 @@
 # Architect handoff (for a new Claude Desktop session)
 
 Read this first if you are a new Claude Desktop session taking over as the **architect** of Athi's Game.
-Last updated: 2026-10-24 (after the 006 review).
+Last updated: 2026-10-24 (after the 007 review).
 
 ## Roles and workflow
 - **You (Claude Desktop) = architect.** You plan, write task files, review summaries and review screenshots. You do not write the game code.
@@ -26,9 +26,9 @@ Last updated: 2026-10-24 (after the 006 review).
 A gentle platformer that teaches navigation buttons (Left/Right), Jump and Power, and hand-eye coordination. Phaser 3 + TypeScript + Vite, PWA, offline, GitHub Pages via Actions. Universe modules (lazy loaded): currently one generic universe `robo` ("Robo World"). The player is a code-drawn robot (looks: `robot` default, `ball`) in a three-quarter view when moving; colour/size/antennae come from the chosen colour card. All physics and hit boxes are identical for every option.
 
 ## Where things stand (check docs/PROGRESS.md for the truth)
-- Done and accepted: 001 setup, 002 input/audio/scaling, 003 level engine + Grass 1, 004 Grass 2 + demo, 004b lively motion, 005 Grass 3 (Left/Right), 005b avatar rig, 005c robot running view + cleanup + re-pacing.
+- Done and accepted: 001 to 007 (setup, input/audio, level engine, Grass 1-4, lively motion, avatar rig, robot view, robo universe + picker, map + progress, shooting).
 - Tablet findings (D-037): Athiran liked the robot best, loves its shooting, got bored with auto-run/tap-to-jump (Grass 1/2), liked Grass 3 (walking). Robot looked like it ran backwards: fixed in 005c (parent should confirm on tablet).
-- 005d (D-039) and 006 world map + saved progress (D-040) are done and reviewed. 007 "Grass 4 Shoot" is written (docs/tasks/007-grass4-shoot.md, design D-041) and was handed to Claude Code; check whether its summary has come in. Then: 008 "Grass 5" move+jump over gaps (to be written), 009 parent view (sound toggle, button size, unlock-all, reset).
+- 005d (D-039), 006 map + progress (D-040) and 007 Grass 4 Shoot (D-041, D-042) are done and reviewed. Tablet session with Grass 4 still to come. 008 "Grass 5 Move and Jump" is written (docs/tasks/008-grass5-move-and-jump.md) and was handed to Claude Code; check whether its summary has come in. Then, per D-043: 009 "Grass 6 Everything" (Left, Right, Jump and Power together; to be written), 010 parent view (sound toggle, button size, unlock-all, reset).
 - Open items: the public GitHub repo history still contains the removed Nintendo files; the parent may want a clean-history restart (offer exact steps once 005d is done). The commercial idea is parked in `docs/IDEAS.md`.
 
 ## Useful facts

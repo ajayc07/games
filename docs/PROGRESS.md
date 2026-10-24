@@ -210,3 +210,4 @@ Format: date, device, what he did, what confused him, what bored him, what he lo
 - 2026-10-24, tablet (recorded by the architect as D-037): compared the looks; liked the robot best and loves its shooting. Bored by
   auto-run and tap-to-jump (Grass 1 and 2); liked Grass 3 (walking). Parent: the running robot faced the player, so it looked like
   it ran backwards; the jump looked great. Acted on in Task 005c.
+- 2026-10-24 (evening), tablet (recorded by the architect as D-044): Grass 1-4, map and picker all worked as expected; no problems reported. He enjoyed popping the bubbles (Grass 4). After repeated play of the same level he got bored; otherwise fine. Parent expects him to cope with the next stages.
