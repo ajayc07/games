@@ -64,3 +64,31 @@ describe('avatar options: ?color= and lookup', () => {
     expect(colorFromSearch('?char=blue', list).requested).toBe(false);
   });
 });
+
+describe('visual size knob and hill rim (Task 006)', async () => {
+  const { parseSize, AVATAR_SIZE, needsHillRim, hueSat } = await import('./config');
+
+  it('?size= is clamped to 0.8..1.6 and defaults to avatarScale 1', () => {
+    expect(AVATAR_SIZE.avatarScale).toBe(1);
+    expect(parseSize('').size).toBe(1);
+    expect(parseSize('?size=1.3').size).toBe(1.3);
+    expect(parseSize('?size=5').size).toBe(1.6);
+    expect(parseSize('?size=0.1').size).toBe(0.8);
+    const junk = parseSize('?size=big');
+    expect(junk.size).toBe(1);
+    expect(junk.warning).toMatch(/not a number/);
+  });
+
+  it('only accents close to the hills green get the light rim', () => {
+    expect(hueSat(0x43a047).hue).toBeCloseTo(123, 0);
+    const accents: Record<string, number> = {
+      red: 0xe53935, orange: 0xfb8c00, yellow: 0xfdd835, green: 0x43a047,
+      teal: 0x00acc1, blue: 0x1e88e5, purple: 0x8e24aa, pink: 0xec407a,
+    };
+    const rimmed = Object.entries(accents).filter(([, c]) => needsHillRim(c)).map(([id]) => id);
+    expect(rimmed).toEqual(['green']);
+    expect(needsHillRim(0x2fd6e0)).toBe(false); // default cyan
+    expect(needsHillRim(0x8bc34a)).toBe(true); // a light green would get it too
+    expect(needsHillRim(0x9e9e9e)).toBe(false); // grey: no hue
+  });
+});

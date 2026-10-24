@@ -21,6 +21,8 @@ export interface WorldDef {
   name: string;
   /** Level ids in play order. */
   levels: string[];
+  /** Optional: the world's last level opens only with at least this many stars in the world (D-036). */
+  finalLevelStarsRequired?: number;
 }
 
 export interface UniverseManifest {

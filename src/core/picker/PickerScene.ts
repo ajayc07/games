@@ -138,7 +138,7 @@ export class PickerScene extends Phaser.Scene {
     const root = this.add.container(0, 0);
     const panel = this.add.graphics();
     const holder = this.add.container(0, 0);
-    const look = createLook(this, 'robot', option, 0, 0);
+    const look = createLook(this, 'robot', option, 0, 0, 1); // the card sets its own size
     const driver = new AvatarDriver(this, {
       look,
       x: 0,

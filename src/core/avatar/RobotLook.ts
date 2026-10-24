@@ -54,7 +54,9 @@ export class RobotLook implements AvatarLook {
   readonly name = 'robot' as const;
   readonly root: Phaser.GameObjects.Container;
   readonly ready = Promise.resolve();
-  readonly shadowScale = 0.95;
+  readonly shadowScale: number;
+  /** Option scale x visual size factor (`?size=`). */
+  private readonly k: number;
   readonly avatar: ResolvedAvatar;
   private readonly parts: RobotParts;
   private readonly img: {
@@ -98,8 +100,10 @@ export class RobotLook implements AvatarLook {
   private tint = -1;
   private earFront = false;
 
-  constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number) {
+  constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number, size = 1) {
     this.avatar = resolveAvatar(avatar);
+    this.k = this.avatar.scale * size;
+    this.shadowScale = 0.95 * size;
     this.parts = robotParts(scene, this.avatar.palette);
     const p = this.parts;
     const mk = (part: Part) => partImage(scene, part);
@@ -189,7 +193,7 @@ export class RobotLook implements AvatarLook {
     }
 
     // ---- pose: ground (idle <-> gait), air, land, win, shoot ----
-    const step = C.stepLength[s.gait] * this.avatar.scale;
+    const step = C.stepLength[s.gait] * this.k;
     const phase = (s.stridePhase * 56) / step + this.phaseShift; // the driver's stride counts 56 px steps
     let pose = blendPose(idleClip(t), gaitClip(s.gait, phase), s.runBlend);
     if (this.airW > 0) pose = blendPose(pose, airClip(t - this.jumpAt, s.vy, t), this.airW);
@@ -262,7 +266,7 @@ export class RobotLook implements AvatarLook {
     }
 
     // ---- root: feet position, size factor, squash/stretch, small lean ----
-    const S = this.avatar.scale;
+    const S = this.k;
     this.root.setPosition(s.x, s.y - s.lift);
     this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
     this.root.setRotation(s.rotation);
@@ -297,7 +301,7 @@ export class RobotLook implements AvatarLook {
       rot: this.root.rotation,
       scaleX: this.root.scaleX,
       scaleY: this.root.scaleY,
-      displayHeight: 104 * this.avatar.scale,
+      displayHeight: 104 * this.k,
       alpha: this.root.alpha,
       depth: this.root.depth,
       visible: this.root.visible,

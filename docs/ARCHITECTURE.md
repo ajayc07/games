@@ -11,8 +11,9 @@ games/
       input/             InputManager: touch buttons + keyboard + gamepad -> actions
       avatar/            how characters are drawn: AvatarLook (robot, ball), rig, shared motion
       audio/             AudioManager: unlock on first gesture, placeholder beeps, per-option chimes
-      storage/           per-universe progress + settings (for now only the chosen option, choice.ts)
+      storage/           per-universe progress record: IndexedDB -> localStorage -> memory (store.ts)
       picker/            PickerScene (colour cards), pure selection + layout
+      map/               MapScene (world map), pure unlock rule + map layout
       levels/            level JSON loader/runner, control-ladder rules
       ui/                reusable big buttons, cloud/lock visuals
     universes/
@@ -39,7 +40,7 @@ interface UniverseManifest {
   id: string;                     // 'robo'
   title: string;                  // 'Robo World'
   options: AvatarOptionDef[];     // 8 colour cards; the first is the fallback
-  worlds: WorldDef[];             // grass, cave, sky, castle
+  worlds: WorldDef[];             // grass, cave, sky, castle; WorldDef may set finalLevelStarsRequired
   unlock: { openAtATime: number };// default 2..3 levels open at once
   start(game: Phaser.Game): void; // boots the universe's first scene
 }
@@ -129,6 +130,15 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
 - **Ball**: a 96 px ball in the accent colour with a band and spots that roll (angle = distance / radius) under a fixed
   highlight; the face (eyes with pupils, cheeks, mouth) stays upright and slides toward the facing. Happy eyes and a grin on win;
   "shoot" opens the mouth.
+- **Size knob (Task 006):** `AVATAR_SIZE.avatarScale` (1) in `avatar/config.ts`, overridden by `?size=` (clamped 0.8-1.6,
+  `parseSize`, `sizeFromUrl`). `createLook(..., size)` multiplies it into the look's scale, the robot's step length (feet do not
+  skate), the ball's roll radius and `shadowScale`; `MotionFx(scene, depth, size)` scales the dust. Visual only: the 40x84 hit
+  box never changes, and the root's origin is at the feet, so they stay on the ground. The picker passes size 1 (its cards set
+  their own robot size).
+- **Hill rim (Task 006, D-035):** `needsHillRim(accent)` (`avatar/config.ts`, pure, tested) is true when the accent's hue is
+  within 40 deg of the hills' green (115 deg) with saturation 0.3 or more; of the eight options only `green` qualifies. Then
+  `parts.ts` adds a thin light rim (white 85%) to the robot's accent parts (antenna tips, ear rings, cannon, boot toe caps)
+  and a soft light ring inside the Ball's outline. Every other option is drawn exactly as before.
 - **Option attributes** (the `AvatarDef` part of each option, `resolveAvatar`): palette (body, joint, accent, visor, eye; defaults
   white / dark grey / cyan / dark visor / cyan eyes), scale clamped to 0.9-1.15, antennae 0-2 (default 2). Colour only, no emblems.
   Looks take an `AvatarDef` (`createLook(scene, name, avatar, x, feet)`). Event `rest` ends a `win` (the picker's one-off wave).
@@ -161,12 +171,42 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
   move a yellow cursor (Left/Right wrap through the cards, Up/Down move a row), Enter/Space selects the cursor's card, again plays.
   Phaser re-sends queued key events when several arrive in one frame, so the scene ignores an event it has already handled.
   `?debug=1`: `window.__picker.state()` (selection, card rects, dim, Play, fps).
-- **Choice storage** (`core/storage/choice.ts`): one localStorage key `athi.<universe>.choice` with the option id, every access
-  in try/catch (blocked storage = nothing stored; the game still works). Task 006 migrates it into the progress record.
-- **Flow** (until the map, Task 006): `?lab=1` Input Lab; `?color=<id>` straight to the level (no picker, nothing stored);
-  `?picker=1`, or no stored choice and no `?level=`, shows the picker; otherwise the level with the stored option. Play stores the
-  choice and opens `?level=` or Grass 1. The win screen has a palette button (top-right, r 56, hit area 123 px; key C) that reopens
-  the picker and then replays the same level.
+- **Choice storage:** since Task 006 the choice lives in the progress record (`chosenCharacterId`, see "Storage").
+  `core/storage/choice.ts` only reads the old 005d key `athi.<universe>.choice` once, for the migration; the key is left in place.
+- **Flow** (Task 006, D-039): see "Map and flow" below.
+
+### Map and flow (D-036, D-039, Task 006)
+- **Unlock rule** (`core/map/unlock.ts`, pure, tested): `worldDots(world, record.levels, { openAtATime, unlockAll })` gives each
+  level's `{ id, index, stars, cleared, open }`. Level i is open if `i < clearedCount + openAtATime` (cleared = at least 1 star,
+  counted anywhere in the world); with `finalLevelStarsRequired` the world's last level also needs that many stars in the world;
+  `unlockAll` opens everything. `currentDot`: the first open level not yet cleared, else the furthest cleared one.
+  `newlyOpened(before, after)` drives the cloud-clearing animation; `stepOpen` the keyboard hops. `unlockFromSearch`: `?unlock=all`,
+  and only with `?debug=1` an `?open=N` override of `openAtATime` (to see the unlock animation with Grass 1-3).
+- **MapScene** (`core/map/`, generic; data `{ theme, dots, teasers, option, look, arrival?, onPlay, onPicker }`): one world as a
+  horizontal map (`mapLayout.ts`, pure, tested): dots 300 px apart on a wavy line (y 320-440), three teaser signposts after the
+  last dot, map about 1885 px wide. A map narrower than the screen is centred; a wider one scrolls (drag with a finger, 14 px
+  threshold so taps stay taps) and eases to keep the avatar at 42% of the screen. Sky, clouds and hills reuse
+  `ParallaxBackground` and the theme textures; the path is a sandy spline, then stepping stones toward the teasers. Each dot is
+  a round pad (orange open, green cleared, grey locked) with 3 star slots; a locked pad is under a theme cloud. Tap targets:
+  dots 150 px, teasers 170 px, palette button r 56 (hit 123 px, top-right). The avatar (`AvatarDriver` + `createLook` with the
+  chosen option, look and `?size=`) stands on the current dot; hops are 420 ms arcs (70 px) using the driver's take-off/land.
+  Tap an open dot (or Enter/Space): hop there, a green play icon pops, `pick`, then `onPlay(levelId)`. Tap a locked dot or a
+  teaser: a soft shake and the `bump` sound. Left/Right: hop between open dots (`hop` sound). Arrival (back from a win): new
+  stars pop in one by one (`coin`), the pad turns green, each newly opened cloud lifts away with sparkles (`unlock`), then the
+  avatar hops to the new current dot. Input is ignored while it plays. `?debug=1`: `window.__map.state()`.
+- **Flow** (`universes/robo/manifest.ts`): `boot` awaits `ProgressStore.open` (with the migrated 005d choice), then:
+  `?lab=1` Input Lab; `?level=<id>` that level directly (with `?picker=1`: the picker first); `?picker=1`, or no saved choice
+  and no `?color=`, the picker, whose Play saves the choice and opens the map; otherwise the map. `?color=<id>` is for this
+  visit only (not saved; a real pick in the picker replaces it). `?look=` is saved in the record and used on later visits.
+  In a level: `onResult` records the result (best values) and flushes before the win screen appears; Home (win screen) and the
+  hold-to-exit icon go to the map, which then plays the arrival animation once; Next is shown only when the next level exists
+  and is open after this result (`LevelSceneData.nextAvailable`); Replay restarts; the palette button opens the picker and
+  then replays the level. The map's palette button opens the picker and returns to the map.
+  The demo still plays once per session (in memory), not from the record.
+- **Hold-to-exit** (`core/ui/hold.ts` pure + `HoldButton.ts`): a small home icon (r 40, hit 110 px) top-right in a level. Held
+  1 s (a yellow ring fills) it leaves to the map; a shorter press only wobbles it; sliding off cancels. Escape held 1 s does the
+  same on desktop. Hidden during the demo and the "your turn" cue and on the win screen. The level's InputManager ignores
+  pointers on it (`ignorePointer`), so on tap-anywhere levels touching it never jumps.
 
 ### Walking (D-029, Task 005)
 Levels with `autoRun: false` move by holding Left/Right. `walk.ts` (pure, tested): `walkDirection(left, right)` (both = stand),
@@ -243,8 +283,8 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   ground on both sides), `starsFor`. Pure and unit-tested (`levels.test.ts`).
 - `physics.ts`: the one shared tuning file (D-021): run speed 200, walk speed 220 (ramp 60 ms up / 80 ms down), gravity 1800, jump velocity 760 (peak 160 px = 2.5
   tiles, ~2.6 tiles carried at 200 px/s), max fall 1100, coyote 120 ms, jump buffer 150 ms, body 40x84. Fixed jump height.
-- `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, option,
-  onHome, onNext?, onPicker? }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
+- `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, option, look?,
+  onHome, onNext?, nextAvailable?, onResult?, onPicker? }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
   look (robot or ball, lively motion, see "Avatar looks" above). Camera follows by hand with a look-ahead (see "Walking");
   scenery ground extends past both level ends.
   Falls: whoosh, a cloud carries the player to the respawn spot. Flag: stop, the option's win chime, hop, confetti, `ResultScreen`.
@@ -266,9 +306,8 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 - `progression.ts`: `nextLevelId(worlds, id)` = the next level in the same world or null (tested). The universe passes
   `onNext` from it; Next keeps the chosen option.
 
-Robo World routing (`universes/robo/manifest.ts`, until the world map exists): see "Avatar options and picker" for the picker
-flow; `?level=<id>` any level, `?color=<id>` any option, `?demo=0|1`, `?lab=1` the Input Lab. Home goes to the Input Lab
-for now. The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1, grass-2, grass-3; then Cave, Sky, Castle,
+Robo World routing: see "Map and flow"; test params `?level=<id>`, `?color=<id>`, `?look=`, `?size=`, `?picker=1`,
+`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1, grass-2, grass-3; then Cave, Sky, Castle,
 empty), and so are the options (`universes/robo/options.ts`), so tests can read both without Phaser.
 
 Grass levels (re-paced in Task 005c, D-037: about 60% of their old length, same coin density):
@@ -318,8 +357,20 @@ a compressor on the master bus prevents clipping. `setMuted`, `setMasterVolume`,
 All sounds are generic synth recipes or per-option chimes; there are no voice clips (D-038). A future real sound is a file in the
 universe's assets plus a `register(id, { file, synth })` entry: the synth stays the fallback.
 
-## Storage
-Task 005d: only the chosen option id (`athi.<universe>.choice`, see above). Planned for Task 006 (D-036): per-universe `{ chosenCharacterId, levelStars: Record<levelId, 0..3>, settings }`. Progress is shared across characters within a universe. Parent settings: sound on/off, button size, unlock-all.
+## Storage (D-036, Task 006)
+`core/storage/progress.ts` (pure, tested): one record per universe, key `athi.<universe>.progress`:
+`{ version: 1, chosenCharacterId (a colour id or null), look (or null), levels: { [id]: { stars 0-3, bestCoins } }, settings }`
+(`settings` is reserved for the parent view: soundOn, buttonScale, unlockAll). `parseRecord` repairs bad fields and reports
+`empty`, `corrupt` or `unknown-version`; `mergeResult` keeps the best stars and coins (never lowers them).
+`core/storage/backends.ts`: `IndexedDbBackend` (database `athi-games`, store `kv`, every call with a 1.5 s timeout so a stuck
+private mode never hangs the game), `LocalStorageBackend`, `MemoryBackend`.
+`core/storage/store.ts` `ProgressStore.open(universeId, { backends?, legacyChoice? })`: reads the backends in order; the first
+one that works is the write target, and if it has no record the later ones are checked too (a visit with IndexedDB blocked
+saved to localStorage). A throwing backend is skipped silently; a failing write moves on to the next backend (memory last).
+Unknown version: play with a fresh record in memory and never write over the stored one. Migration: no choice in the record
+and the 005d key exists -> copied in (the old key stays). API: `record`, `level(id)`, `recordResult(id, { stars, coins })`
+(returns before/after), `setChosenCharacter`, `setLook`; writes are coalesced (250 ms) and flushed on `pagehide` and when the
+page is hidden; `flush()` never rejects. `?debug=1`: `window.__progress` (record, backend, status, flush, session).
 
 ## PWA / hosting
 - GitHub Pages project site, Vite `base: '/games/'`. No router needed yet (scene-based navigation); if URLs are added later, use hash routing since Pages has no SPA fallback.
@@ -327,6 +378,3 @@ Task 005d: only the chosen option id (`athi.<universe>.choice`, see above). Plan
 - Web app manifest: `display: fullscreen`, `orientation: landscape`, installable to the home screen.
 - Deploy via GitHub Actions on push to `main`.
 - Asset budget: keep each universe under about 15-20 MB.
-
-## Map and unlocking (later tasks)
-World map with winding path and level dots; locked levels behind clouds; `unlock.openAtATime` levels open at a time (Robo World: 3, D-037, so all three Grass levels are open from the start); stars gate each world's final level. Evolves to a walkable map later.

@@ -1,17 +1,17 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 005d done)_
+_Last updated: 2026-10-24 (Task 006 done)_
 
 ## Status
-The game is now "Robo World" (D-038): all franchise content (names, pictures, voice clips) is gone from the code, the bundle and
-the site; the files are archived locally in `_sources/archive-private/`. The first visit opens a picker with eight colour cards
-(red, orange, yellow, green, teal, blue, purple, pink), each a little robot with its own colour, size, antennae and chime; Play
-stores the choice and starts Grass 1, later visits go straight to Grass 1 (`?picker=1` shows the picker again, the palette button
-on the win screen too). Three playable levels (Grass 1 "Tap to hop", Grass 2 "Big Jump button", Grass 3 "Left and Right"), each
-with Next. The robot faces the player when standing and turns into a three-quarter view when moving. Jump plays only the generic
-jump sound; the flag plays the chosen option's win chime. `?color=<id>` picks an option directly, `?look=ball` shows a ball,
-`?lab=1` opens the Input Lab.
-Next: Task 006 (world map, stars, unlocking, storage; migrates the stored choice).
+"Robo World" (D-038) now opens on a world map (Task 006). The first visit shows the colour-card picker; Play opens the map.
+The map shows Grass 1-3 as dots on a winding path (all three open, `openAtATime` 3) with 3 star slots each, and three
+cloud-covered signposts for the worlds to come. Tap a dot (or Left/Right and Enter) to play; after a win the map fills in the
+new stars, clears the cloud over any newly opened level and the robot hops on to the next dot. Progress (stars, best coins, the
+colour choice and the look) is saved per universe in IndexedDB, else localStorage, else memory; the 005d choice key was
+migrated in. In a level a small home icon (top right) leaves to the map when held for 1 second. Palette buttons on the map and
+the win screen reopen the picker. New test knobs: `?size=` (0.8-1.6), `?unlock=all`, `?debug=1&open=N`. The green option now
+has a light rim on its accent parts and the green ball a light rim, so they read on the green hills.
+Next: Task 007 (Grass 4 "Shoot": Power button gameplay).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -25,8 +25,8 @@ Next: Task 006 (world map, stars, unlocking, storage; migrates the stored choice
 | 005b | Avatar looks (robot, ball; sprite and portrait later removed) | Done |
 | 005c | Robot three-quarter running view, remove sprite/portrait looks, re-pace Grass 1-2 | Done |
 | 005d | Generic "robo" universe, remove character voices, colour-card picker (D-038) | Done |
-| 006 | World map + stars + unlocking + per-universe progress storage | Next |
-| 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Planned |
+| 006 | World map + stars + unlocking + per-universe progress storage | Done |
+| 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Next |
 | 008 | Grass 5: move + jump gaps | Planned |
 | 009 | Minimal parent view (sound, button size, unlock-all) | Planned |
 | later | Cave/Sky/Castle worlds, polish | Later |
@@ -55,6 +55,12 @@ Next: Task 006 (world map, stars, unlocking, storage; migrates the stored choice
   chimes; picker scene (cards, keyboard, Play), stored choice, win-screen palette button. Bundle 1,895,904 -> 1,358,453 bytes
   (`dist/`), universe chunk 91,940 -> 101,868 bytes (picker code added, all media gone).
 
+- 2026-10-24: D-039 (architect review of 005d): all deviations approved; flow for the map settled.
+- 2026-10-24: Task 006: progress storage (IndexedDB -> localStorage -> memory, unknown-version safety, 005d choice migrated),
+  unlock rule, world map scene (dots, stars, clouds, teasers, hops, arrival animation, keyboard, drag scrolling), hold-to-exit
+  icon in levels, map and win-screen flow, `?size=` knob, light rim for green accents and the green ball. Universe chunk
+  101,868 -> 125,446 bytes; `dist/` 1,358,453 -> 1,382,446 bytes.
+
 ## In progress
 _(nothing)_
 
@@ -71,7 +77,8 @@ _(nothing)_
   symmetric). Rare and brief; noting it in case it is visible.
 - The take-off arm swing is quick (arms back to arms up in 140 ms, about 0.65 rad per frame at most) so the V shows early.
 - Avatar contrast on the green hills: every option now has dark joints (at least 3:1 against both hill colours, unit-tested) and the
-  body stays white; the green option's accent is still green on green. Check on the tablet (`_sources/review/005d/options-on-grass.png`).
+  body stays white; since Task 006 the green option's accent parts and the green ball get a thin light rim. Check on the tablet
+  (`_sources/review/006/contrast-robot-on-grass.png`, `contrast-ball-on-grass.png`).
 - Grass 3 tuning to confirm on the tablet: walk speed 220, ramp 60/80 ms, 4 coins left of the start, overhead coins 2.5 tiles up
   (need a standing jump), stars 10/16. All in `grass-3.json` / `core/levels/physics.ts`.
 - Facing flips on the first frame of a turn (D-029), so the character briefly slides about 10 px backwards (4 frames) while slowing.
@@ -95,7 +102,18 @@ _(nothing)_
 - Grass 1 tuning to confirm on the tablet (Task 005c): 85 tiles (about 25 s of running), 16 coins, two 1-tile gaps at 50 and 66, stars 7/12; run speed 200, jump peak 2.5 tiles. All in `grass-1.json` / `core/levels/physics.ts`.
 - Service worker uses a hand-written `src/sw.ts` (injectManifest) because workbox's generated SW breaks when the local path contains an apostrophe ("Athi's Game"). Fine on CI. Keep in mind if the PWA setup changes.
 - Not yet tested on a real phone/tablet (iOS Safari especially: fullscreen display, audio unlock, double-tap zoom).
-- Unlock rule: `openAtATime` is 3 (D-037), so all three Grass levels are open; the map (Task 006) applies it. Until then any level opens with `?level=` and Next goes 1 -> 2 -> 3 (checked).
+- Map (Task 006), to judge on the tablet: does he understand the dots and the stars without text? Is dragging the map needed
+  or confusing (it follows the robot by itself)? Is 1 s the right hold time for the exit icon, and is the icon too tempting?
+- Current dot (Task 006): the task says "the furthest open uncleared level"; the robot stands on the FIRST open level not yet
+  cleared (so a fresh start begins at Grass 1, not Grass 3). Easy to change in `core/map/unlock.ts` (`currentDot`).
+- The map is about 1885 px wide (3 dots + 3 teasers), so it scrolls a little even on wide screens; on narrow screens with
+  everything cleared Grass 1 is off to the left until the child drags back.
+- Teaser worlds are drawn as cave, sky and castle signposts (the task text says "pipe"; the world was renamed Cave in 005d).
+- The map's stepping stones and the teaser posts show faintly through the clouds (the theme cloud is slightly transparent).
+- Progress is per device and browser: clearing site data or a different browser starts fresh. iOS Safari private mode and the
+  tablet's storage could not be tested here (headless Chrome only).
+- `openAtATime` is 3 (D-037), so all three Grass levels are open from the start; with `?debug=1&open=1` or `open=2` the
+  unlocking can be seen.
 
 - Picker (Task 005d), to judge on the tablet: does he understand the cards without text? Is the default (first card, or the last
   choice) fine, or should a first launch have no selection until he taps? Dimming the other cards (0.24) may look like "disabled".
@@ -113,6 +131,15 @@ _(nothing)_
   `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 006 (tablet, https://ajayc07.github.io/games/):
+  - First visit: picker, then the map. Does he tap a dot by himself? Does he see that the robot walks to the dot?
+  - After a win (press the house button on the win screen): does he notice the stars filling in on the map? With
+    `?debug=1&open=1` (one level open at a time), does the cloud clearing over the next dot delight him?
+  - Does he get lost on the map (dragging it away, tapping the clouds or signposts)? Are the signposts' bumps fun or confusing?
+  - Hold-to-exit: can you (the parent) leave a level by holding the small house icon top right for a second? Does he leave by
+    accident? Does a quick tap on it ever do anything (it should only wobble)?
+  - Close the app and open it again: are the stars and the colour still there? Also in airplane mode?
+  - Try `?size=1.2` and `?size=1.4` in a level: is a bigger robot better for him?
 - After pushing Task 005d (rewriting the git history is a separate, later step; see docs/IDEAS.md):
   - Open https://ajayc07.github.io/games/?picker=1 on the tablet: does he tap a card without help? Does he find the green Play button?
   - Listen to all eight chimes (tap each card) and the win chime at the flag: pleasant, different, not too loud?
@@ -148,7 +175,7 @@ _(nothing)_
   - Does he hop? Does he understand that tapping does something (the pulsing finger icon disappears after the first hop)?
   - Is the speed right, too slow or too fast? (About 45 s to the flag.)
   - Any frustration at the two small gaps (a fall floats him back on a cloud)? Does he enjoy the cloud or find it confusing?
-  - Does he notice the coins and the stars at the end? Does he find Replay without help? (Home goes to the Input Lab for now.)
+  - Does he notice the coins and the stars at the end? Does he find Replay without help? (Home now goes to the map.)
   - Is the picture sharp on the tablet? Any sound missing on the first tap?
 - Input Lab (now at `?lab=1`): button size check with `?lab=1&buttonScale=1.3` or `0.8`; thumb slide Left to Right.
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task.

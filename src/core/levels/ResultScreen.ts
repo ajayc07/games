@@ -5,6 +5,7 @@
 import Phaser from 'phaser';
 import { audio } from '../audio/AudioManager';
 import type { Layout } from '../ui/layout';
+import { drawPalette } from '../ui/icons';
 
 const DEPTH = 2000;
 const STAR_R = 72;
@@ -228,17 +229,4 @@ function drawHouse(g: Phaser.GameObjects.Graphics, s: number): void {
   g.fillTriangle(-s * 1.05, -s * 0.05, 0, -s * 1.0, s * 1.05, -s * 0.05);
   g.fillRect(-s * 0.72, -s * 0.1, s * 1.44, s * 0.95);
   g.fillStyle(0x1e88e5, 1).fillRoundedRect(-s * 0.22, s * 0.25, s * 0.44, s * 0.6, { tl: s * 0.2, tr: s * 0.2, bl: 0, br: 0 });
-}
-
-/** Painter's palette with four colour dots: "choose your colour". */
-function drawPalette(g: Phaser.GameObjects.Graphics, s: number): void {
-  g.fillStyle(0xffffff, 1).fillEllipse(0, 0, s * 2.1, s * 1.75);
-  g.fillStyle(0x8e24aa, 1).fillCircle(s * 0.48, s * 0.42, s * 0.26); // thumb hole
-  const dots: Array<[number, number, number]> = [
-    [0xe53935, -s * 0.5, -s * 0.38],
-    [0xfdd835, s * 0.08, -s * 0.52],
-    [0x43a047, s * 0.6, -s * 0.18],
-    [0x1e88e5, -s * 0.52, s * 0.28],
-  ];
-  for (const [c, x, y] of dots) g.fillStyle(c, 1).fillCircle(x, y, s * 0.24);
 }

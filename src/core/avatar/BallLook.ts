@@ -17,7 +17,9 @@ export class BallLook implements AvatarLook {
   readonly name = 'ball' as const;
   readonly root: Phaser.GameObjects.Container;
   readonly ready = Promise.resolve();
-  readonly shadowScale = BALL.shadow;
+  readonly shadowScale: number;
+  /** Option scale x visual size factor (`?size=`). */
+  private readonly k: number;
   readonly avatar: ResolvedAvatar;
   private readonly parts: BallParts;
   private readonly body: Img;
@@ -34,8 +36,10 @@ export class BallLook implements AvatarLook {
   private winning = false;
   private muzzlePoint = { x: 0, y: 0 };
 
-  constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number) {
+  constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number, size = 1) {
     this.avatar = resolveAvatar(avatar);
+    this.k = this.avatar.scale * size;
+    this.shadowScale = BALL.shadow * size;
     this.parts = ballParts(scene, this.avatar.palette);
     const p = this.parts;
     this.body = partImage(scene, p.body);
@@ -70,7 +74,7 @@ export class BallLook implements AvatarLook {
     const dx = s.x - this.lastX;
     this.lastX = s.x;
     if (!s.riding && Math.abs(dx) <= MAX_ROLL_DX) this.roll += dx;
-    this.body.setPosition(0, -R).setRotation(rollAngle(this.roll, R * this.avatar.scale));
+    this.body.setPosition(0, -R).setRotation(rollAngle(this.roll, R * this.k));
     this.shade.setPosition(0, -R);
 
     // The face stays upright and slides toward where the ball is heading.
@@ -106,7 +110,7 @@ export class BallLook implements AvatarLook {
       this.mouth.setPosition(cx + this.look * 2, cy + BALL.mouthY).setScale(pulse / PART_RES);
     }
 
-    const S = this.avatar.scale;
+    const S = this.k;
     this.root.setPosition(s.x, s.y - s.lift);
     this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
     this.root.setRotation(0);
@@ -137,7 +141,7 @@ export class BallLook implements AvatarLook {
       rot: this.body.rotation,
       scaleX: this.root.scaleX * (this.look < 0 ? -1 : 1),
       scaleY: this.root.scaleY,
-      displayHeight: BALL.size * this.avatar.scale,
+      displayHeight: BALL.size * this.k,
       alpha: this.root.alpha,
       depth: this.root.depth,
       visible: this.root.visible,

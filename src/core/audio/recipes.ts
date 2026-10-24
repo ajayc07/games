@@ -60,6 +60,25 @@ export const DEFAULT_RECIPES = {
       { freq: 880, at: 0.14, dur: 0.3, type: 'sine', gain: 0.55 },
     ],
   },
+  // Locked dot or teaser on the map: a soft, low "boop-boop", never a scolding sound.
+  bump: {
+    tones: [
+      { freq: 330, dur: 0.09, type: 'sine', gain: 0.5 },
+      { freq: 294, at: 0.1, dur: 0.14, type: 'sine', gain: 0.45 },
+    ],
+  },
+  // A dot's cloud clears on the map: a quick sparkly rise.
+  unlock: {
+    tones: [
+      { freq: 784, dur: 0.1, type: 'triangle', gain: 0.6 },
+      { freq: 988, at: 0.08, dur: 0.1, type: 'triangle', gain: 0.6 },
+      { freq: 1319, at: 0.16, dur: 0.12, type: 'triangle', gain: 0.6 },
+      { freq: 1568, at: 0.24, dur: 0.32, type: 'sine', gain: 0.55 },
+      { freq: 2637, at: 0.26, dur: 0.22, type: 'sine', gain: 0.15 },
+    ],
+  },
+  // Short hop of the avatar along the map path.
+  hop: { tones: [{ freq: 520, to: 700, dur: 0.1, type: 'sine', gain: 0.35 }] },
   pick: {
     tones: [
       { freq: 660, dur: 0.08, type: 'sine' },

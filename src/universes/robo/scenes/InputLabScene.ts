@@ -12,10 +12,14 @@ import { createLook, lookFromUrl } from '../../../core/avatar/createLook';
 import { resolveAvatar } from '../../../core/avatar/config';
 import { energyBall, PART_RES } from '../../../core/avatar/parts';
 import { makeEffectTextures } from '../../../core/levels/placeholders';
-import { colorFromSearch, findOption } from '../../../core/avatar/options';
-import { loadChoice } from '../../../core/storage/choice';
+import type { AvatarOptionDef } from '../../../core/types';
+import type { LookName } from '../../../core/avatar/config';
 import { options } from '../options';
-import { UNIVERSE_ID } from '../universe';
+
+export interface InputLabData {
+  option?: AvatarOptionDef;
+  look?: LookName;
+}
 
 /** The control ladder (D-001), one config per mode. */
 const MODES: InputConfig[] = [
@@ -63,6 +67,12 @@ export class InputLabScene extends Phaser.Scene {
     super(InputLabScene.KEY);
   }
 
+  private labData: InputLabData = {};
+
+  init(data: InputLabData): void {
+    this.labData = data ?? {};
+  }
+
   create(): void {
     this.layout = getLayout();
     this.cameras.main.setBackgroundColor('#6ec6ff');
@@ -70,14 +80,13 @@ export class InputLabScene extends Phaser.Scene {
     this.ground = this.add.rectangle(0, 0, 10, GROUND_H, 0x4caf50).setOrigin(0, 0);
     this.groundTop = this.add.rectangle(0, 0, 10, 16, 0x388e3c).setOrigin(0, 0);
 
-    // The hero is the chosen option (`?color=`, else the stored choice) in the chosen look, moved by the same
-    // avatar code as the levels.
+    // The hero is the chosen option (`?color=`, else the saved choice; the universe passes it) in the chosen
+    // look, moved by the same avatar code as the levels.
     makeEffectTextures(this);
-    const color = colorFromSearch(location.search, options);
-    this.option = color.requested ? color.option : (findOption(options, loadChoice(UNIVERSE_ID)) ?? options[0]);
+    this.option = this.labData.option ?? options[0];
     this.heroX = this.layout.centerX;
     this.heroY = this.groundY();
-    const look = createLook(this, lookFromUrl(), this.option, this.heroX, this.heroY);
+    const look = createLook(this, this.labData.look ?? lookFromUrl(), this.option, this.heroX, this.heroY);
     this.hero = new AvatarDriver(this, {
       look,
       x: this.heroX,

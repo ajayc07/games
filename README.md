@@ -19,17 +19,20 @@ npm run icons      # regenerates placeholder icons in public/icons/
 
 ## Playing
 The first visit opens the picker: eight colour cards, each with its own little robot (colour, size, antennae and
-chime). Tap a card, then the green Play button (keys: arrows, then Enter/Space twice). The choice is remembered, so
-later visits go straight to Grass 1 ("Tap to hop": the robot runs by itself; any tap, click or key hops). The palette
-button on the win screen opens the picker again.
-- `?picker=1` shows the picker again; `?color=<id>` plays with that colour and skips the picker
+chime). Tap a card, then the green Play button (keys: arrows, then Enter/Space twice). Then the world map: tap a level
+dot (or Left/Right and Enter) to play it. Stars and opened levels are saved on the device (IndexedDB, else localStorage)
+and shown on the map; after a win the map fills in the stars and clears the cloud over a newly opened level. In a level,
+hold the small home icon (top right) for 1 second to go back to the map. The palette buttons on the map and the win
+screen open the picker again.
+- `?picker=1` shows the picker; `?color=<id>` plays with that colour for this visit only
   (red, orange, yellow, green, teal, blue, purple, pink).
-- `?level=<id>` opens any level (skips the picker; with `?picker=1` the picker comes first, then that level).
-- `?look=ball` shows a rolling ball instead of the robot.
-- `?debug=1` exposes `window.__level` for automated tests.
+- `?level=<id>` opens a level directly (skips the map and the picker).
+- `?look=ball` / `?look=robot` switches the look (remembered); `?size=1.3` makes the player bigger (0.8 to 1.6).
+- `?unlock=all` opens every level; with `?debug=1`, `?open=1` opens one level at a time (to see the unlock animation).
+- `?debug=1` exposes `window.__level`, `__map`, `__picker` and `__progress` for automated tests.
 
 ## Input Lab
-Open with `?lab=1` (or the Home button after a level): try the controls and sounds on a device.
+Open with `?lab=1`: try the controls and sounds on a device.
 - Mode icons (top right) or keys `1`-`4`: (1) tap anywhere = jump, (2) Jump only, (3) Left + Right + Jump, (4) all four.
 - Lights at the top show which actions are held; the small light turns green once audio is unlocked.
 - Keys: arrows/WASD move, Space/Up/W jump, X/Z/Shift power. Gamepads: d-pad/stick, A jump, X/B power.

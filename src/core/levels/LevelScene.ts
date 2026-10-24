@@ -12,7 +12,8 @@ import { extractEntities, findRespawn, mergeSolids, starsFor, type Cell, type Gr
 import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
 import { makeEffectTextures, makeThemeTextures, themeKey } from './placeholders';
-import { createLook, lookFromUrl } from '../avatar/createLook';
+import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
+import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
 import type { LookName } from '../avatar/config';
 import { ParallaxBackground } from './background';
@@ -28,10 +29,16 @@ export interface LevelSceneData {
   theme: LevelTheme;
   /** The chosen avatar option (colours, size, antennae, chimes). */
   option: AvatarOptionDef;
-  /** Leave the level (Home button). */
+  /** Leave the level (win screen Home, and the hold-to-exit icon). */
   onHome: () => void;
   /** Go to the next level in the world (Next button); omitted on a world's last level (D-025). */
   onNext?: () => void;
+  /** Asked when the win screen appears (after onResult): is Next allowed now (the next level open)? Default yes. */
+  nextAvailable?: () => boolean;
+  /** Called at the flag, before the win screen, so progress is kept even if the child quits right away. */
+  onResult?: (result: { stars: number; coins: number }) => void;
+  /** How the player is drawn; default `?look=` / robot. */
+  look?: LookName;
   /** Reopen the avatar picker (small icon on the win screen) until the map has its own button. */
   onPicker?: () => void;
 }
@@ -50,7 +57,7 @@ const COIN_SIZE = 40;
 const COIN_HIT_R = 18;
 /** Where the player sits on screen, as a fraction across the safe area (rest is look-ahead). */
 const CAMERA_ANCHOR = 0.36;
-const DEPTH = { ground: 0, coins: 10, flag: 5, ghost: 19, player: 20, fx: 30, hint: 40, hud: 900 };
+const DEPTH = { ground: 0, coins: 10, flag: 5, ghost: 19, player: 20, fx: 30, hint: 40, hud: 900, exit: 950 };
 const GHOST_ALPHA = 0.55;
 /** Each button gives a gentle "press me" pulse this often until its first press (ms); Left and Right take turns. */
 const INVITE_EVERY_MS = 2600;
@@ -99,6 +106,9 @@ export class LevelScene extends Phaser.Scene {
   private hint: Phaser.GameObjects.Container | null = null;
   private result: ResultScreen | null = null;
   private motionFx!: MotionFx;
+  private exitBtn!: HoldButton;
+  /** Visual size factor of the player (`?size=`). */
+  private size = 1;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private confetti!: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -167,15 +177,21 @@ export class LevelScene extends Phaser.Scene {
     this.buildGround();
     this.buildCoins();
     this.buildFlag();
-    this.lookName = lookFromUrl();
-    this.motionFx = new MotionFx(this, DEPTH.player - 1);
+    this.lookName = this.data0.look ?? lookFromUrl();
+    this.size = sizeFromUrl();
+    this.motionFx = new MotionFx(this, DEPTH.player - 1, this.size);
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
     this.buildHud();
+    // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
+    this.exitBtn = new HoldButton(this, () => this.afterStep(this.data0.onHome), DEPTH.exit);
+    this.exitBtn.setEnabled(false);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.exitBtn.destroy());
 
     // Buttons follow the level's controls from the start (the demo presses them), but input is only
     // read in play mode, so taps during the demo do nothing except skip it.
-    this.input2 = new InputManager(this);
+    // Touches on the exit icon never jump or move (also on tap-anywhere levels).
+    this.input2 = new InputManager(this, { ignorePointer: (x, y) => this.exitBtn.contains(x, y) });
     this.input2.configure({ enabled: this.level.controls.enabled, tapAnywhereJumps: this.level.controls.tapAnywhereJumps });
     this.touch = new TouchControls(this, this.input2, this.layout);
     this.input2.on(INPUT_EVENTS.MISS, this.onMissTap, this);
@@ -197,6 +213,7 @@ export class LevelScene extends Phaser.Scene {
     else if (this.mode === 'finish') this.updateFinish();
     this.player.updateAvatar(time, dt);
     this.ghost?.updateAvatar(time, dt);
+    this.exitBtn.update(time);
     this.demoCues?.update();
     this.updateCamera(dt);
     this.bg.update(this.camX, dt);
@@ -285,7 +302,7 @@ export class LevelScene extends Phaser.Scene {
     return new Player(this, {
       x,
       feet,
-      look: createLook(this, this.lookName, this.data0.option, x, feet),
+      look: createLook(this, this.lookName, this.data0.option, x, feet, this.size),
       gait: gaitFor(this.level.controls.autoRun),
       colliders: this.groundBodies,
       depth,
@@ -435,6 +452,7 @@ export class LevelScene extends Phaser.Scene {
   private startPlay(): void {
     this.mode = 'play';
     this.demoCues = null;
+    this.exitBtn.setEnabled(true);
     const controls = this.level.controls;
     if (controls.tapAnywhereJumps) {
       if (!LevelScene.hintDone) this.buildHint();
@@ -606,6 +624,7 @@ export class LevelScene extends Phaser.Scene {
 
   private reachFlag(): void {
     this.mode = 'finish';
+    this.exitBtn.setEnabled(false);
     this.player.halt();
     this.invite?.remove();
     this.invite = null;
@@ -629,6 +648,8 @@ export class LevelScene extends Phaser.Scene {
     this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
     this.tweens.add({ targets: this.flagCloth, angle: { from: -8, to: 8 }, duration: 160, yoyo: true, repeat: 3 });
     const stars = starsFor(true, this.coinCount, this.level.stars);
+    // Keep progress now, before the win screen, so quitting right after still saves it.
+    this.data0.onResult?.({ stars, coins: this.coinCount });
     this.time.delayedCall(1100, () => {
       // A joyful bounce on the spot while the stars fill, ending as the buttons appear.
       player.celebrate(this.time.now, ResultScreen.fillMs(stars));
@@ -636,7 +657,8 @@ export class LevelScene extends Phaser.Scene {
         onReplay: () => this.scene.restart(this.data0),
         // Leave after this frame: stopping the scene mid-update would break the rest of the frame.
         onHome: () => this.afterStep(this.data0.onHome),
-        onNext: this.data0.onNext && (() => this.afterStep(this.data0.onNext!)),
+        onNext:
+          this.data0.onNext && (this.data0.nextAvailable?.() ?? true) ? () => this.afterStep(this.data0.onNext!) : undefined,
         onPicker: this.data0.onPicker && (() => this.afterStep(this.data0.onPicker!)),
       });
     });
@@ -657,6 +679,7 @@ export class LevelScene extends Phaser.Scene {
     const y = Math.max(safe.y, ui.y) + 52;
     this.hud.icon.setPosition(x, y);
     this.hud.count.setPosition(x + 40, y + 2);
+    this.exitBtn.layout(l);
     this.result?.layout(l);
   }
 
@@ -691,6 +714,8 @@ export class LevelScene extends Phaser.Scene {
         facing: this.player.facing,
         invite: this.invite !== null,
         hasNext: !!this.data0.onNext,
+        exit: this.exitBtn.state,
+        size: this.size,
         option: this.data0.option.id,
         resultButtons: this.result?.buttons() ?? [],
         resultArmed: this.result?.isArmed ?? false,

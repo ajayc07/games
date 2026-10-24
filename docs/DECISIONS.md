@@ -213,3 +213,10 @@ character selection card, which is kept as a colour/size/antennae selection for 
 - Supersedes D-004 (cast), D-005 (real art/voices bundled), D-023 voices and D-031 voice mapping. D-001..D-003, D-006..D-022 otherwise stand.
 - The public git history still contains the removed Nintendo files until it is rewritten (see docs/IDEAS.md); that is a separate parent action.
 - Order: 005d (this), 006 map and progress, 007 Grass 4 Shoot, 008 Grass 5 move+jump, 009 parent view. The picker is now part of 005d.
+
+## D-039 (2026-10-24) Task 005d review outcomes
+Approved all deviations: per-file `git mv` (Windows lock), `?level=` skipping the picker (and `?picker=1` then playing that level), win-screen palette button replaying the same level, the `rest` avatar event (no animation numbers changed), teal with one antenna, removal of unused picture helpers, the picker key-repeat guard.
+Architect review of the sheets: all eight options read clearly on the cards, in the standing view and on the Grass theme; sizes (yellow small, purple big) show. Win screen and picker fit at 844x390. Still to be judged on the tablet: chimes by ear, cards without text, dimming.
+Flow once the map exists (Task 006): no saved choice -> picker, then Play opens the map; the map has a palette button that opens the picker and returns to the map; `?color=` is per visit and not saved; `chosenCharacterId` in the progress record holds a colour id and absorbs the 005d `athi.robo.choice` key (old key left in place).
+CLAUDE.md updated to describe Robo World instead of the Mario universe. Picker gamepad support: not needed for now (parked). Git-history rewrite stays a parent action after 005d is pushed (docs/IDEAS.md); the architect will give exact steps on request.
+Order unchanged: 006 map and progress, 007 Grass 4 Shoot, 008 Grass 5 move+jump, 009 parent view.

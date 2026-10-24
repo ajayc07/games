@@ -1,4 +1,6 @@
 # core/storage
 
-Per-universe progress and settings (localStorage/IndexedDB wrapper, Task 006). See docs/ARCHITECTURE.md.
-For now only `choice.ts`: the chosen avatar option in one localStorage key (`athi.<universe>.choice`), failure-tolerant.
+Per-universe progress record (D-036, Task 006): `progress.ts` (pure: record shape, parse/repair, best-value merge),
+`backends.ts` (IndexedDB, localStorage, memory), `store.ts` (`ProgressStore`: fallback chain, unknown-version safety,
+005d choice migration, coalesced writes flushed on page hide). `choice.ts` only reads the old 005d choice key.
+See docs/ARCHITECTURE.md, "Storage".

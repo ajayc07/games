@@ -1,9 +1,10 @@
 # Athi's Game
 
 A private, non-commercial browser game for a 3-year-old (turns 4 in Feb 2027). Goal: teach navigation
-buttons (left/right), jump and power buttons, and hand-eye coordination through a gentle Mario-style
-platformer. Mario is the default (and for now only) universe; other universes (Ben 10, Marvel, ...)
-will be added later as lazy-loaded modules.
+buttons (left/right), jump and power buttons, and hand-eye coordination through a gentle platformer.
+"Robo World" (`robo`) is the default (and for now only) universe: a generic, original, code-drawn world with a robot
+whose colour the child picks. No franchise names, pictures or sounds in the repo (D-038; a unit test scans for them).
+Other universes can be added later as lazy-loaded modules.
 
 Repo: https://github.com/ajayc07/games (public). Deployed to GitHub Pages at https://ajayc07.github.io/games/
 Local folder name is "Athi's Game"; the repo/site name is `games`.

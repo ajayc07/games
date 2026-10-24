@@ -3,7 +3,7 @@
 // texture manager by palette and part name, and reused by every avatar. Nothing is drawn per frame.
 import type Phaser from 'phaser';
 import { TEX_RES } from '../levels/placeholders';
-import type { AvatarPalette } from './config';
+import { needsHillRim, type AvatarPalette } from './config';
 import { BALL, ROBOT } from './robotSpec';
 
 export const PART_RES = TEX_RES;
@@ -31,6 +31,15 @@ export function tone(c: number, t: number): number {
 }
 
 const OUTLINE = 'rgba(28, 40, 52, 0.55)';
+/** Light rim around accent parts whose colour would blend into the green hills (Task 006). */
+const RIM = 'rgba(255, 255, 255, 0.85)';
+
+function rimStroke(ctx: CanvasRenderingContext2D, on: boolean, width = 1.1): void {
+  if (!on) return;
+  ctx.strokeStyle = RIM;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
 
 function canvasPart(
   scene: Phaser.Scene,
@@ -121,6 +130,7 @@ export interface RobotParts {
 export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts {
   const P = ROBOT.parts;
   const k = (name: string) => `av-robot-${name}-${pkey(pal)}`;
+  const rim = needsHillRim(pal.accent);
 
   // Head shell, visor and ear discs are separate so the three-quarter view can move them (Task 005c).
   // Origins at their centres.
@@ -152,6 +162,11 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     ctx.strokeStyle = hex(pal.accent);
     ctx.lineWidth = E.ring;
     ctx.stroke();
+    if (rim) {
+      ctx.beginPath();
+      ctx.arc(E.r, E.r, E.r - 0.6, 0, Math.PI * 2);
+      rimStroke(ctx, true, 1);
+    }
   });
 
   const glow = (ctx: CanvasRenderingContext2D) => {
@@ -191,6 +206,7 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     ctx.fillStyle = hex(pal.accent);
     ctx.fill();
     ctx.shadowBlur = 0;
+    rimStroke(ctx, rim, 1);
     ctx.beginPath();
     ctx.arc(aw / 2 - 1, A.tip - 1, A.tip * 0.35, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
@@ -269,6 +285,10 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
   const cannon = canvasPart(scene, k('cannon'), Cn.w, Cn.len, Cn.w / 2, 1, (ctx) => {
     roundRect(ctx, 0, 0, Cn.w, Cn.len, 3);
     fillStroke(ctx, shaded(ctx, pal.accent, 0, Cn.len), 1.4);
+    if (rim) {
+      roundRect(ctx, 1, 1, Cn.w - 2, Cn.len - 2, 2.4);
+      rimStroke(ctx, true, 0.9);
+    }
     roundRect(ctx, -0.5, Cn.len - 4, Cn.w + 1, 4, 2);
     fillStroke(ctx, hex(pal.joint), 1);
     ctx.beginPath();
@@ -322,6 +342,12 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     ctx.clip();
     ctx.fillStyle = hex(pal.accent);
     ctx.fillRect(B.w * 0.62, 0, B.w, B.h);
+    if (rim) {
+      ctx.beginPath();
+      ctx.moveTo(B.w * 0.62, 0);
+      ctx.lineTo(B.w * 0.62, B.h);
+      rimStroke(ctx, true, 1);
+    }
     ctx.restore();
     roundRect(ctx, -0.5, B.h - 2.5, B.w + 1, 2.5, 1.2);
     ctx.fillStyle = hex(pal.joint);
@@ -368,6 +394,12 @@ export function ballParts(scene: Phaser.Scene, pal: AvatarPalette): BallParts {
     ctx.fillStyle = hex(tone(pal.accent, 0.35));
     ctx.fill();
     ctx.restore();
+    // A soft light rim just inside the outline when the colour would blend into the hills (Task 006).
+    if (needsHillRim(pal.accent)) {
+      ctx.beginPath();
+      ctx.arc(R, R, R - 2.6, 0, Math.PI * 2);
+      rimStroke(ctx, true, 2);
+    }
   });
   // Fixed lighting on top of the rolling body: highlight top-left, shade bottom-right, outline.
   const shade = canvasPart(scene, 'av-ball-shade', D, D, R, R, (ctx) => {

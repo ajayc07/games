@@ -1,46 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { choiceKey, loadChoice, saveChoice, type KeyValueStore } from './choice';
+import { choiceKey, loadLegacyChoice, type KeyValueStore } from './choice';
 
-function memory(): KeyValueStore & { data: Map<string, string> } {
-  const data = new Map<string, string>();
-  return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) };
-}
+const memory = (entries: Record<string, string>): KeyValueStore => ({ getItem: (k) => entries[k] ?? null });
 const throwing: KeyValueStore = {
   getItem: () => {
     throw new Error('SecurityError');
   },
-  setItem: () => {
-    throw new Error('QuotaExceededError');
-  },
 };
 
-describe('stored avatar choice', () => {
-  it('round-trips one small key per universe', () => {
-    const s = memory();
-    expect(loadChoice('robo', s)).toBeNull();
-    expect(saveChoice('robo', 'blue', s)).toBe(true);
-    expect(loadChoice('robo', s)).toBe('blue');
-    expect([...s.data.keys()]).toEqual([choiceKey('robo')]);
-    expect(loadChoice('other', s)).toBeNull();
+describe('legacy avatar choice (005d key, read for the migration only)', () => {
+  it('reads the old key per universe', () => {
+    const s = memory({ [choiceKey('robo')]: 'blue' });
+    expect(choiceKey('robo')).toBe('athi.robo.choice');
+    expect(loadLegacyChoice('robo', s)).toBe('blue');
+    expect(loadLegacyChoice('other', s)).toBeNull();
   });
 
-  it('never throws when storage is blocked, full or missing', () => {
-    expect(loadChoice('robo', throwing)).toBeNull();
-    expect(saveChoice('robo', 'blue', throwing)).toBe(false);
-    expect(loadChoice('robo', null)).toBeNull();
-    expect(saveChoice('robo', 'blue', null)).toBe(false);
+  it('never throws when storage is blocked or missing', () => {
+    expect(loadLegacyChoice('robo', throwing)).toBeNull();
+    expect(loadLegacyChoice('robo', null)).toBeNull();
+    expect(() => loadLegacyChoice('robo')).not.toThrow();
   });
 
   it('ignores junk values', () => {
-    const s = memory();
-    s.data.set(choiceKey('robo'), '');
-    expect(loadChoice('robo', s)).toBeNull();
-    s.data.set(choiceKey('robo'), 'x'.repeat(500));
-    expect(loadChoice('robo', s)).toBeNull();
-  });
-
-  it('works without any localStorage at all (default store)', () => {
-    expect(() => loadChoice('robo')).not.toThrow();
-    expect(() => saveChoice('robo', 'red')).not.toThrow();
+    expect(loadLegacyChoice('robo', memory({ [choiceKey('robo')]: '' }))).toBeNull();
+    expect(loadLegacyChoice('robo', memory({ [choiceKey('robo')]: 'x'.repeat(500) }))).toBeNull();
   });
 });
