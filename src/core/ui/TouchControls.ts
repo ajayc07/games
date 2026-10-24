@@ -5,26 +5,22 @@ import type { Action } from '../types';
 import { INPUT_EVENTS, type InputConfig, type InputManager } from '../input/InputManager';
 import type { Layout } from './layout';
 import { readButtonScale } from './buttonScale';
+import { parsePrimary, pickButton, placeButtons, sizesFor, type ButtonPlacement, type Primary } from './buttonLayout';
 
 interface ButtonStyle {
   color: number;
   pressed: number;
   icon: number;
-  /** Diameter as a fraction of the screen short edge. */
-  size: number;
 }
 
+// Sizes and positions come from buttonLayout.ts (Task 009).
 const STYLES: Record<Action, ButtonStyle> = {
-  left: { color: 0xff8f00, pressed: 0xffc046, icon: 0xffffff, size: 0.18 },
-  right: { color: 0xff8f00, pressed: 0xffc046, icon: 0xffffff, size: 0.18 },
-  jump: { color: 0xe53935, pressed: 0xff6f60, icon: 0xffffff, size: 0.22 },
-  power: { color: 0x8e24aa, pressed: 0xc158dc, icon: 0xffeb3b, size: 0.18 },
+  left: { color: 0xff8f00, pressed: 0xffc046, icon: 0xffffff },
+  right: { color: 0xff8f00, pressed: 0xffc046, icon: 0xffffff },
+  jump: { color: 0xe53935, pressed: 0xff6f60, icon: 0xffffff },
+  power: { color: 0x8e24aa, pressed: 0xc158dc, icon: 0xffeb3b },
 };
 
-/** Jump diameter when it is the only button on screen (Grass 2): big and unmissable. Power uses it too when it
- * is the only right-hand button (Grass 4, no Jump): it then takes Jump's slot. */
-const SOLO_JUMP_SIZE = 0.28;
-const HIT_SLOP = 1.1; // hit area is 10% larger than the drawn circle
 const PRESSED_SCALE = 0.9;
 const DEPTH = 1000;
 
@@ -48,17 +44,17 @@ interface Button {
 export class TouchControls {
   private readonly buttons = new Map<Action, Button>();
   private readonly scale: number;
-  private solo = false;
-  /** Power without Jump: Power sits in Jump's bottom-right slot at the solo size (Task 007). */
-  private powerSlot = false;
+  /** Which right-hand button is the larger corner one when both are shown (`?buttons=`, Task 009). */
+  private readonly primary: Primary;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly input: InputManager,
     private readonly layout: Layout,
-    options: { buttonScale?: number } = {},
+    options: { buttonScale?: number; primary?: Primary } = {},
   ) {
     this.scale = options.buttonScale ?? readButtonScale();
+    this.primary = options.primary ?? parsePrimary(window.location.search);
     for (const action of ['left', 'right', 'jump', 'power'] as const) this.buttons.set(action, this.create(action));
 
     input.setHitTest((x, y) => this.hitTest(x, y));
@@ -69,30 +65,16 @@ export class TouchControls {
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
   }
 
-  /** Button under a point (game coordinates), using enlarged hit circles; nearest centre wins. */
+  /** Button under a point (game coordinates), using enlarged hit circles; nearest centre wins (buttonLayout.pickButton). */
   hitTest(x: number, y: number): Action | null {
-    // Left and Right share one band with no dead zone: a sliding thumb switches at the midpoint.
-    const l = this.buttons.get('left')!;
-    const r = this.buttons.get('right')!;
-    if (l.visible && r.visible) {
-      const reach = Math.max(l.radius, r.radius) * HIT_SLOP;
-      const inBand =
-        Math.abs(y - l.container.y) <= reach &&
-        x >= l.container.x - l.radius * HIT_SLOP &&
-        x <= r.container.x + r.radius * HIT_SLOP;
-      if (inBand) return x < (l.container.x + r.container.x) / 2 ? 'left' : 'right';
-    }
-    let best: Action | null = null;
-    let bestDist = Infinity;
-    for (const b of this.buttons.values()) {
-      if (!b.visible) continue;
-      const d = Math.hypot(x - b.container.x, y - b.container.y);
-      if (d <= b.radius * HIT_SLOP && d < bestDist) {
-        best = b.action;
-        bestDist = d;
-      }
-    }
-    return best;
+    return pickButton(this.shown(), x, y);
+  }
+
+  /** The visible buttons as placements (their current positions and radii). */
+  private shown(): ButtonPlacement[] {
+    return [...this.buttons.values()]
+      .filter((b) => b.visible)
+      .map((b) => ({ action: b.action, x: b.container.x, y: b.container.y, radius: b.radius }));
   }
 
   /** The visible button whose centre is closest to a point (game coordinates), or null if none is shown. */
@@ -155,50 +137,23 @@ export class TouchControls {
       b.visible = !config.tapAnywhereJumps && config.enabled.includes(b.action);
       b.container.setVisible(b.visible);
     }
-    const shown = [...this.buttons.values()].filter((b) => b.visible).map((b) => b.action);
-    const solo = shown.length === 1 && shown[0] === 'jump';
-    const powerSlot = shown.includes('power') && !shown.includes('jump');
-    if (solo !== this.solo || powerSlot !== this.powerSlot) {
-      this.solo = solo;
-      this.powerSlot = powerSlot;
-      this.position();
-    }
-    this.input.refreshPointers();
+    this.position();
   }
 
   private position(): void {
-    const short = this.layout.height; // landscape: height is the short edge
-    const size = (a: Action) =>
-      (a === 'jump' && this.solo) || (a === 'power' && this.powerSlot) ? SOLO_JUMP_SIZE : STYLES[a].size;
-    const r = (a: Action) => (size(a) * short * this.scale) / 2;
+    const shown = [...this.buttons.values()].filter((b) => b.visible).map((b) => b.action);
+    const placed = placeButtons({ shown, ui: this.layout.uiRect, short: this.layout.height, scale: this.scale, primary: this.primary });
+    // Hidden buttons keep a sensible size (they are not drawn).
+    const sizes = sizesFor(shown, this.primary);
     for (const b of this.buttons.values()) {
-      b.radius = r(b.action);
+      const p = placed.find((q) => q.action === b.action);
+      b.radius = p ? p.radius : ((sizes[b.action] ?? 0.2) * this.layout.height * this.scale) / 2;
       b.base.setRadius(b.radius);
       b.container.setSize(b.radius * 2, b.radius * 2);
+      if (p) b.container.setPosition(p.x, p.y);
       this.drawIcon(b);
     }
-    const margin = 28;
-    const gap = r('left') * 0.9; // generous gap so Left and Right are not confused
-
-    const left = this.layout.anchor('bottom-left', margin + r('left'), margin + r('left'));
-    this.at('left', left.x, left.y);
-    this.at('right', left.x + r('left') + gap + r('right'), left.y);
-
-    const jump = this.layout.anchor('bottom-right', margin + r('jump'), margin + r('jump'));
-    this.at('jump', jump.x, jump.y);
-    if (this.powerSlot) {
-      // No Jump in this level: Power takes Jump's bottom-right slot.
-      const p = this.layout.anchor('bottom-right', margin + r('power'), margin + r('power'));
-      this.at('power', p.x, p.y);
-    } else {
-      // Power sits above Jump, nudged left so a thumb on Jump does not cover it.
-      this.at('power', jump.x - r('jump') * 0.35, jump.y - r('jump') - gap - r('power'));
-    }
     this.input.refreshPointers();
-  }
-
-  private at(action: Action, x: number, y: number): void {
-    this.buttons.get(action)!.container.setPosition(x, y);
   }
 
   private render(): void {

@@ -1,15 +1,16 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 008 done)_
+_Last updated: 2026-10-25 (Task 009 done)_
 
 ## Status
-"Robo World" (D-038) has five Grass levels on the world map (Task 008). New: Grass 5 "Move and Jump", the first level that
-combines two controls he knows: walk with Left/Right and press Jump to cross gaps (1, 1, 2, 1, 2, 2 tiles, always 8 or more tiles
-of ground between them). He can walk to an edge, stop and press Jump when ready, or jump while walking; a coin arc shows where to
-jump. Falling still floats him back on the cloud, now to the side he came from (a fall while walking left no longer carries him
-across the gap). Buttons are the same as Grass 3 (Left, Right, Jump). Grass 4 "Shoot" (Task 007) and the rest are unchanged. On
-a fresh start Grass 4 and 5 are under clouds; Grass 4 opens after one level is cleared and Grass 5 after two.
-Next: Task 009 (Grass 6 "Everything": Left, Right, Jump and Power together, D-043).
+"Robo World" (D-038) has six Grass levels on the world map (Task 009), which completes the control ladder. New: Grass 6
+"Everything", where Left, Right, Jump and Power are all on screen at once. Jump and Power sit side by side bottom-right (Jump in
+the corner and larger by default; `?buttons=power` swaps them) so one thumb reaches both. The level has five gaps (1, 2, 1, 2, 2
+tiles, 7 or more tiles of ground between), 13 small bubbles, one big bubble blocking the path at 60%, and 3 high bonus bubbles
+(4 coins each) that can only be popped by shooting from the air near the top of a jump. 78 coins, stars 38/62 (the high bubbles
+are never needed for 3 stars). A 10 s demo shows Power and Jump presses. On a fresh start Grass 4-6 are under clouds and each
+clear opens the next one (Grass 6 after three clears). Grass 1-5 are unchanged (their button layouts are tested to be identical).
+Next: Task 010 (parent view: sound, button size, unlock-all, reset; it may expose `?buttons=`).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -26,8 +27,8 @@ Next: Task 009 (Grass 6 "Everything": Left, Right, Jump and Power together, D-04
 | 006 | World map + stars + unlocking + per-universe progress storage | Done |
 | 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Done |
 | 008 | Grass 5 "Move and Jump": walking over gaps (D-043) | Done |
-| 009 | Grass 6 "Everything": Left, Right, Jump and Power together (D-043) | Next |
-| 010 | Minimal parent view (sound, button size, unlock-all, reset progress) | Planned |
+| 009 | Grass 6 "Everything": Left, Right, Jump and Power together (D-043) | Done |
+| 010 | Minimal parent view (sound, button size, unlock-all, reset progress) | Next |
 | later | Cave/Sky/Castle worlds, polish | Later |
 
 ## Done
@@ -70,10 +71,33 @@ Next: Task 009 (Grass 6 "Everything": Left, Right, Jump and Power together, D-04
   (a fall while walking left puts him back on the right side of the gap), five-dot map, tests (gaps, safe stretches, crossing margins,
   coins, stars, respawn direction, map with 3/4/5 levels). Universe chunk and `dist/` sizes in the task file.
 
+- 2026-10-24: D-045 (architect): Task 008 review and the Grass 6 pacing rules (7 tiles between gaps, fewer gaps).
+- 2026-10-25: Task 009: four-button layout (pure `core/ui/buttonLayout.ts`: sizes, spacing, nearest-button pick, `?buttons=`,
+  TouchControls uses it), `grass-6.json` (80 tiles, five gaps, 13 small + 3 high + 1 big bubbles, 78 coins, stars 38/62, 10 s demo),
+  high bubbles (`h`, 4 coins, raised a quarter tile), Jump/Power taking turns in the invite pulses, six-dot map, tests (layout at the five
+  sizes in both orders, nearest-button rule, Grass 6 rules and high-bubble reach). Universe chunk 141,162 -> 143,677 bytes;
+  `dist/` 1,398,527 -> 1,401,042 bytes.
+
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Grass 6 (Task 009), to judge on the tablet: can he reach both right-hand buttons? Which layout is better, `?buttons=jump` (Jump in
+  the corner, default) or `?buttons=power`? Does he shoot in the air, and are the high bubbles fun or frustrating? Does he get
+  overwhelmed by four buttons? Is the level too long (80 tiles)? Numbers in `buttonLayout.ts` (`BUTTON_SIZE`, `RIGHT_GAP`, `ARC_LIFT`),
+  `grass-6.json`, `bubbles.ts` (`BUBBLE.highRise`).
+- Grass 6 length (Task 009): the right-leaning mashing bot (Right 2.5/s, Jump 1.5/s, Power 1.5/s, Left 0.5/s, presses held 150-500 ms)
+  finished 5 of 5 runs, median 126 s (96-161 s), 7-18 falls (Grass 5: median 131 s, 10-23 falls). So the "clearly below 131 s" target is
+  NOT met: the 7-tile stretches and one gap fewer save about 4%, the extra 5 tiles and the bubbles cost it back. An unbiased bot
+  (all four buttons 1.5/s) is a random walk and reached only x 937 of 5120 in 120 s. A child who walks on purpose needs about 22 s
+  of walking plus the jumps. Levers if the tablet shows it is too long: shorten the 20-tile middle stretch (the big bubble stretch)
+  or drop a gap; each fall costs a masher about 5 s.
+- Sliding a thumb from Right to Jump (Jump in the corner) crosses Power on the way: one harmless shot fires, then Jump takes over.
+  Moving Power to the far side would avoid this but takes it away from the thumb; with `?buttons=power` the same happens the other way.
+- Bottom-row bubbles near the right or left screen edge can sit behind the buttons (far from the robot), and with the wider
+  four-button cluster a bit more of the right-hand side is covered. The first bubbles ahead of the start are clear of the buttons.
+- Frame rate (Task 009, headless Chrome, 844x390): blank page 51.8 fps today (60.2 in Task 007), map 58.4, Grass 6 while mashing all
+  four buttons about 20 times a second for 10 s: average 58.0, lowest 53.8, no console errors.
 - Grass 5 (Task 008), to judge on the tablet: does he walk to the edge and stop, or press Jump while walking? Does he understand the
   coin arcs? Are the 2-tile gaps frustrating? Does the cloud float-back confuse him (he is put back 2.5-3 tiles from the gap he fell into)?
   All in `grass-5.json` and `core/levels/physics.ts`.
@@ -168,6 +192,13 @@ _(nothing)_
   `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 009 (tablet, https://ajayc07.github.io/games/, or `?level=grass-6`; `?demo=1` replays the demo; `?buttons=power`
+  swaps the two right-hand buttons):
+  - Grass 6 opens after three levels are cleared (or `?unlock=all`). Does the cloud over the sixth dot clear?
+  - Can his thumb reach both Jump and Power? Try `?level=grass-6` and `?level=grass-6&buttons=power`: which one is more comfortable?
+  - Does he press Power while in the air (the three high bubbles need that)? Are they fun or frustrating? Remember they are bonus.
+  - Does he get overwhelmed by four buttons, or does he keep to the ones he likes? Do the pulses on Jump and Power (they take turns) help?
+  - Is the level too long (about 80 tiles) or too short? Does the big bubble in the middle still work as a pause?
 - After pushing Task 008 (tablet, https://ajayc07.github.io/games/, or `?level=grass-5`; `?demo=1` replays the demo):
   - Grass 5 opens after two levels are cleared (or `?unlock=all`). Does the cloud over the fifth dot clear when he finishes his second level?
   - Does he walk to a gap edge and stop, or press Jump while walking? Both work.

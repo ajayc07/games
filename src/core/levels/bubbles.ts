@@ -7,7 +7,7 @@ export type BubbleKind = BubbleCell['kind'];
 
 export const BUBBLE = {
   /** Picture radius as a fraction of the tile: small = about 1 tile across, big = 2 tiles wide and tall. */
-  radius: { small: 0.47, big: 1 },
+  radius: { small: 0.47, big: 1, high: 0.47 },
   /**
    * A small bubble floats this many tiles below its cell centre (on the cell's bottom edge), but never lower
    * than resting on the ground. The shot leaves the muzzle 26-78 px above the feet (look, colour and ?size=),
@@ -15,11 +15,18 @@ export const BUBBLE = {
    * above it 64 px. Centred in its cell the upper one would sit at 96 px, out of reach for the ball and small robots.
    */
   smallDrop: 0.5,
-  coins: { small: 3, big: 6 },
+  /**
+   * A high bubble (`h`, Task 009) floats this many tiles ABOVE its cell centre. In the row 2.5 tiles over the ground that puts its
+   * centre 176 px up. A shot from the top of a jump leaves 177-205 px up (both looks, every option, size 1) and a standing shot
+   * 32-50 px up; with the hit circle (39 + 14 px) the bubble is reached from the top half of a jump and never from standing, even
+   * for the biggest option at the peak with the bubble's bob (at exactly 160 px the purple robot was 1 px from missing).
+   */
+  highRise: 0.25,
+  coins: { small: 3, big: 6, high: 4 },
   /** Hit circle = picture radius x this (generous). */
   hitScale: 1.3,
   /** Gentle bob: a few px, slow, each bubble with its own phase. The big one bobs less (it sits on the ground). */
-  bobPx: { small: 4, big: 2 },
+  bobPx: { small: 4, big: 2, high: 4 },
   bobMs: 2200,
   /** Pop: scale up and fade (ms). */
   popMs: 220,
@@ -65,6 +72,7 @@ export function bubbleSpecs(
     const size = c.kind === 'big' ? 2 : 1;
     const r = BUBBLE.radius[c.kind] * tile;
     let y = gridTop + (c.row + size / 2) * tile;
+    if (c.kind === 'high') y -= BUBBLE.highRise * tile;
     if (c.kind === 'small') {
       y += BUBBLE.smallDrop * tile;
       let ground = c.row + 1;

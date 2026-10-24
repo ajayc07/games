@@ -517,7 +517,10 @@ export class LevelScene extends Phaser.Scene {
     return c.tapAnywhereJumps ? [] : [...c.enabled];
   }
 
-  /** "Press me" pulses for buttons not yet pressed: Jump and Power each time, Left and Right taking turns. */
+  /**
+   * "Press me" pulses for buttons not yet pressed. One hand at a time: Left and Right take turns, and Jump and Power
+   * take turns (Task 009), so at most two buttons pulse together (one per hand), never all four.
+   */
   private inviteButtons(): void {
     const waiting = this.buttonActions().filter((a) => !this.pressedOnce.has(a));
     if (waiting.length === 0) {
@@ -526,9 +529,10 @@ export class LevelScene extends Phaser.Scene {
       return;
     }
     const moves = waiting.filter((a) => a === 'left' || a === 'right');
-    if (moves.length > 0) this.touch.pulse(moves[this.inviteTick++ % moves.length], 'invite');
-    if (waiting.includes('jump')) this.touch.pulse('jump', 'invite');
-    if (waiting.includes('power')) this.touch.pulse('power', 'invite');
+    const acts = waiting.filter((a) => a === 'jump' || a === 'power');
+    if (moves.length > 0) this.touch.pulse(moves[this.inviteTick % moves.length], 'invite');
+    if (acts.length > 0) this.touch.pulse(acts[this.inviteTick % acts.length], 'invite');
+    this.inviteTick++;
   }
 
   /** A tap that hit no button: the nearest button gives one friendly pulse ("press me"). Never a move or jump. */

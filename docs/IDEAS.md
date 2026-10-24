@@ -30,3 +30,11 @@ Question raised: how far is this from something sellable? Answer for now: the en
 
 ## 2026-10-24: Replay variety (D-044)
 He got bored replaying the same level. Ideas, simplest first: (1) on replay, shuffle bubble and coin positions inside safe zones (seeded per play) so each run differs; (2) a free-play level with endless bubbles to pop and no flag; (3) more bubble types (bigger, smaller, different coin counts, a rare rainbow bubble); (4) a daily/random "surprise" dot on the map. Build only after Task 009 and with the parent's say-so.
+
+## 2026-10-24: Unique traits per colour option (parent's idea, parked)
+Today the eight colour options differ only in colour, small size (0.92-1.12), antenna count (1 or 2) and chimes; physics, hit boxes and abilities are identical (D-038). Possible cosmetic-only extras, to design after the current plan (Tasks 009 and 010) is done and with the parent's say-so:
+- A different shot shape per colour (star, heart, ring, drop) in the option's accent colour.
+- A different pop sparkle or coin burst per colour when a bubble pops.
+- A small unique win dance or antenna wiggle per colour.
+- A trail or dust colour per colour while running.
+Rule: nothing may change gameplay, fairness or hit boxes (levels stay identical for every option), and every extra must work with both looks (robot and ball) and be unit-tested like the existing option data.

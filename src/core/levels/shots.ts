@@ -18,6 +18,17 @@ export const SHOT = {
   bufferMs: 300,
 } as const;
 
+/**
+ * Where a shot leaves the avatar, as a height above the ground (px), measured in the browser at size 1 for both looks and all
+ * eight options (Task 009, `?level=grass-6`): standing, and when pressing Power at the top of a jump (peak 160 px; the
+ * measurement was taken a few frames before the peak at 154 px, so the upper bound is the measured 205 plus the missing 6).
+ * Bubbles are placed from these numbers (`BUBBLE.smallDrop`, `BUBBLE.highRise`) and a test checks the reach.
+ */
+export const SHOT_HEIGHT = {
+  standing: { min: 32, max: 50 },
+  jumpPeak: { min: 177, max: 211 },
+} as const;
+
 export type ShotTuning = { readonly [K in keyof typeof SHOT]: number };
 
 export type ShotPhase = 'pending' | 'flying' | 'spent';

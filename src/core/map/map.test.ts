@@ -117,8 +117,8 @@ describe('map layout', () => {
     expect(clampScroll(-50, g.width, narrow)).toBe(0);
   });
 
-  it('every dot is fully on screen when it is the focus, at all test sizes, with 3, 4 or 5 levels (Task 008)', () => {
-    for (const levels of [3, 4, 5]) {
+  it('every dot is fully on screen when it is the focus, at all test sizes, with 3 to 6 levels (Tasks 008, 009)', () => {
+    for (const levels of [3, 4, 5, 6]) {
       const g = mapGeometry(levels, 3);
       for (const [w, h] of [
         [844, 390],
@@ -137,9 +137,9 @@ describe('map layout', () => {
     }
   });
 
-  it('scrolled to the far end, the last dot, the teasers and the map end are reachable (five levels)', () => {
-    const g = mapGeometry(5, 3);
-    expect(g.width).toBe(2485);
+  it('scrolled to the far end, the last dot, the teasers and the map end are reachable (five and six levels)', () => {
+    expect(mapGeometry(6, 3).width).toBe(2785);
+    const g = mapGeometry(6, 3);
     for (const sw of [960, 1152, 1558, 1728, 1920]) {
       const end = clampScroll(99999, g.width, sw);
       for (const t of g.teasers) {

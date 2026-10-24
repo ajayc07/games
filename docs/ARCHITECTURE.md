@@ -184,7 +184,7 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
   and only with `?debug=1` an `?open=N` override of `openAtATime` (to see the unlock animation with Grass 1-3).
 - **MapScene** (`core/map/`, generic; data `{ theme, dots, teasers, option, look, arrival?, onPlay, onPicker }`): one world as a
   horizontal map (`mapLayout.ts`, pure, tested): dots 300 px apart on a wavy line (y 320-440), three teaser signposts after the
-  last dot; with five Grass levels the map is 2485 px wide (scrolls on every screen, the avatar's dot stays in view; tested
+  last dot; with six Grass levels the map is 2785 px wide (scrolls on every screen, the avatar's dot stays in view; tested
   with 3, 4 and 5 levels at all five screen sizes). A map narrower than the screen is centred; a wider one scrolls (drag with a finger, 14 px
   threshold so taps stay taps) and eases to keep the avatar at 42% of the screen. Sky, clouds and hills reuse
   `ParallaxBackground` and the theme textures; the path is a sandy spline, then stepping stones toward the teasers. Each dot is
@@ -224,9 +224,10 @@ Stride, lean and blends from Task 004b follow the real speed, so standing has no
 look-ahead only turns round after moving the other way for 350 ms, and the anchor eases slowly, so quick back-and-forth does not swing
 the view. A hard clamp keeps the player between 15% and 85% of the safe area.
 
-**Buttons:** Left and Right bottom-left (shared band split at the midpoint), Jump bottom-right. Until a button's first press it gets a
-gentle `invite` pulse every 2.6 s (Jump and Power each time, Left and Right taking turns). A tap on no button gives a `nudge` pulse to the
-nearest visible button (`TouchControls.nearest`); it never moves or jumps.
+**Buttons:** Left and Right bottom-left (shared band split at the midpoint), Jump and/or Power bottom-right (see "Input", the
+four-button layout of Task 009). Until a button's first press it gets a gentle `invite` pulse every 2.6 s: one hand at a time, Left and
+Right taking turns and Jump and Power taking turns, so at most two buttons pulse together and never all four. A tap on no button
+gives a `nudge` pulse to the nearest visible button (`TouchControls.nearest`); it never moves or jumps.
 
 ## Levels (data-driven)
 Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `index.ts` with `import.meta.glob`
@@ -246,7 +247,8 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 }
 ```
 - `grid`: equal-length rows, top row first. Legend: `#` ground, `.` empty, `c` coin, `S` start, `F` flag (pole stands in
-  that cell), `o` small bubble, `O` big bubble (a whole 2x2 block of `O`; a broken block is an error naming its first cell).
+  that cell), `o` small bubble, `O` big bubble (a whole 2x2 block of `O`; a broken block is an error naming its first cell),
+  `h` high bubble (Task 009: the small picture, 4 coins, centred in its cell and raised a quarter tile, never solid).
   Gaps are missing ground. Bubbles are not ground. New tile kinds get new legend entries in `core/levels/format.ts`.
 - **Vertical placement:** the grid's bottom row sits on the bottom of the 720-high screen; rows above the top of the grid
   are sky. Grass 1 uses 11 rows of 64 (704 px), so the top 16 px are sky. Grids taller than 720 extend above the screen.
@@ -342,13 +344,20 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   runs every frame in every mode, so shots in flight finish their path; Power is read only in play; pops count in play and during
   the cloud ride. At the flag every coin still flying lands (`flushCoins`) before the stars are worked out. Coins from bubbles count
   for stars and `bestCoins` like grid coins (`totalCoins` = grid coins + bubble coins).
+- **High bubbles** (`h`, Task 009): a small bubble worth 4 coins that is only reachable by shooting from the air. It floats
+  `BUBBLE.highRise` (a quarter tile) above its cell centre; in the row 2.5 tiles over the ground its centre is 176 px up. Shot
+  heights, measured in the browser at size 1 for both looks and all eight options (`SHOT_HEIGHT` in `shots.ts`): leaving the
+  muzzle standing 32-49 px up; pressing Power at the top of a jump 177-205 px up (211 at the true peak). With the hit circle
+  (bubble 30 x 1.3 = 39 px, shot 14 px, bob 4 px) the bubble is hit by a shot fired from the top half of a jump and never by a
+  standing shot, even at `?size=1.6` (78 px). A bubble 160 px up was 1 px from missing for the biggest option at the peak, hence
+  the raise. The unit test and the bot (`?level=grass-6`, 16 option/look combinations) both check this.
 - **Power button**: `TouchControls` shows Power only when enabled. Without Jump it takes Jump's bottom-right slot at the solo size
-  (0.28 of the screen height), purple with a yellow star; with Jump it sits above it as before (Input Lab mode 4).
+  (0.28 of the screen height), purple with a yellow star; with Jump see "Input" (four-button layout).
 - `?debug=1`: `__level.state()` adds `shots` (`inFlight`, `fired`, `visible`, `flying`), `ghostShots`, `bubbles` (kind, x, y, r,
   popped, coins), `pops`, `coinsFlying`, `gridCoins`, `muzzle`; `__lab.shots()`.
 
 Robo World routing: see "Map and flow"; test params `?level=<id>`, `?color=<id>`, `?look=`, `?size=`, `?picker=1`,
-`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1 .. grass-5; then Cave, Sky,
+`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1 .. grass-6; then Cave, Sky,
 Castle, empty), and so are the options (`universes/robo/options.ts`), so tests can read both without Phaser.
 
 Grass levels (re-paced in Task 005c, D-037: about 60% of their old length, same coin density):
@@ -366,6 +375,17 @@ Grass 4 "Shoot" (Task 007): 80 tiles, flat, no gaps, Left/Right/Power (no Jump),
 and one big bubble at columns 48-49 (60%), flag at column 74: 39 coins, stars 22/34 (3 stars need 10 of the 11 small bubbles and the
 big one; the big one alone gives 1 star). Demo script (about 7 s): right 0.5 s, Power, right 0.9 s, Power, left 0.9 s, Power (the
 bubble behind the start), right 0.3 s.
+Grass 6 "Everything" (Task 009): 80 tiles, walking, all four buttons, start at column 6, flag at column 76. Five gaps of 1, 2,
+1, 2, 2 tiles at columns 20, 28-29, 37, 58-59, 67-68 with 7 or more tiles of ground between (and after the last), an opening stretch of
+14 tiles with no gap (1 small bubble behind the start, 3 ahead, 3 coins to the left). 13 small bubbles (3 coins each, the low ones
+resting on the ground and the upper ones 1 tile up, as in Grass 4), 3 high bubbles (4 coins each, columns 25, 33, 54, over safe
+ground 3+ tiles from any gap), one big bubble at columns 48-49 (60%, 10 and 8 tiles from the nearest gaps; never within 3). Coins:
+18 in gap arcs (a coin before each gap, one or two above it, one after: 3 columns after a 1-tile gap, 1 after a 2-tile gap), 3 left of
+the start, 39 + 12 + 6 from bubbles = 78 in all. Stars 38 (about half) and 62 (about 80%); three stars never need the high bubbles
+(66 coins without them), a run that skips every small bubble and the high ones gets 24 coins = 1 star. Popped bubbles stay popped
+after a float-back (the bubble field does not depend on the player). Demo script (about 9 s plus the 0.6 s tail and the "your turn"
+cue, 10 s in all): right, Power (pops the first bubble), right to the edge with a Power on the way, Jump over the first gap, Power,
+right, Power.
 Grass 5 "Move and Jump" (Task 008): 75 tiles, walking, Left/Right/Jump laid out exactly as in Grass 3, no Power, no bubbles, start
 at column 6, flag at column 71. Six gaps of 1, 1, 2, 1, 2, 2 tiles at columns 14, 23, 32-33, 42, 51-52, 61-62, always 8 or more tiles
 of ground between them (6 is the tested minimum), 14 tiles of ground before the first gap. 28 coins: 4 to
@@ -402,12 +422,37 @@ camera bounds/`startFollow` assume a centred origin, so scenes scroll the camera
 (one frame), `press`/`release` events and `onPress` with timestamps. The pure state logic is `core/input/actionState.ts`
 (unit-tested): every device input is a "source"; the merged state is derived after tap-anywhere mapping and enabled filtering.
 `core/ui/TouchControls` draws the buttons, shows only enabled actions (none in tap-anywhere mode) and provides the hit test.
-When Jump is the only button it is drawn larger (0.28 of the short edge instead of 0.22). `pulse(action, 'invite'|'nudge')`
+Where the buttons go and which one a touch hits is decided by the pure, tested `core/ui/buttonLayout.ts` (`placeButtons`,
+`pickButton`). `pulse(action, 'invite'|'nudge')`
 swells the button face and spreads a ring (ignored while one is running, so mashing is harmless); `animatePress` shows a
 press without input (the demo). InputManager emits `miss` for a touch that starts on no button (not in tap-anywhere mode):
 LevelScene answers with a `nudge` pulse, and gives an `invite` pulse every 2.6 s until the first Jump press;
 pointers are re-tested on every move, and Left/Right split their shared band at the midpoint so a sliding thumb never hits a gap.
 Size comes from the short edge times `buttonScale` (`?buttonScale=` for now). Blur, visibility change and pointer cancel release everything.
+
+### Button layout (Task 009)
+Diameters are fractions of the short edge (720 logical px; physical px = x screen height / 720). `buttonLayout.ts` (`BUTTON_SIZE`):
+
+| Situation | Left, Right | Jump | Power |
+|-----------|-------------|------|-------|
+| Grass 1-2 (Jump only) | - | 0.28 (solo) | - |
+| Grass 3, 5 (Left, Right, Jump) | 0.18 | 0.22 | - |
+| Grass 4 (Left, Right, Power) | 0.18 | - | 0.28 (solo, in Jump's corner) |
+| Grass 6 (all four), `?buttons=jump` (default) | 0.18 | 0.26 (corner) | 0.22 |
+| Grass 6, `?buttons=power` | 0.18 | 0.22 | 0.26 (corner) |
+
+At 844x390 the right-hand buttons are 86-102 px across physically and Left and Right 70 px. Rules: Left and Right are bottom-left, side by side with a gap of 0.9 of their
+radius, margin 28 px inside the device insets; the right-hand buttons are bottom-right inside the insets. With both Jump and Power,
+the primary sits in the corner and the other beside it, 48 logical px between their edges (at least 26 physical px at 844x390; 34-67
+at the other sizes) and lifted by 0.3 of its radius, a gentle arc, so one thumb reaches both. Each right-hand button is at least
+0.20 of the short edge. Their enlarged hit circles (x1.1) never overlap, so no touch is ambiguous (`hitCirclesOverlap`, tested),
+and `pickButton` gives a touch to the nearest button whose enlarged circle holds it; Left and Right keep their shared band with no
+dead zone. If a big `?buttonScale` would make the left and right clusters meet, the scale is reduced to fit (at 960 wide that starts
+at about 1.2 with four buttons). `?buttons=jump|power` (`parsePrimary`, default jump) picks which right-hand button is the larger
+corner one; which is better is a tablet question (the parent view of Task 010 may expose it). Quirk: with Jump in the corner,
+Power sits between the left cluster and Jump, so a thumb sliding from Right to Jump crosses Power (one harmless shot) and back;
+every button is released as the thumb leaves it, never two at once, nothing stays down (touch tests, CDP touch events).
+The layouts of Grass 1-5 are exactly as before (tested). The Input Lab's mode 4 (all four) uses the new layout.
 
 ## Audio
 `core/audio/AudioManager` (`audio` singleton) unlocks Web Audio on the first touch/click/key. `register(id, { file?, synth?, volume? })`,

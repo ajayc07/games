@@ -1,7 +1,7 @@
 # Architect handoff (for a new Claude Desktop session)
 
 Read this first if you are a new Claude Desktop session taking over as the **architect** of Athi's Game.
-Last updated: 2026-10-24 (after the 007 review).
+Last updated: 2026-10-24 (after the 008 review).
 
 ## Roles and workflow
 - **You (Claude Desktop) = architect.** You plan, write task files, review summaries and review screenshots. You do not write the game code.
@@ -28,7 +28,7 @@ A gentle platformer that teaches navigation buttons (Left/Right), Jump and Power
 ## Where things stand (check docs/PROGRESS.md for the truth)
 - Done and accepted: 001 to 007 (setup, input/audio, level engine, Grass 1-4, lively motion, avatar rig, robot view, robo universe + picker, map + progress, shooting).
 - Tablet findings (D-037): Athiran liked the robot best, loves its shooting, got bored with auto-run/tap-to-jump (Grass 1/2), liked Grass 3 (walking). Robot looked like it ran backwards: fixed in 005c (parent should confirm on tablet).
-- 005d (D-039), 006 map + progress (D-040) and 007 Grass 4 Shoot (D-041, D-042) are done and reviewed. Tablet session with Grass 4 still to come. 008 "Grass 5 Move and Jump" is written (docs/tasks/008-grass5-move-and-jump.md) and was handed to Claude Code; check whether its summary has come in. Then, per D-043: 009 "Grass 6 Everything" (Left, Right, Jump and Power together; to be written), 010 parent view (sound toggle, button size, unlock-all, reset).
+- 005d to 008 are done and reviewed (D-039 to D-045); the tablet liked it (D-044), boredom on replays is the main risk. 009 "Grass 6 Everything" (all four buttons together; docs/tasks/009-grass6-everything.md) was handed to Claude Code (model: Opus 5.5 recommended; Sonnet for 008 and 010); check whether its summary has come in. Then 010 parent view (sound toggle, button size, unlock-all, reset). After the plan: replay variety (docs/IDEAS.md), doc trim and cheaper workflow (the parent asked to wait until 010 is done), git-history rewrite offer.
 - Open items: the public GitHub repo history still contains the removed Nintendo files; the parent may want a clean-history restart (offer exact steps once 005d is done). The commercial idea is parked in `docs/IDEAS.md`.
 
 ## Useful facts

@@ -153,6 +153,18 @@ describe('bubbles', () => {
     expect(new Set(specs.map((s) => s.phase)).size).toBe(3); // own bob phases
   });
 
+  it('high bubbles (h, Task 009): worth 4 coins, a small picture, raised a quarter tile above their cell, not dropped, never solid', () => {
+    const g = extractEntities(['.....', '..h..', '.....', '.....', '#####']);
+    expect(g.bubbles).toEqual([{ kind: 'high', col: 2, row: 1 }]);
+    expect(g.solid[1][2]).toBe(false);
+    const [h] = bubbleSpecs(g.bubbles, T, 0, g.solid);
+    expect(h).toMatchObject({ kind: 'high', coins: 4, x: 2.5 * T });
+    expect(h.r).toBeCloseTo(BUBBLE.radius.small * T);
+    expect(h.y).toBeCloseTo(1.5 * T - BUBBLE.highRise * T); // cell centre, raised
+    expect(BUBBLE.coins.high).toBeGreaterThan(BUBBLE.coins.small);
+    expect(BUBBLE.coins.high).toBeLessThan(BUBBLE.coins.big);
+  });
+
   it('bobs gently: a few px, never more', () => {
     for (let t = 0; t < 5000; t += 50) {
       expect(Math.abs(bobOffset({ kind: 'small', phase: 0.3 }, t))).toBeLessThanOrEqual(BUBBLE.bobPx.small);

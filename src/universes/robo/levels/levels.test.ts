@@ -16,8 +16,10 @@ import grass2 from './grass-2.json';
 import grass3 from './grass-3.json';
 import grass4 from './grass-4.json';
 import grass5 from './grass-5.json';
+import grass6 from './grass-6.json';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
-import { SHOT } from '../../../core/levels/shots';
+import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
+import { shotHitsBubble } from '../../../core/levels/bubbles';
 import { worldDots } from '../../../core/map/unlock';
 
 /**
@@ -247,23 +249,126 @@ describe('Robo World level files', () => {
     expect(e.coins.length - jumpOnly).toBeLessThan(stars.three);
   });
 
-  it('the grass world lists grass-1..5: Next goes 1 -> 2 -> 3 -> 4 -> 5 and is hidden on 5', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5']);
-    expect(nextLevelId(worlds, 'grass-1')).toBe('grass-2');
-    expect(nextLevelId(worlds, 'grass-2')).toBe('grass-3');
-    expect(nextLevelId(worlds, 'grass-3')).toBe('grass-4');
-    expect(nextLevelId(worlds, 'grass-4')).toBe('grass-5');
-    expect(nextLevelId(worlds, 'grass-5')).toBeNull();
+  it('grass-6 "Everything" (D-043): four buttons, walking, gaps 1,2,1,2,2 with 7+ tiles between, bubbles, a big blocker, high bonus bubbles', () => {
+    const r = parseLevel(grass6);
+    expect(r.ok, r.ok ? '' : r.errors.join('; ')).toBe(true);
+    if (!r.ok) return;
+    const { controls, stars, grid, tileSize } = r.level;
+    expect(controls.enabled).toEqual(['left', 'right', 'jump', 'power']);
+    expect(controls.autoRun).toBe(false);
+    expect(controls.tapAnywhereJumps).toBe(false);
+    const e = extractEntities(grid);
+    expect(e.cols).toBeGreaterThanOrEqual(75);
+    expect(e.cols).toBeLessThanOrEqual(90);
+    expect(e.start.col).toBe(6);
+    expect(e.flag.col).toBeGreaterThan(e.cols - 8);
+    expect(e.solid[e.start.row + 1][e.flag.col]).toBe(true);
+
+    // Gaps of 1 or 2 tiles only (D-045): 1, 2, 1, 2, 2, an opening stretch of about 14 tiles, 7+ tiles of ground between and after.
+    const gaps = gapsOf(e);
+    expect(gaps.map((g) => g.length)).toEqual([1, 2, 1, 2, 2]);
+    expect(gaps[0][0] - e.start.col).toBeGreaterThanOrEqual(13);
+    expect(gaps[0][0] - e.start.col).toBeLessThanOrEqual(16);
+    for (let i = 1; i < gaps.length; i++) expect(gaps[i][0] - gaps[i - 1][gaps[i - 1].length - 1] - 1, `stretch ${i}`).toBeGreaterThanOrEqual(7);
+    const lastGap = gaps[gaps.length - 1];
+    expect(e.flag.col - lastGap[lastGap.length - 1] - 1).toBeGreaterThanOrEqual(7);
+    for (const g of gaps) for (let row = e.start.row + 1; row < e.rows; row++) for (const c of g) expect(e.solid[row][c]).toBe(false);
+    // Every gap crossable from a standing start at its edge with a margin of at least 40 px (as in Grass 5).
+    const reach = walkingJumpReach(PHYSICS.walkSpeed);
+    for (const g of gaps) expect(reach.standing, `gap of ${g.length}`).toBeGreaterThanOrEqual(gapNeed(g.length) + 40);
+
+    // Bubbles: 12-14 small, 3 high, one big at about 60%, at least 3 tiles from every gap edge (both sides).
+    const small = e.bubbles.filter((b) => b.kind === 'small');
+    const high = e.bubbles.filter((b) => b.kind === 'high');
+    const big = e.bubbles.filter((b) => b.kind === 'big');
+    expect(small.length).toBeGreaterThanOrEqual(12);
+    expect(small.length).toBeLessThanOrEqual(14);
+    expect(high.length).toBe(3);
+    expect(big.length).toBe(1);
+    expect(big[0].col / e.cols).toBeGreaterThan(0.55);
+    expect(big[0].col / e.cols).toBeLessThan(0.65);
+    expect(big[0].row + 2).toBe(e.start.row + 1); // stands on the ground
+    for (const g of gaps) {
+      const dist = big[0].col > g[g.length - 1] ? big[0].col - g[g.length - 1] - 1 : g[0] - (big[0].col + 1) - 1;
+      expect(dist, `big bubble vs gap at ${g[0]}`).toBeGreaterThanOrEqual(3);
+    }
+    // The opening: 1 small bubble behind the start, 3 ahead before the first gap.
+    expect(small.filter((b) => b.col < e.start.col).length).toBe(1);
+    expect(small.filter((b) => b.col > e.start.col && b.col < gaps[0][0]).length).toBe(3);
+    // High bubbles sit over safe ground, 3 or more tiles from any gap edge, in the row 2.5 tiles over the ground.
+    for (const b of high) {
+      for (const g of gaps) expect(Math.min(Math.abs(b.col - g[0]), Math.abs(b.col - g[g.length - 1])), `high bubble at ${b.col}`).toBeGreaterThanOrEqual(3);
+      expect(e.solid[e.start.row + 1][b.col]).toBe(true);
+      expect(b.row).toBe(e.start.row - 2);
+    }
+
+    // Reach (Task 009): a shot from the top of a jump pops every high bubble, a standing shot never does, whatever the bubble's bob.
+    const gridTop = 720 - e.rows * tileSize;
+    const ground = gridTop + (e.start.row + 1) * tileSize; // world y of the ground top
+    const specs = bubbleSpecs(e.bubbles, tileSize, gridTop, e.solid).filter((s) => s.kind === 'high');
+    expect(specs.length).toBe(3);
+    for (const s of specs) {
+      expect(ground - s.y, 'high bubble centre height').toBeGreaterThan(165);
+      expect(ground - s.y).toBeLessThan(185);
+      for (const bob of [-BUBBLE.bobPx.high, 0, BUBBLE.bobPx.high]) {
+        for (const h of [SHOT_HEIGHT.standing.min, SHOT_HEIGHT.standing.max]) {
+          expect(shotHitsBubble(s.x, ground - h, SHOT.radius, s, s.x, s.y + bob), `standing shot at ${h}`).toBe(false);
+        }
+        for (const h of [SHOT_HEIGHT.jumpPeak.min, (SHOT_HEIGHT.jumpPeak.min + SHOT_HEIGHT.jumpPeak.max) / 2, SHOT_HEIGHT.jumpPeak.max]) {
+          expect(shotHitsBubble(s.x, ground - h, SHOT.radius, s, s.x, s.y + bob), `jump-peak shot at ${h}`).toBe(true);
+        }
+      }
+    }
+    // Even the biggest option's standing shot (size 1.6: up to 78 px) passes under.
+    for (const s of specs) expect(shotHitsBubble(s.x, ground - 78, SHOT.radius, s, s.x, s.y - BUBBLE.bobPx.high)).toBe(false);
+
+    // Coins: bubbles + gap arcs + a few to the left of the start. A coin arc over every gap; none right behind a 1-tile gap.
+    for (const g of gaps) expect(e.coins.some((c) => c.col >= g[0] && c.col <= g[g.length - 1] && c.row < e.start.row), `arc over gap ${g[0]}`).toBe(true);
+    for (const g of gaps.filter((x) => x.length === 1)) {
+      expect(e.coins.filter((c) => c.row === e.start.row - 1 && c.col > g[0] && c.col <= g[0] + 2), `behind gap ${g[0]}`).toEqual([]);
+    }
+    const left = e.coins.filter((c) => c.col < e.start.col);
+    expect(left.length).toBeGreaterThanOrEqual(3);
+    expect(left.length).toBeLessThanOrEqual(4);
+    const total = e.coins.length + small.length * BUBBLE.coins.small + big.length * BUBBLE.coins.big + high.length * BUBBLE.coins.high;
+    expect(total).toBe(78);
+    // Stars: two need about half, three about 80%; three never needs the high bubbles; a bot that skips every small bubble gets 1 star.
+    expect(stars).toEqual({ two: 38, three: 62 });
+    expect(stars.two).toBeGreaterThanOrEqual(Math.floor(total * 0.45));
+    expect(stars.two).toBeLessThanOrEqual(Math.ceil(total * 0.55));
+    expect(stars.three).toBeGreaterThanOrEqual(Math.floor(total * 0.75));
+    expect(stars.three).toBeLessThanOrEqual(Math.ceil(total * 0.85));
+    expect(total - high.length * BUBBLE.coins.high).toBeGreaterThanOrEqual(stars.three);
+    const withoutSmall = e.coins.length + BUBBLE.coins.big;
+    expect(withoutSmall).toBeLessThan(stars.two);
+
+    // Demo (D-030): shoots, walks to the first gap, jumps it and shoots again; about 9-10 s with both buttons shown.
+    const script = controls.demo && 'script' in controls.demo ? controls.demo.script : [];
+    expect(script.filter((s) => s.action === 'power').length).toBeGreaterThanOrEqual(3);
+    expect(script.filter((s) => s.action === 'jump').length).toBe(1);
+    const jumpAt = script.findIndex((s) => s.action === 'jump');
+    expect(script.slice(0, jumpAt).some((s) => s.action === 'power')).toBe(true);
+    expect(script.slice(jumpAt + 1).some((s) => s.action === 'power')).toBe(true);
+    const end = Math.max(...script.map((s) => s.t + (s.hold ?? 0))) + 600;
+    expect(end).toBeGreaterThanOrEqual(8800);
+    expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('grass-4 and grass-5 are under clouds on a fresh start (openAtATime 3); 4 opens after one clear, 5 after two', () => {
+  it('the grass world lists grass-1..6: Next goes 1 -> 2 -> ... -> 6 and is hidden on 6', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6']);
+    for (let i = 1; i < 6; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
+    expect(nextLevelId(worlds, 'grass-6')).toBeNull();
+  });
+
+  it('grass-4, 5 and 6 are under clouds on a fresh start (openAtATime 3); each clear opens the next one', () => {
     const grass = worlds.find((w) => w.id === 'grass')!;
     const open = (levels: Record<string, { stars: number; bestCoins: number }>) =>
       worldDots(grass, levels, { openAtATime: 3, unlockAll: false }).map((d) => d.open);
     const cleared = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, { stars: 1, bestCoins: 0 }]));
-    expect(open({})).toEqual([true, true, true, false, false]);
-    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false]);
-    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true]);
+    expect(open({})).toEqual([true, true, true, false, false, false]);
+    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false]);
+    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true]);
   });
 });
 

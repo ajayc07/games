@@ -253,3 +253,10 @@ Findings: everything built so far (picker, map, Grass 1-4, hold-to-exit) worked 
 Decisions:
 - Plan stands: 008 Grass 5, 009 Grass 6 "Everything", 010 parent view.
 - Replay boredom is now the main risk, not control difficulty. Direction: make a replay feel different without adding rules. Candidate (to design after 009, not before): optional per-play variation, e.g. bubble and coin positions shuffled within safe zones on replay, or a different bubble pattern each play. Parked in docs/IDEAS.md; the parent view (010) may later offer an "endless/free play" level. Do not build before the control ladder is complete.
+
+## D-045 (2026-10-24) Task 008 review outcomes
+Approved all three deviations: the float-back fix in shared code (a fall while walking left over a gap now returns him to the side he came from); the coin after each 1-tile gap moved 2 columns on (a jump flies over the earlier position at its peak), with a test guarding coin reachability; the demo at about 8.2 s.
+Physics facts to reuse (Task 008 report): a jump lasts 0.84 s and carries about 186 px running, 179-189 px from standing; a 1-tile gap needs 44 px, a 2-tile gap 108 px (71 px margin), a 3-tile gap 172 px (7 px margin, too tight). The body is 40 px wide, so a 1-tile gap cannot be walked over. Gaps stay at 1 or 2 tiles.
+Accepted risk: a mashing bot biased to the right takes a median of 131 s on Grass 5 (a deliberate child needs about 21 s of walking plus the jumps). If the tablet shows it is too long: use 6 instead of 8 tiles between gaps (saves about 12 tiles) or fewer gaps. Also watch: holding Right only loops fall and float-back until he lets go or presses Jump (no star cost).
+Architect review of the sheets (844x390 Grass 5, map with five dots): buttons match Grass 3 and do not overlap, the gap and coins read clearly, the map holds five dots with two under clouds.
+Task 009 therefore uses shorter safe stretches (7 tiles) and fewer gaps.

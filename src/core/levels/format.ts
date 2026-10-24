@@ -13,6 +13,8 @@ export const LEGEND = {
   o: 'bubble',
   /** Big bubble: a 2x2 block of `O` cells, a soft blocker until popped (6 coins). */
   O: 'big bubble',
+  /** High bubble (Task 009): a small bubble worth 4 coins, centred in its cell (not dropped), meant to be 2.5 tiles up. */
+  h: 'high bubble',
 } as const;
 
 export type LegendChar = keyof typeof LEGEND;
