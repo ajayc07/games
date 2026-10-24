@@ -44,13 +44,33 @@ interface UniverseManifest {
 
 interface CharacterDef {
   id: string; name: string;
-  image: string;                  // path under assets/, optional (placeholder if missing)
-  poses?: { run?: string; jump?: string };
-  sounds?: { pick?: string; jump?: string; win?: string };
+  image?: string;                 // URL from assets/ (placeholder capsule if missing); idle picture
+  displayHeight?: number;         // visible height in logical px after trimming (default 104)
+  color?: number;                 // placeholder capsule colour
+  poses?: { run?: PoseDef; jump?: PoseDef };       // D-023
+  sounds?: { pick?: string[]; jump?: string[]; win?: string[] };  // voice clip URLs, random pick
   powerAnimation: string;         // key of a power animation; cosmetic only
 }
+interface PoseDef { image?: string; facing?: 'right' | 'left'; displayHeight?: number }
 ```
 All characters share identical physics (jump height, speed). Differences are cosmetic.
+
+### Poses (D-023)
+`core/levels/characterLook.ts` loads `image` (idle) and the `run`/`jump` poses, each trimmed and pre-scaled to its
+`displayHeight` (default: the character's). Fallbacks: missing or undecodable pose -> main image -> capsule.
+`poses.ts` (pure, tested) picks the pose: ground + moving = run, air = jump (after 70 ms, so a bump does not flicker),
+otherwise idle (before the run, cloud ride, win screen after the hop). `flipSign(travel, facing)` mirrors a picture so it
+faces the direction of travel: a left-facing picture (Luigi's run) is mirrored when going right. Bob/stretch/squash stay.
+Mario's and Luigi's main images are jump poses with a raised arm, so their run poses use a smaller `displayHeight`
+(86/90) to keep head and body the same size across the swap. Characters without poses use the single image everywhere.
+
+### Voices (D-023)
+`audio.registerVoices(characterId, sounds)` (called by LevelScene) registers each clip as `voice:<id>:<slot>:<n>`
+with `silentFallback`, so a missing or broken file is simply silent (the generic sounds carry on).
+`audio.playVoice(id, slot)` picks at random (never the same clip twice in a row when there is a choice) through
+`VoicePicker` (`core/audio/voices.ts`, tested): `jump` at most once per 1.5 s, `pick`/`win` unlimited.
+The generic `jump` sfx always plays; `win` voice plays 350 ms after the win jingle. `pick` is registered but used by the
+character picker later (Task 007).
 
 ## Levels (data-driven)
 Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `index.ts` with `import.meta.glob`
@@ -62,6 +82,7 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
   "world": "grass",
   "title": "Tap to hop",
   "controls": { "enabled": ["jump"], "autoRun": true, "tapAnywhereJumps": true, "demo": false },
+  // or "demo": { "tiles": 20, "jumpsAtTiles": [8, 15] }
   "tileSize": 64,
   "runSpeed": 200,
   "stars": { "two": 12, "three": 20 },
@@ -75,7 +96,20 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 - `controls` is the **control ladder**: `InputManager.configure` follows it, and TouchControls only shows enabled
   actions (none with `tapAnywhereJumps`). `autoRun` runs right at `runSpeed`; otherwise Left/Right move and release stops.
 - `stars` (D-020): finishing = 1, `two` and `three` are coin thresholds. `runSpeed` is optional (default in physics.ts).
-- `demo` is reserved for the "watch me" demo (Task 004).
+- `demo` (D-024): `false` or `{ "tiles": N, "jumpsAtTiles": [..] }`. Both are grid columns, 0-based from the left edge
+  (as read in the grid strings): the ghost runs until its centre reaches column `tiles` and presses Jump on entering each
+  `jumpsAtTiles` column. Validation: tiles after the start column and inside the grid; every jump column after the start
+  and before `tiles`; unknown fields rejected; jump columns are sorted and deduplicated.
+
+### "Watch me" demo (D-024)
+`core/levels/demo.ts` (pure, tested): `DemoScript.step(x)` -> `{ jump, done }`, `shouldPlayDemo`, `demoOverrideFrom`.
+LevelScene modes: `demo` -> `turn` -> `play` (-> `respawn` / `finish` / `result`). In `demo` the real player is hidden
+and frozen, a ghost `Player` (alpha 0.55, same `Player` class and physics as real play, collects no coins) runs right and
+receives the scripted presses. Each press animates the on-screen button (`TouchControls.animatePress`) and a finger icon
+taps it (`demoFx.ts`); on tap-anywhere levels a ripple appears at the character instead. Input is not read during the
+demo; a tap or key after 1.5 s skips it. At the end the ghost fades, the camera glides back to the start, then the
+"your turn" cue (bouncing arrow over the character, ripples at its feet, a button pulse and the soft `yourTurn` sound)
+and the real run starts. Plays once per session per level (static set in LevelScene); `?demo=1` forces, `?demo=0` skips.
 
 `core/levels/` (all universe-agnostic):
 - `format.ts`: types, `parseLevel` (readable errors: row lengths, unknown characters with position, exactly one S/F,
@@ -98,11 +132,23 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 - `characterTexture.ts`: decodes the character image with `Image.decode()` (failure = silent capsule fallback, no console
   errors), trims transparent margins and pre-scales it to `displayHeight` x 2 for a crisp, non-shimmering sprite.
 - `background.ts`: parallax sky gradient, wrapping clouds and two tiling hill strips, all screen-fixed and scrolled by hand.
-- `ResultScreen.ts`: 3 star slots filling one by one, then Replay (Space) and Home (Escape/Enter) buttons that only
-  accept input 600 ms after appearing, so leftover mashing does not press them.
+- `Player.ts`: the physics box + picture of one character (movement, buffered/coyote jump, poses, bob/squash/flip,
+  cloud ride). Used for the real player and the demo ghost.
+- `ResultScreen.ts` (D-025): 3 star slots filling one by one, then big icon buttons that only accept input 600 ms after
+  appearing, so leftover mashing does not press them: Home (left, smaller), Replay, and Next (right, biggest, pulsing;
+  only when `LevelSceneData.onNext` is given). Without Next: Replay and Home either side of the character.
+  Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home.
+- `progression.ts`: `nextLevelId(worlds, id)` = the next level in the same world or null (tested). The universe passes
+  `onNext` from it; Next keeps the chosen character.
 
 Mario routing (`universes/mario/manifest.ts`, until the world map exists): `/games/` opens the first Grass level;
-`?level=<id>` any level, `?char=<id>` any character, `?lab=1` the Input Lab. Home goes to the Input Lab for now.
+`?level=<id>` any level, `?char=<id>` any character, `?demo=0|1`, `?lab=1` the Input Lab. Home goes to the Input Lab
+for now. The world list is plain data in `universes/mario/worlds.ts` (Grass: grass-1, grass-2).
+
+Mario levels: Grass 1 "Tap to hop" (tap anywhere, no demo). Grass 2 "Big Jump button": 150 tiles, only the Jump button
+(taps elsewhere never jump), demo `{ tiles: 20, jumpsAtTiles: [8, 15] }`, 30 coins (3 at head height, 9 three-coin arcs
+that need a timed press: pressing on entering column k-1 collects the arc centred on k), gaps at 58, 80, 103-104,
+125-126, each with an arc about 5 tiles before it, stars 15/25.
 
 ## Screen layout (D-013)
 `core/ui/layout.ts`: logical height is always 720, logical width follows the screen (960..1920, D-017). `getLayout()` gives
@@ -121,14 +167,20 @@ camera bounds/`startFollow` assume a centred origin, so scenes scroll the camera
 `core/input/bindings.ts`, D-015). API: `configure({ enabled, tapAnywhereJumps })`, `isDown`, `justPressed`, `justReleased`
 (one frame), `press`/`release` events and `onPress` with timestamps. The pure state logic is `core/input/actionState.ts`
 (unit-tested): every device input is a "source"; the merged state is derived after tap-anywhere mapping and enabled filtering.
-`core/ui/TouchControls` draws the buttons, shows only enabled actions (none in tap-anywhere mode) and provides the hit test;
+`core/ui/TouchControls` draws the buttons, shows only enabled actions (none in tap-anywhere mode) and provides the hit test.
+When Jump is the only button it is drawn larger (0.28 of the short edge instead of 0.22). `pulse(action, 'invite'|'nudge')`
+swells the button face and spreads a ring (ignored while one is running, so mashing is harmless); `animatePress` shows a
+press without input (the demo). InputManager emits `miss` for a touch that starts on no button (not in tap-anywhere mode):
+LevelScene answers with a `nudge` pulse, and gives an `invite` pulse every 2.6 s until the first Jump press;
 pointers are re-tested on every move, and Left/Right split their shared band at the midpoint so a sliding thumb never hits a gap.
 Size comes from the short edge times `buttonScale` (`?buttonScale=` for now). Blur, visibility change and pointer cancel release everything.
 
 ## Audio
 `core/audio/AudioManager` (`audio` singleton) unlocks Web Audio on the first touch/click/key. `register(id, { file?, synth?, volume? })`,
 `play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, pick, power).
-Never throws; a failed file logs one warning. Per-sound cap of 3 voices and a 40 ms retrigger gap (`voiceLimiter.ts`, unit-tested);
+Never throws; a failed file logs one warning. A play request made while audio is still unlocking (the first tap both
+unlocks and jumps) is queued (`pendingQueue.ts`, tested: one per id, at most 4) and played once the context runs if it is
+at most 300 ms old. Per-sound cap of 3 voices and a 40 ms retrigger gap (`voiceLimiter.ts`, unit-tested);
 a compressor on the master bus prevents clipping. `setMuted`, `setMasterVolume`, `state` (locked/running).
 Shared sounds are generic; per-character sounds (pick / jump / win) will be registered from the universe manifest.
 

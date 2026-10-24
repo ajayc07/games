@@ -2,19 +2,21 @@
 // specific universe; the universe passes everything in through LevelSceneData.
 import Phaser from 'phaser';
 import type { CharacterDef } from '../types';
-import { InputManager } from '../input/InputManager';
+import { INPUT_EVENTS, InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { getLayout, type Layout } from '../ui/layout';
 import { audio } from '../audio/AudioManager';
-import { DEFAULT_RECIPES } from '../audio/recipes';
-import type { LevelData } from './format';
+import type { DemoConfig, LevelData } from './format';
 import { extractEntities, findRespawn, mergeSolids, starsFor, type Cell, type GridEntities } from './grid';
 import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
-import { TEX_RES, makeCapsuleTexture, makeEffectTextures, makeThemeTextures, themeKey } from './placeholders';
-import { loadCharacterTexture } from './characterTexture';
+import { makeEffectTextures, makeThemeTextures, themeKey } from './placeholders';
+import { CharacterLook } from './characterLook';
 import { ParallaxBackground } from './background';
 import { ResultScreen } from './ResultScreen';
+import { Player } from './Player';
+import { DEMO_SKIP_AFTER_MS, DemoScript, demoOverrideFrom, shouldPlayDemo } from './demo';
+import { DemoCues, drawFinger } from './demoFx';
 
 export interface LevelSceneData {
   level: LevelData;
@@ -22,9 +24,12 @@ export interface LevelSceneData {
   character: CharacterDef;
   /** Leave the level (Home button). */
   onHome: () => void;
+  /** Go to the next level in the world (Next button); omitted on a world's last level (D-025). */
+  onNext?: () => void;
 }
 
-type Mode = 'play' | 'respawn' | 'finish' | 'result';
+/** demo: the ghost shows the control; turn: "your turn" cue; then the real run. */
+type Mode = 'demo' | 'turn' | 'play' | 'respawn' | 'finish' | 'result';
 
 interface Coin {
   img: Phaser.GameObjects.Image;
@@ -33,17 +38,23 @@ interface Coin {
   taken: boolean;
 }
 
-const DEFAULT_DISPLAY_HEIGHT = 104;
 const COIN_SIZE = 40;
 const COIN_HIT_R = 18;
 /** Where the player sits on screen, as a fraction across the safe area (rest is look-ahead). */
 const CAMERA_ANCHOR = 0.36;
-const DEPTH = { ground: 0, coins: 10, flag: 5, player: 20, fx: 30, hint: 40, hud: 900 };
+const DEPTH = { ground: 0, coins: 10, flag: 5, ghost: 19, player: 20, fx: 30, hint: 40, hud: 900 };
+const GHOST_ALPHA = 0.55;
+/** The Jump button gives a gentle "press me" pulse this often until the first press (ms). */
+const INVITE_EVERY_MS = 2600;
+/** Delay of the win voice after the win jingle starts (ms). */
+const WIN_VOICE_DELAY_MS = 350;
 
 export class LevelScene extends Phaser.Scene {
   static readonly KEY = 'level';
   /** The tap hint is shown until the very first jump, then never again in this session. */
   private static hintDone = false;
+  /** Levels whose demo already played this session (D-024; persistence decides later). */
+  private static demoSeen = new Set<string>();
 
   private data0!: LevelSceneData;
   private level!: LevelData;
@@ -56,11 +67,16 @@ export class LevelScene extends Phaser.Scene {
 
   private layout!: Layout;
   private input2!: InputManager;
+  private touch!: TouchControls;
   private bg!: ParallaxBackground;
-  private playerZone!: Phaser.GameObjects.Zone;
-  private body2!: Phaser.Physics.Arcade.Body;
-  private sprite!: Phaser.GameObjects.Image;
-  private spriteBase = 1;
+  private look!: CharacterLook;
+  private player!: Player;
+  private ghost: Player | null = null;
+  private demoScript: DemoScript | null = null;
+  private demoCues: DemoCues | null = null;
+  private demoStartedAt = 0;
+  private invite: Phaser.Time.TimerEvent | null = null;
+  private firstPress = false;
   private coins: Coin[] = [];
   private flagX = 0;
   private flagTopY = 0;
@@ -75,20 +91,9 @@ export class LevelScene extends Phaser.Scene {
   private mode: Mode = 'play';
   private coinCount = 0;
   private respawns = 0;
-  private jumps = 0;
-  private facing = 1;
-  private jumpUsed = false;
-  private jumpBufferUntil = -1;
-  private lastGroundedAt = 0;
-  private lastGroundedCol = 0;
-  private airborneSince = -1;
-  private squash = { x: 1, y: 1 };
-  private bobPhase = 0;
   private camX = 0;
   private camAnchor = CAMERA_ANCHOR;
   private cameraSnapped = false;
-  private ride: { x: number; y: number } | null = null;
-  private jumpSound = 'jump';
 
   constructor() {
     super({
@@ -107,14 +112,13 @@ export class LevelScene extends Phaser.Scene {
     this.mode = 'play';
     this.coinCount = 0;
     this.respawns = 0;
-    this.jumps = 0;
-    this.facing = 1;
-    this.jumpUsed = false;
-    this.jumpBufferUntil = -1;
-    this.airborneSince = -1;
-    this.squash = { x: 1, y: 1 };
     this.cameraSnapped = false;
-    this.ride = null;
+    this.camAnchor = CAMERA_ANCHOR;
+    this.ghost = null;
+    this.demoScript = null;
+    this.demoCues = null;
+    this.invite = null;
+    this.firstPress = false;
     this.result = null;
     this.hint = null;
     this.coins = [];
@@ -141,33 +145,40 @@ export class LevelScene extends Phaser.Scene {
     this.buildGround();
     this.buildCoins();
     this.buildFlag();
-    this.buildPlayer(character);
+    this.look = new CharacterLook(this, character);
+    this.player = this.makePlayer(DEPTH.player, 1);
     this.buildEffects();
     this.buildHud();
+    audio.registerVoices(character.id, character.sounds);
 
+    // Buttons follow the level's controls from the start (the demo presses them), but input is only
+    // read in play mode, so taps during the demo do nothing except skip it.
     this.input2 = new InputManager(this);
     this.input2.configure({ enabled: this.level.controls.enabled, tapAnywhereJumps: this.level.controls.tapAnywhereJumps });
-    new TouchControls(this, this.input2, this.layout);
-    if (!LevelScene.hintDone) this.buildHint();
-
-    if (character.sounds?.jump) {
-      this.jumpSound = `jump:${character.id}`;
-      if (!audio.has(this.jumpSound)) audio.register(this.jumpSound, { file: character.sounds.jump, synth: DEFAULT_RECIPES.jump });
-    }
+    this.touch = new TouchControls(this, this.input2, this.layout);
+    this.input2.on(INPUT_EVENTS.MISS, this.onMissTap, this);
 
     this.layout.bindToScene(this, (l) => this.relayout(l));
-    this.lastGroundedAt = this.time.now;
+    const demo = this.level.controls.demo;
+    if (demo && shouldPlayDemo(demo, LevelScene.demoSeen.has(this.level.id), demoOverrideFrom(location.search))) {
+      this.startDemo(demo);
+    } else {
+      this.startPlay();
+    }
     this.installDebugHook();
   }
 
   override update(time: number, deltaMs: number): void {
     const dt = Math.min(deltaMs, 50) / 1000;
-    if (this.mode === 'play') this.updatePlay(time);
+    if (this.mode === 'demo') this.updateDemo(time);
+    else if (this.mode === 'play') this.updatePlay(time);
     else if (this.mode === 'finish') this.updateFinish();
-    this.updateSprite(time, dt);
+    this.player.updateSprite(time, dt);
+    this.ghost?.updateSprite(time, dt);
+    this.demoCues?.update();
     this.updateCamera(dt);
     this.bg.update(this.camX, dt);
-    if (this.hint) this.hint.setPosition(this.body2.center.x + 80, this.body2.bottom - 150);
+    if (this.hint) this.hint.setPosition(this.player.body.center.x + 80, this.player.body.bottom - 150);
   }
 
   // ---------- build ----------
@@ -245,27 +256,20 @@ export class LevelScene extends Phaser.Scene {
     this.tweens.add({ targets: this.flagCloth, scaleX: this.flagCloth.scaleX * 0.88, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
-  private buildPlayer(character: CharacterDef): void {
-    const { width, height } = PHYSICS.body;
-    const start = this.cellCenter(this.grid.start);
-    const feet = this.gridTop + (this.grid.start.row + 1) * this.tile;
-    this.playerZone = this.add.zone(start.x, feet - height / 2, width, height);
-    this.physics.add.existing(this.playerZone);
-    this.body2 = this.playerZone.body as Phaser.Physics.Arcade.Body;
-    this.body2.setMaxVelocity(1000, PHYSICS.maxFallSpeed);
-    this.body2.setCollideWorldBounds(true);
-    this.physics.add.collider(this.playerZone, this.groundBodies);
-
-    const displayH = character.displayHeight ?? DEFAULT_DISPLAY_HEIGHT;
-    // Capsule first; the real picture replaces it as soon as it is decoded (or never, if it fails).
-    const capsule = makeCapsuleTexture(this, character.color ?? 0xe53935);
-    this.sprite = this.add.image(start.x, feet, capsule).setOrigin(0.5, 1).setDepth(DEPTH.player);
-    this.spriteBase = displayH / (this.sprite.height || 1);
-    void loadCharacterTexture(this, character.id, character.image, displayH).then((key) => {
-      if (!key || !this.sys.isActive() || !this.sprite.active) return;
-      this.sprite.setTexture(key);
-      this.spriteBase = 1 / TEX_RES;
+  private makePlayer(depth: number, alpha: number): Player {
+    return new Player(this, {
+      x: this.cellCenter(this.grid.start).x,
+      feet: this.startFeet(),
+      look: this.look,
+      colliders: this.groundBodies,
+      depth,
+      tile: this.tile,
+      alpha,
     });
+  }
+
+  private startFeet(): number {
+    return this.gridTop + (this.grid.start.row + 1) * this.tile;
   }
 
   private buildEffects(): void {
@@ -319,62 +323,118 @@ export class LevelScene extends Phaser.Scene {
   private buildHint(): void {
     const ring = this.add.circle(0, 0, 34).setStrokeStyle(8, 0xffffff, 1);
     const dot = this.add.circle(0, 0, 30, 0xffffff, 0.95);
-    const finger = this.add.graphics();
-    finger.fillStyle(0xffcc80, 1).lineStyle(4, 0x8d6e63, 1);
-    finger.fillRoundedRect(-11, 4, 22, 54, 11).strokeRoundedRect(-11, 4, 22, 54, 11);
-    finger.fillRoundedRect(-24, 34, 48, 44, 16).strokeRoundedRect(-24, 34, 48, 44, 16);
-    finger.setPosition(14, 6).setAngle(-18);
+    const finger = drawFinger(this).setPosition(14, 10).setAngle(-18);
     this.hint = this.add.container(0, 0, [ring, dot, finger]).setDepth(DEPTH.hint);
     this.tweens.add({ targets: ring, scale: 2.1, alpha: 0, duration: 900, repeat: -1, ease: 'Sine.easeOut' });
     this.tweens.add({ targets: dot, scale: 0.8, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.tweens.add({ targets: finger, y: 18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: finger, y: 22, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  // ---------- "watch me" demo (D-024) ----------
+
+  private startDemo(config: DemoConfig): void {
+    this.mode = 'demo';
+    this.player.setPresent(false);
+    this.ghost = this.makePlayer(DEPTH.ghost, GHOST_ALPHA);
+    this.demoScript = new DemoScript(config, this.tile);
+    this.demoCues = new DemoCues(this, this.touch);
+    this.demoCues.showFinger();
+    this.demoStartedAt = this.time.now;
+    // Any tap or key after a moment skips the demo.
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, this.trySkipDemo, this);
+    this.input.keyboard?.on(Phaser.Input.Keyboard.Events.ANY_KEY_DOWN, this.trySkipDemo, this);
+  }
+
+  private updateDemo(now: number): void {
+    const ghost = this.ghost!;
+    const { jump, done } = this.demoScript!.step(ghost.body.center.x);
+    // The ghost always walks right, through the same movement and jump code as the player.
+    const r = ghost.step(now, { vx: this.runSpeed, jumpPressed: jump });
+    if (jump) {
+      this.touch.animatePress('jump');
+      this.demoCues!.tap();
+      if (this.level.controls.tapAnywhereJumps) this.demoCues!.rippleAt(ghost.body.center.x, ghost.body.center.y);
+    }
+    if (r.jumped) audio.play('jump'); // generic only: the voice belongs to the child's own jumps
+    if (r.landed) this.dust.explode(5, ghost.body.center.x, ghost.body.bottom - 4);
+    if (done || ghost.body.top > this.layout.height + 40) this.endDemo();
+  }
+
+  private trySkipDemo(): void {
+    if (this.mode === 'demo' && this.time.now - this.demoStartedAt >= DEMO_SKIP_AFTER_MS) this.endDemo();
+  }
+
+  /** Ghost fades, the camera glides back to the start, "your turn" cue, then the real run. */
+  private endDemo(): void {
+    if (this.mode !== 'demo') return;
+    this.mode = 'turn';
+    LevelScene.demoSeen.add(this.level.id);
+    this.input.off(Phaser.Input.Events.POINTER_DOWN, this.trySkipDemo, this);
+    this.input.keyboard?.off(Phaser.Input.Keyboard.Events.ANY_KEY_DOWN, this.trySkipDemo, this);
+    const ghost = this.ghost!;
+    ghost.body.setVelocity(0, 0);
+    ghost.body.enable = false;
+    this.tweens.add({ targets: ghost.sprite, alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
+    this.ghost = null;
+    this.demoCues!.hideFinger();
+    this.player.setPresent(true);
+    this.player.placeAt(this.cellCenter(this.grid.start).x, this.startFeet(), this.time.now);
+    this.time.delayedCall(800, () => {
+      if (this.mode !== 'turn') return;
+      audio.play('yourTurn');
+      const b = this.player.body;
+      this.demoCues!.yourTurn(b.center.x, b.bottom, b.bottom - 120, () => {
+        if (this.mode === 'turn') this.startPlay();
+      });
+    });
+  }
+
+  // ---------- play ----------
+
+  private startPlay(): void {
+    this.mode = 'play';
+    this.demoCues = null;
+    const controls = this.level.controls;
+    if (controls.tapAnywhereJumps) {
+      if (!LevelScene.hintDone) this.buildHint();
+    } else if (controls.enabled.includes('jump')) {
+      this.invite = this.time.addEvent({ delay: INVITE_EVERY_MS, loop: true, callback: () => this.touch.pulse('jump', 'invite') });
+    }
+  }
+
+  /** A tap that hit no button: the Jump button gives one friendly pulse ("press me"). Never a jump. */
+  private onMissTap(): void {
+    if (this.mode === 'play' || this.mode === 'respawn') this.touch.pulse('jump', 'nudge');
   }
 
   // ---------- per frame ----------
 
   private updatePlay(now: number): void {
-    const body = this.body2;
     const input = this.input2;
     const controls = this.level.controls;
-    const grounded = body.blocked.down;
-
-    if (grounded) {
-      this.lastGroundedAt = now;
-      this.lastGroundedCol = Math.floor(body.center.x / this.tile);
-      if (body.velocity.y >= 0) this.jumpUsed = false;
-      if (this.airborneSince >= 0) {
-        if (now - this.airborneSince > 120) this.onLand();
-        this.airborneSince = -1;
-      }
-    } else if (this.airborneSince < 0) {
-      this.airborneSince = now;
+    const vx = controls.autoRun
+      ? this.runSpeed
+      : ((input.isDown('right') ? 1 : 0) - (input.isDown('left') ? 1 : 0)) * this.runSpeed;
+    const pressed = input.justPressed('jump');
+    if (pressed && !this.firstPress) {
+      this.firstPress = true;
+      this.invite?.remove();
+      this.invite = null;
     }
-
-    // Horizontal: auto-run, or Left/Right (release stops).
-    let vx = 0;
-    if (controls.autoRun) vx = this.runSpeed;
-    else vx = ((input.isDown('right') ? 1 : 0) - (input.isDown('left') ? 1 : 0)) * this.runSpeed;
-    body.setVelocityX(vx);
-    if (vx !== 0) this.facing = Math.sign(vx);
-
-    // Jump with buffering and coyote time (D-021). Fixed height: no early release cut.
-    if (input.justPressed('jump')) this.jumpBufferUntil = now + PHYSICS.jumpBufferMs;
-    const canJump = !this.jumpUsed && now - this.lastGroundedAt <= PHYSICS.coyoteMs;
-    if (now <= this.jumpBufferUntil && canJump) this.jump();
+    const r = this.player.step(now, { vx, jumpPressed: pressed });
+    if (r.jumped) this.onJump();
+    if (r.landed) this.dust.explode(7, this.player.body.center.x, this.player.body.bottom - 4);
 
     this.collectCoins();
 
+    const body = this.player.body;
     if (body.center.x >= this.flagX - PHYSICS.body.width / 2) this.reachFlag();
     else if (body.top > this.layout.height + 40) this.startRespawn();
   }
 
-  private jump(): void {
-    this.body2.setVelocityY(-PHYSICS.jumpVelocity);
-    this.jumpUsed = true;
-    this.jumpBufferUntil = -1;
-    this.jumps++;
-    this.squash = { x: 0.82, y: 1.2 };
-    audio.play(this.jumpSound);
+  private onJump(): void {
+    audio.play('jump'); // the generic sound always plays
+    audio.playVoice(this.data0.character.id, 'jump'); // the voice at most once per 1.5 s (D-023)
     if (this.hint) {
       LevelScene.hintDone = true;
       const h = this.hint;
@@ -384,13 +444,8 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  private onLand(): void {
-    this.squash = { x: 1.2, y: 0.8 };
-    this.dust.explode(7, this.body2.center.x, this.body2.bottom - 4);
-  }
-
   private collectCoins(): void {
-    const b = this.body2;
+    const b = this.player.body;
     for (const coin of this.coins) {
       if (coin.taken) continue;
       const nx = Phaser.Math.Clamp(coin.x, b.left, b.right);
@@ -417,40 +472,13 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  private updateSprite(time: number, dt: number): void {
-    const body = this.body2;
-    const k = Math.min(1, dt * 12);
-    this.squash.x += (1 - this.squash.x) * k;
-    this.squash.y += (1 - this.squash.y) * k;
-
-    let x = body.center.x;
-    let y = body.bottom;
-    let rot = 0;
-    if (this.ride) {
-      x = this.ride.x;
-      y = this.ride.y;
-    } else if (body.blocked.down && Math.abs(body.velocity.x) > 10) {
-      // Gentle bob while running (no run animation frames yet).
-      this.bobPhase += dt * (Math.abs(body.velocity.x) / 22);
-      y -= Math.abs(Math.sin(this.bobPhase)) * 6;
-      rot = Math.sin(this.bobPhase) * 0.06;
-    } else if (!body.blocked.down) {
-      rot = Phaser.Math.Clamp(body.velocity.y / 6000, -0.08, 0.12) * this.facing;
-    } else {
-      // Idle: a slow breath.
-      this.squash.y += Math.sin(time / 300) * 0.002;
-    }
-    this.sprite.setPosition(x, y);
-    this.sprite.setScale(this.spriteBase * this.squash.x * this.facing, this.spriteBase * this.squash.y);
-    this.sprite.setRotation(rot);
-  }
-
   private updateCamera(dt: number): void {
     const safe = this.layout.safeRect;
-    const followX = this.ride ? this.ride.x : this.body2.center.x;
+    const actor = this.ghost ?? this.player;
+    const followX = actor.ride ? actor.ride.x : actor.body.center.x;
     // At the finish the character moves to the screen centre, between the result buttons.
     const finished = this.mode === 'finish' || this.mode === 'result';
-    const anchorGoal = finished ? 0.5 : this.facing >= 0 ? CAMERA_ANCHOR : 1 - CAMERA_ANCHOR;
+    const anchorGoal = finished ? 0.5 : actor.facing >= 0 ? CAMERA_ANCHOR : 1 - CAMERA_ANCHOR;
     this.camAnchor += (anchorGoal - this.camAnchor) * Math.min(1, dt * 2);
     const target = followX - (safe.x + safe.width * this.camAnchor);
     if (!this.cameraSnapped) {
@@ -470,39 +498,34 @@ export class LevelScene extends Phaser.Scene {
     this.mode = 'respawn';
     this.respawns++;
     audio.play('whoosh');
-    const spot: Cell = findRespawn(this.grid.solid, this.lastGroundedCol) ?? this.grid.start;
+    const player = this.player;
+    const spot: Cell = findRespawn(this.grid.solid, player.lastGroundedCol) ?? this.grid.start;
     const T = this.tile;
     const target = { x: spot.col * T + T / 2, y: this.gridTop + (spot.row + 1) * T };
-    const body = this.body2;
+    const body = player.body;
     body.setVelocity(0, 0);
     body.enable = false;
-    this.facing = 1;
+    player.facing = 1;
 
     // The player rides a little cloud: up out of the gap, across, and gently down onto safe ground.
     const H = this.layout.height;
-    this.ride = { x: body.center.x, y: H + 60 };
-    const cloud = this.add.image(this.ride.x, this.ride.y, themeKey(this.data0.theme, 'cloud')).setDisplaySize(120, 60);
+    const ride = { x: body.center.x, y: H + 60 };
+    player.ride = ride;
+    const cloud = this.add.image(ride.x, ride.y, themeKey(this.data0.theme, 'cloud')).setDisplaySize(120, 60);
     cloud.setDepth(DEPTH.player + 1);
-    const follow = () => cloud.setPosition(this.ride!.x, this.ride!.y + 18);
+    const follow = () => cloud.setPosition(ride.x, ride.y + 18);
     const hover = target.y - 70;
     this.tweens.chain({
-      targets: this.ride,
+      targets: ride,
       tweens: [
         { y: H - 200, duration: 450, ease: 'Sine.easeOut', onUpdate: follow },
         { x: target.x, y: hover, duration: 900, ease: 'Sine.easeInOut', onUpdate: follow },
         { y: target.y, duration: 300, ease: 'Sine.easeIn', onUpdate: follow },
       ],
       onComplete: () => {
-        this.playerZone.setPosition(target.x, target.y - PHYSICS.body.height / 2);
-        body.enable = true;
-        body.reset(this.playerZone.x, this.playerZone.y);
-        this.ride = null;
+        player.placeAt(target.x, target.y, this.time.now);
+        player.ride = null;
         this.mode = 'play';
-        this.jumpUsed = false;
-        this.jumpBufferUntil = -1;
-        this.airborneSince = -1;
-        this.lastGroundedAt = this.time.now;
-        this.squash = { x: 1.15, y: 0.85 };
         this.tweens.add({ targets: cloud, y: cloud.y + 30, alpha: 0, duration: 400, onComplete: () => cloud.destroy() });
       },
     });
@@ -512,7 +535,9 @@ export class LevelScene extends Phaser.Scene {
 
   private reachFlag(): void {
     this.mode = 'finish';
-    this.body2.setVelocityX(0);
+    this.player.body.setVelocityX(0);
+    this.invite?.remove();
+    this.invite = null;
     this.input2.configure({ enabled: [], tapAnywhereJumps: false });
     if (this.hint) {
       this.hint.destroy();
@@ -522,25 +547,31 @@ export class LevelScene extends Phaser.Scene {
 
   /** Waits until the player is on the ground, then celebrates once. */
   private updateFinish(): void {
-    const body = this.body2;
-    body.setVelocityX(0);
-    if (!body.blocked.down) return;
+    const player = this.player;
+    player.body.setVelocityX(0);
+    if (!player.grounded) return;
     this.mode = 'result';
     audio.play('win');
-    this.sprite.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
-    body.setVelocityY(-PHYSICS.jumpVelocity * 0.7); // happy hop
-    this.squash = { x: 0.85, y: 1.15 };
+    const charId = this.data0.character.id;
+    this.time.delayedCall(WIN_VOICE_DELAY_MS, () => audio.playVoice(charId, 'win'));
+    player.sprite.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
+    player.hop();
     this.confetti.explode(70, this.flagX, this.flagTopY + 20);
-    this.time.delayedCall(250, () => this.confetti.explode(50, this.body2.center.x, this.body2.top));
+    this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
     this.tweens.add({ targets: this.flagCloth, angle: { from: -8, to: 8 }, duration: 160, yoyo: true, repeat: 3 });
     const stars = starsFor(true, this.coinCount, this.level.stars);
     this.time.delayedCall(1100, () => {
       this.result = new ResultScreen(this, this.layout, stars, {
         onReplay: () => this.scene.restart(this.data0),
         // Leave after this frame: stopping the scene mid-update would break the rest of the frame.
-        onHome: () => this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onHome()),
+        onHome: () => this.afterStep(this.data0.onHome),
+        onNext: this.data0.onNext && (() => this.afterStep(this.data0.onNext!)),
       });
     });
+  }
+
+  private afterStep(fn: () => void): void {
+    this.game.events.once(Phaser.Core.Events.POST_STEP, fn);
   }
 
   // ---------- layout ----------
@@ -568,23 +599,33 @@ export class LevelScene extends Phaser.Scene {
       input: this.input2,
       layout: this.layout,
       audio,
+      controls: this.touch,
       state: () => ({
         level: this.level.id,
         mode: this.mode,
-        x: this.body2.center.x,
-        bottom: this.body2.bottom,
-        grounded: this.body2.blocked.down,
+        x: this.player.body.center.x,
+        bottom: this.player.body.bottom,
+        grounded: this.player.grounded,
         coins: this.coinCount,
         totalCoins: this.coins.length,
-        jumps: this.jumps,
+        jumps: this.player.jumps,
         respawns: this.respawns,
+        ghost: this.ghost && { x: this.ghost.body.center.x, jumps: this.ghost.jumps, alpha: this.ghost.sprite.alpha },
+        demoPresses: this.demoScript?.pressed ?? 0,
+        playerVisible: this.player.sprite.visible,
+        pose: this.player.pose,
+        flipX: Math.sign(this.player.sprite.scaleX),
+        facing: this.player.facing,
+        invite: this.invite !== null,
+        hasNext: !!this.data0.onNext,
         resultArmed: this.result?.isArmed ?? false,
         stars: this.mode === 'result' ? starsFor(true, this.coinCount, this.level.stars) : 0,
         hint: this.hint !== null,
         camX: this.camX,
         fps: this.game.loop.actualFps,
-        texture: this.sprite.texture.key,
-        spriteHeight: this.sprite.displayHeight,
+        texture: this.player.sprite.texture.key,
+        spriteHeight: this.player.sprite.displayHeight,
+        ghostTexture: this.ghost?.sprite.texture.key ?? null,
       }),
     };
   }

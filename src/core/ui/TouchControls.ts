@@ -21,22 +21,33 @@ const STYLES: Record<Action, ButtonStyle> = {
   power: { color: 0x8e24aa, pressed: 0xc158dc, icon: 0xffeb3b, size: 0.18 },
 };
 
+/** Jump diameter when it is the only button on screen (Grass 2): big and unmissable. */
+const SOLO_JUMP_SIZE = 0.28;
 const HIT_SLOP = 1.1; // hit area is 10% larger than the drawn circle
 const PRESSED_SCALE = 0.9;
 const DEPTH = 1000;
 
 interface Button {
   action: Action;
+  /** Positioned and scaled down while pressed. */
   container: Phaser.GameObjects.Container;
+  /** Inside the container; pulses scale this so they never fight the press scale. */
+  face: Phaser.GameObjects.Container;
+  /** Expanding ring for pulses. */
+  ring: Phaser.GameObjects.Arc;
   base: Phaser.GameObjects.Arc;
   radius: number;
   visible: boolean;
   pressed: boolean;
+  /** Shows pressed until this time (ms, scene clock) without real input: the demo's presses. */
+  fakeUntil: number;
+  pulsing: boolean;
 }
 
 export class TouchControls {
   private readonly buttons = new Map<Action, Button>();
   private readonly scale: number;
+  private solo = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -81,6 +92,27 @@ export class TouchControls {
     return best;
   }
 
+  /** Shows a press (button down, lighter colour) without input, e.g. the demo pressing it. */
+  animatePress(action: Action, ms = 220): void {
+    const b = this.buttons.get(action);
+    if (b) b.fakeUntil = this.scene.time.now + ms;
+  }
+
+  /**
+   * One friendly pulse: the face swells a little and a ring spreads out. `nudge` (a tap that missed)
+   * is a bit stronger than `invite` (the idle "press me"). Ignored while a pulse is still running.
+   */
+  pulse(action: Action, kind: 'invite' | 'nudge' = 'nudge'): void {
+    const b = this.buttons.get(action);
+    if (!b || !b.visible || b.pulsing) return;
+    b.pulsing = true;
+    const t = this.scene.tweens;
+    const grow = kind === 'nudge' ? 1.16 : 1.09;
+    t.add({ targets: b.face, scale: grow, duration: 150, yoyo: true, ease: 'Sine.easeOut', onComplete: () => (b.pulsing = false) });
+    b.ring.setRadius(b.radius).setScale(1).setAlpha(kind === 'nudge' ? 0.9 : 0.6).setVisible(true);
+    t.add({ targets: b.ring, scale: 1.45, alpha: 0, duration: 520, ease: 'Sine.easeOut', onComplete: () => b.ring.setVisible(false) });
+  }
+
   /** Current on-screen geometry, for tests and debugging. */
   geometry(): Array<{ action: Action; x: number; y: number; radius: number; visible: boolean }> {
     return [...this.buttons.values()].map((b) => ({
@@ -105,12 +137,19 @@ export class TouchControls {
       b.visible = !config.tapAnywhereJumps && config.enabled.includes(b.action);
       b.container.setVisible(b.visible);
     }
+    const shown = [...this.buttons.values()].filter((b) => b.visible).map((b) => b.action);
+    const solo = shown.length === 1 && shown[0] === 'jump';
+    if (solo !== this.solo) {
+      this.solo = solo;
+      this.position();
+    }
     this.input.refreshPointers();
   }
 
   private position(): void {
     const short = this.layout.height; // landscape: height is the short edge
-    const r = (a: Action) => (STYLES[a].size * short * this.scale) / 2;
+    const size = (a: Action) => (a === 'jump' && this.solo ? SOLO_JUMP_SIZE : STYLES[a].size);
+    const r = (a: Action) => (size(a) * short * this.scale) / 2;
     for (const b of this.buttons.values()) {
       b.radius = r(b.action);
       b.base.setRadius(b.radius);
@@ -136,8 +175,9 @@ export class TouchControls {
   }
 
   private render(): void {
+    const now = this.scene.time.now;
     for (const b of this.buttons.values()) {
-      const pressed = b.visible && this.input.isDown(b.action);
+      const pressed = b.visible && (this.input.isDown(b.action) || now < b.fakeUntil);
       if (pressed === b.pressed) continue;
       b.pressed = pressed;
       const style = STYLES[b.action];
@@ -150,9 +190,13 @@ export class TouchControls {
     const style = STYLES[action];
     const base = this.scene.add.circle(0, 0, 60, style.color).setStrokeStyle(8, 0xffffff);
     const icon = this.scene.add.graphics();
-    const container = this.scene.add.container(0, 0, [base, icon]).setDepth(DEPTH).setScrollFactor(0);
+    const ring = this.scene.add.circle(0, 0, 60).setStrokeStyle(10, 0xffffff, 1).setVisible(false);
+    const face = this.scene.add.container(0, 0, [base, icon]);
+    const container = this.scene.add.container(0, 0, [ring, face]).setDepth(DEPTH);
+    // Children need scrollFactor 0 too (ARCHITECTURE "Screen layout").
+    container.setScrollFactor(0, 0, true);
     container.setData('icon', icon);
-    return { action, container, base, radius: 60, visible: true, pressed: false };
+    return { action, container, face, ring, base, radius: 60, visible: true, pressed: false, fakeUntil: 0, pulsing: false };
   }
 
   private drawIcon(b: Button): void {

@@ -10,3 +10,8 @@ const files = import.meta.glob<string>('./assets/*.{png,webp,avif,jpg,mp3,ogg,m4
 export function asset(fileName: string): string | undefined {
   return files[`./assets/${fileName}`];
 }
+
+/** URLs of the files that exist, in order (for voice lists); missing ones are left out. */
+export function assets(...fileNames: string[]): string[] {
+  return fileNames.map(asset).filter((u): u is string => !!u);
+}

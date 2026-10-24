@@ -20,8 +20,18 @@ export interface LevelControls {
   autoRun: boolean;
   /** Any tap, click or key counts as Jump; no buttons are shown. */
   tapAnywhereJumps: boolean;
-  /** Play a "watch me" demo of the new control first (Task 004). */
-  demo: boolean;
+  /** A "watch me" demo of the new control before the real run (D-024), or false. */
+  demo: DemoConfig | false;
+}
+
+/**
+ * "Watch me" demo (D-024). A ghost runs from the start until it reaches grid column `tiles`, pressing
+ * Jump when its centre enters each column in `jumpsAtTiles`. Columns count from the left edge of the
+ * grid (0-based), the same as reading the grid strings.
+ */
+export interface DemoConfig {
+  tiles: number;
+  jumpsAtTiles: number[];
 }
 
 export interface LevelData {
@@ -62,6 +72,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
 
   // controls
   const c = raw.controls;
+  let demo: DemoConfig | false = false;
   if (!isObject(c)) {
     err('"controls" must be an object');
   } else {
@@ -76,7 +87,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
     for (const key of ['autoRun', 'tapAnywhereJumps'] as const) {
       if (typeof c[key] !== 'boolean') err(`"controls.${key}" must be true or false`);
     }
-    if (c.demo !== undefined && typeof c.demo !== 'boolean') err('"controls.demo" must be true or false');
+    demo = parseDemo(c.demo, err);
   }
 
   // stars
@@ -110,6 +121,17 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
     });
     if (starts !== 1) err(`grid needs exactly one "S" (player start), found ${starts}`);
     if (flags !== 1) err(`grid needs exactly one "F" (flag), found ${flags}`);
+    if (demo && starts === 1) {
+      const startCol = rows.find((r) => r.includes('S'))!.indexOf('S');
+      if (demo.tiles <= startCol || demo.tiles > width) {
+        err(`"controls.demo.tiles" (${demo.tiles}) must be a column after the start (${startCol}) and inside the grid (width ${width})`);
+      }
+      for (const col of demo.jumpsAtTiles) {
+        if (col <= startCol || col >= demo.tiles) {
+          err(`"controls.demo.jumpsAtTiles" has column ${col}: it must be after the start (${startCol}) and before "tiles" (${demo.tiles})`);
+        }
+      }
+    }
   }
 
   if (errors.length > 0) return { ok: false, errors };
@@ -125,7 +147,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
         enabled: [...(controls.enabled as Action[])],
         autoRun: controls.autoRun as boolean,
         tapAnywhereJumps: controls.tapAnywhereJumps as boolean,
-        demo: (controls.demo as boolean | undefined) ?? false,
+        demo,
       },
       tileSize: raw.tileSize as number,
       runSpeed: raw.runSpeed as number | undefined,
@@ -133,6 +155,35 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       grid: [...(g as string[])],
     },
   };
+}
+
+const DEMO_SHAPE = 'false or { "tiles": <column>, "jumpsAtTiles": [<column>, ...] }';
+
+/** `controls.demo`: missing or false = no demo; otherwise the object form, checked field by field. */
+function parseDemo(v: unknown, err: (msg: string) => void): DemoConfig | false {
+  if (v === undefined || v === false) return false;
+  if (!isObject(v)) {
+    err(`"controls.demo" must be ${DEMO_SHAPE} (got ${JSON.stringify(v)})`);
+    return false;
+  }
+  let ok = true;
+  if (!isCount(v.tiles) || v.tiles === 0) {
+    err(`"controls.demo.tiles" must be a whole number above 0 (got ${JSON.stringify(v.tiles)})`);
+    ok = false;
+  }
+  if (!Array.isArray(v.jumpsAtTiles) || !v.jumpsAtTiles.every(isCount)) {
+    err(`"controls.demo.jumpsAtTiles" must be an array of whole column numbers (got ${JSON.stringify(v.jumpsAtTiles)})`);
+    ok = false;
+  }
+  for (const key of Object.keys(v)) {
+    if (key !== 'tiles' && key !== 'jumpsAtTiles') {
+      err(`"controls.demo" has unknown field "${key}" (use "tiles" and "jumpsAtTiles")`);
+      ok = false;
+    }
+  }
+  if (!ok) return false;
+  const jumps = [...new Set(v.jumpsAtTiles as number[])].sort((a, b) => a - b);
+  return { tiles: v.tiles as number, jumpsAtTiles: jumps };
 }
 
 /** Like parseLevel, but throws one Error listing every problem. */

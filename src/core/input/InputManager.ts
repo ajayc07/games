@@ -22,6 +22,8 @@ export const INPUT_EVENTS = {
   PRESS: 'press',
   RELEASE: 'release',
   CONFIGURE: 'configure',
+  /** A touch/click started on no button. Payload { x, y, time } in logical units. */
+  MISS: 'miss',
 } as const;
 
 export class InputManager extends Phaser.Events.EventEmitter {
@@ -140,7 +142,10 @@ export class InputManager extends Phaser.Events.EventEmitter {
     const { x, y } = this.toGame(e);
     if (this.ignorePointer?.(x, y)) return;
     this.pointers.set(e.pointerId, { x, y });
-    this.state.set(`pointer:${e.pointerId}`, this.hitTest(x, y), e.timeStamp);
+    const hit = this.hitTest(x, y);
+    this.state.set(`pointer:${e.pointerId}`, hit, e.timeStamp);
+    // A tap that hit no button (and is not a tap-anywhere jump): scenes may give a friendly hint.
+    if (!hit && !this.state.config.tapAnywhereJumps) this.emit(INPUT_EVENTS.MISS, { x, y, time: e.timeStamp });
   };
 
   private onPointerMove = (e: PointerEvent): void => {

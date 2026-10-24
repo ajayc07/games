@@ -1,9 +1,9 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 003 done)_
+_Last updated: 2026-10-24 (Task 004 done)_
 
 ## Status
-First playable level. Data-driven level engine in `core/levels/` (JSON grid format, validation, shared physics, generic LevelScene with themes), Grass 1 "Tap to hop" (auto-run, tap anywhere to hop, 26 coins, two 1-tile gaps, cloud respawn, flag, stars, Replay/Home). Canvas renders at device resolution (up to 2x). Opening the app starts Grass 1; the Input Lab is behind `?lab=1`. Next: Task 004 (Grass 2 "Big Jump button" + demo system).
+Two playable levels. Grass 1 "Tap to hop" (tap anywhere) and Grass 2 "Big Jump button" (only a big on-screen Jump button; taps elsewhere make it pulse instead of jumping), with a "watch me" ghost demo the first time Grass 2 opens. Mario and Luigi have run/jump poses and voice clips; the other five use their single image and generic sounds. Win screen has Replay, Next (Grass 1 -> Grass 2) and Home. Opening the app starts Grass 1; the Input Lab is behind `?lab=1`. Next: Task 005 (Grass 3 "Left and Right").
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -11,8 +11,8 @@ First playable level. Data-driven level engine in `core/levels/` (JSON grid form
 | 001 | Project setup: Vite + TS + Phaser, universe loader, PWA, Pages deploy | Done |
 | 002 | Core input layer (touch/keyboard/gamepad -> actions) + audio manager | Done |
 | 003 | Level engine + player physics + Grass 1 "Tap to hop" (auto-run, tap anywhere) | Done |
-| 004 | Grass 2 "Big Jump button" + "watch me" demo system | Next |
-| 005 | Grass 3 "Left and Right" (no auto-run) | Planned |
+| 004 | Grass 2 "Big Jump button" + "watch me" demo system | Done |
+| 005 | Grass 3 "Left and Right" (no auto-run) | Next |
 | 006 | World map + stars + unlocking + per-universe progress storage | Planned |
 | 007 | Character picker + 7-character cast with placeholders + asset import of real files | Planned |
 | 008 | Minimal parent view (sound, button size, unlock-all) | Planned |
@@ -24,6 +24,8 @@ First playable level. Data-driven level engine in `core/levels/` (JSON grid form
 - 2026-10-23: Character images moved to `src/universes/mario/assets/<id>.avif` and referenced from the manifest via `asset()` (commit b794b3e, outside the task flow).
 - 2026-10-23: Task 002 input, audio, edge-to-edge scaling, Input Lab.
 - 2026-10-24: Task 003 level engine and Grass 1 (plus MAX_WIDTH 1920 and high-DPI rendering).
+- 2026-10-24: Mario/Luigi voice clips and run poses committed (`assets:` commit before Task 004).
+- 2026-10-24: Task 004 Grass 2, "watch me" demo, character poses and voices, Next button, first-tap sound fix.
 
 ## In progress
 _(nothing)_
@@ -31,7 +33,11 @@ _(nothing)_
 ## Open questions
 - Phaser logs "Ignored attempt to cancel a touchcancel event" in the console when a touch is cancelled (Phaser calls preventDefault on it). Harmless.
 - High-DPI rendering (Task 003) zooms each scene's camera with origin (0, 0). Phaser's camera bounds and `startFollow` assume a centred origin, so scenes scroll by hand; children of screen-fixed containers need `setScrollFactor(0, 0, true)` or taps miss them. See ARCHITECTURE "Screen layout".
-- Six voice clips (`mario-ha-ha.mp3`, `mario-yeah-ho.mp3`, `mario-yipee.mp3`, `luigi-haha.mp3`, `luigi-oh-yeah.mp3`, `luigi-yeah-ha-ha.mp3`) appeared in `src/universes/mario/assets/` during Task 003. Left uncommitted and unwired (real sounds are out of scope). They need mapping to pick/jump/win in the manifest (`sounds`), probably in Task 007. LevelScene already plays `character.sounds.jump` when set.
+- Voice mapping (D-023) is a guess; confirm by ear: Mario pick = yeah-ho, jump = ha-ha, win = yipee; Luigi pick = oh-yeah, jump = haha, win = yeah-ha-ha. `pick` clips are registered but not played until the character picker (Task 007).
+- Luigi's run picture faces left, so it is mirrored while he runs right: the "L" on his cap reads backwards in that pose. A right-facing Luigi run image would fix it (drop it in and set `facing: 'right'`).
+- Run-pose heights for Mario (86) and Luigi (90) are smaller than their main images (104/108) because the main pictures include a raised arm; this keeps the head and body the same size when the pose swaps. Tuned from side-by-side renders; check on the tablet that the swap does not "pop".
+- Grass 2 tuning to confirm: two 1-tile and two 2-tile gaps (2-tile gaps need a press within about half a second), demo length 20 tiles (about 5 s), Jump button 0.28 of the screen height when it is the only button.
+- Device safe-area insets (notches) could not be tested in headless Chrome (all zero); the Jump button uses the same inset-aware anchor as before.
 - Grass 1 tuning to confirm on the tablet: run speed 200, jump peak 2.5 tiles, gaps 1 tile. All in `grass-1.json` / `core/levels/physics.ts`.
 - Character `displayHeight` values (manifest) were tuned by eye from screenshots: Toad 96, Mario/Yoshi 104, Luigi/Peach 108, DK 110, Bowser 112.
 - Service worker uses a hand-written `src/sw.ts` (injectManifest) because workbox's generated SW breaks when the local path contains an apostrophe ("Athi's Game"). Fine on CI. Keep in mind if the PWA setup changes.
@@ -47,6 +53,15 @@ _(nothing)_
 - No side-view run poses yet; use bob/stretch/flip tricks (ARCHITECTURE.md). Side-view images may be added later as `run` poses.
 
 ## Parent action items
+- Three new files appeared in `src/universes/mario/assets/` during Task 004: `Bowser sprite.png`, `Luigi spirite.png`, `Mario sprite.png`. Left untracked and unwired. Note every file in that folder is bundled; say what they are for (more poses? sprite sheets?) and they can be wired in a later task (file names without spaces are safer).
+- After pushing Task 004, try Grass 2 on the tablet with Athi (finish Grass 1 and press the orange Next button, or open `?level=grass-2`):
+  - Does the "watch me" demo make sense to him? Does he watch it, or try to tap through it (a tap skips after 1.5 s)?
+  - Does he press the red Jump button, or keep tapping elsewhere? Does the button's pulse after a miss-tap help him find it?
+  - Is the Jump button big enough and in a comfortable place for his thumb (bottom-right)?
+  - Are the voice clips right for jump and win (Mario, and Luigi with `?char=luigi`)? Is the jump voice too often or too rare (at most every 1.5 s)?
+  - Do the 2-tile gaps frustrate him? Does he notice the coin arcs need a press?
+  - Does the first tap make a sound?
+  - Does he find Next on the win screen? (`?demo=1` replays the demo; it otherwise plays once per session.)
 - Enable GitHub Pages: repo Settings -> Pages -> Source: "GitHub Actions" (needed before first deploy works).
 - After pushing Task 003, try Grass 1 on the tablet with Athi (https://ajayc07.github.io/games/, landscape):
   - Does he hop? Does he understand that tapping does something (the pulsing finger icon disappears after the first hop)?
@@ -56,7 +71,7 @@ _(nothing)_
   - Is the picture sharp on the tablet? Any sound missing on the first tap?
   - Optional: try `?char=toad`, `?char=bowser` etc. to see the other characters.
 - Input Lab (now at `?lab=1`): button size check with `?lab=1&buttonScale=1.3` or `0.8`; thumb slide Left to Right.
-- Commit or wire the six new voice clips in `src/universes/mario/assets/` (see Open questions).
+- `luigi-running-towards-left.jpg` (original source of the Luigi run pose) was not in the folder during Task 004, so nothing to do; if it reappears, keep it out of `src/universes/mario/assets/` (every file there is bundled).
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task.
 
 ## Device test notes (parent fills in after trying on the tablet)

@@ -94,3 +94,28 @@ Progress persistence arrives in Task 006; until then results are transient.
 ## D-021 (2026-10-24) Shared physics, forgiving feel
 All characters share one tuning file (run speed, gravity, jump). Coyote time (about 120 ms) and jump buffering
 (about 150 ms) are on. Jump height is fixed (no variable-height holding) because mashing and holding must behave the same.
+
+## D-022 (2026-10-24) Task 003 review outcomes
+Approved: bottom-anchored grid, Image.decode() loading with capsule fallback, trimmed `displayHeight`, manual camera scroll
+(high-DPI), 26 coins. Rule recorded in ARCHITECTURE "Screen layout": every scene calls `bindToScene`; buttons in
+screen-fixed containers need scroll factor 0.
+
+## D-023 (2026-10-24) Character poses and voices
+Pose use: on the ground while running = `poses.run`; in the air = `poses.jump`; idle (before the run, win screen) = `image`.
+Mario's main image is already a jump pose, so for Mario `poses.jump` = his main image and `poses.run` = `mario-run.png` (faces right).
+Luigi's `poses.run` = `luigi-run.png` faces LEFT, so poses carry a facing field and flipping is derived from it.
+Characters without extra poses keep the single-image bob/stretch/squash/flip trick.
+Voice slots are arrays (random pick): `pick`, `jump`, `win`. The generic jump sfx always plays; the voice clip for jump is
+rate-limited (at most one per 1.5 s) so mashing is not annoying. `win` plays at the flag.
+Proposed mapping (parent to confirm by ear, easy to swap in the manifest):
+Mario: pick = mario-yeah-ho, jump = mario-ha-ha, win = mario-yipee.
+Luigi: pick = luigi-oh-yeah, jump = luigi-haha, win = luigi-yeah-ha-ha.
+
+## D-024 (2026-10-24) "Watch me" demo
+A level declares `controls.demo` as `false` or `{ "tiles": N, "jumpsAtTiles": [..] }`. A semi-transparent ghost of the chosen
+character runs the first N tiles, pressing jump at those columns through the same player code; the on-screen button (if shown)
+animates a press and a finger icon taps it in sync. The real run then starts from the start. The demo plays once per session per
+level (in-memory for now; persistence decides later), `?demo=1` forces it, `?demo=0` skips it. It can be skipped by a tap after 1.5 s.
+
+## D-025 (2026-10-24) Win screen gets a Next button
+Replay, Next (only if another level follows in the world; the biggest and pulsing) and Home. The map replaces this in Task 006.

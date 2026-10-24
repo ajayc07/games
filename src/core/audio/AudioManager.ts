@@ -2,6 +2,8 @@
 // Sounds come from files when available, otherwise from generated placeholder recipes.
 import { DEFAULT_RECIPES, recipeDuration, type SynthRecipe } from './recipes';
 import { DEFAULT_LIMITS, VoiceLimiter } from './voiceLimiter';
+import { PendingQueue } from './pendingQueue';
+import { VoicePicker, type VoiceSlot } from './voices';
 
 export interface SoundDef {
   /** URL of an audio file. If missing or it fails to load, `synth` is used. */
@@ -9,7 +11,12 @@ export interface SoundDef {
   synth?: SynthRecipe;
   /** 0..1, default 1. */
   volume?: number;
+  /** Play nothing (instead of a synth) while the file is not decoded. For voice clips. */
+  silentFallback?: boolean;
 }
+
+/** Voice clips of one character, as file URLs per slot (CharacterDef.sounds). */
+export type VoiceFiles = Partial<Record<VoiceSlot, string[]>>;
 
 export type AudioState = 'locked' | 'running';
 
@@ -32,6 +39,12 @@ export class AudioManager {
   private muted = false;
   private volume = 0.8;
   private unlockInstalled = false;
+  private readonly pending = new PendingQueue();
+  private readonly voicePicker = new VoicePicker();
+  /** characterId -> slot -> registered sound ids. */
+  private readonly voices = new Map<string, Partial<Record<VoiceSlot, string[]>>>();
+  /** How often each id actually started (debug and tests). */
+  readonly played = new Map<string, number>();
 
   constructor() {
     for (const [id, synth] of Object.entries(DEFAULT_RECIPES)) this.register(id, { synth });
@@ -53,7 +66,7 @@ export class AudioManager {
   unlock(): void {
     const ctx = this.context();
     if (!ctx || ctx.state === 'running') return;
-    void ctx.resume().catch(() => undefined);
+    void ctx.resume().then(() => this.flushPending(), () => undefined);
     // iOS: playing a silent buffer inside the gesture fully unlocks output.
     try {
       const src = ctx.createBufferSource();
@@ -76,22 +89,62 @@ export class AudioManager {
     return this.sounds.has(id);
   }
 
-  /** Plays a sound. Never throws; silently does nothing while audio is locked or muted. */
+  /**
+   * Plays a sound. Never throws. While audio is still unlocking the request is queued and played
+   * once it runs, if that is within about 300 ms (so the very first jump is heard). Muted = nothing.
+   */
   play(id: string): void {
     try {
+      if (this.muted) return;
       const ctx = this.ctx;
-      if (!ctx || !this.master || this.muted || ctx.state !== 'running') return;
+      if (!ctx || !this.master || ctx.state !== 'running') {
+        this.pending.push(id, performance.now());
+        return;
+      }
       const entry = this.sounds.get(id);
       const volume = entry?.def.volume ?? 1;
       const buffer = entry?.buffer;
+      if (!buffer && entry?.def.silentFallback) return;
       const recipe = entry?.def.synth ?? FALLBACK;
       const durationMs = (buffer ? buffer.duration : recipeDuration(recipe)) * 1000;
       if (!this.limiter.tryStart(id, performance.now(), durationMs)) return;
       if (buffer) this.playBuffer(ctx, buffer, volume);
       else this.playRecipe(ctx, recipe, volume);
+      this.played.set(id, (this.played.get(id) ?? 0) + 1);
     } catch {
       // Audio must never break the game.
     }
+  }
+
+  /**
+   * Registers a character's voice clips (once per character; files start loading in the background).
+   * Missing or broken files simply stay silent: the generic sound effects carry on.
+   */
+  registerVoices(characterId: string, files: VoiceFiles | undefined): void {
+    if (this.voices.has(characterId)) return;
+    const slots: Partial<Record<VoiceSlot, string[]>> = {};
+    for (const [slot, urls] of Object.entries(files ?? {}) as Array<[VoiceSlot, string[] | undefined]>) {
+      const ids = (urls ?? []).filter(Boolean).map((file, i) => {
+        const id = `voice:${characterId}:${slot}:${i}`;
+        this.register(id, { file, silentFallback: true });
+        return id;
+      });
+      if (ids.length > 0) slots[slot] = ids;
+    }
+    this.voices.set(characterId, slots);
+  }
+
+  /** True if the character has at least one clip for the slot. */
+  hasVoice(characterId: string, slot: VoiceSlot): boolean {
+    return (this.voices.get(characterId)?.[slot]?.length ?? 0) > 0;
+  }
+
+  /** Plays a random clip of the slot, respecting the slot's quiet gap (jump: 1.5 s). */
+  playVoice(characterId: string, slot: VoiceSlot): void {
+    const ids = this.voices.get(characterId)?.[slot];
+    if (!ids || this.muted) return;
+    const i = this.voicePicker.pick(slot, ids.length, performance.now());
+    if (i !== null) this.play(ids[i]);
   }
 
   setMuted(muted: boolean): void {
@@ -126,11 +179,17 @@ export class AudioManager {
     this.master = this.ctx.createGain();
     this.master.connect(comp).connect(this.ctx.destination);
     this.applyVolume();
+    this.ctx.addEventListener('statechange', () => this.flushPending());
     // Decode any files registered before the context existed.
     for (const [id, entry] of this.sounds) {
       if (entry.def.file && !entry.buffer && !entry.failed) entry.loading = this.load(id, entry);
     }
     return this.ctx;
+  }
+
+  private flushPending(): void {
+    if (this.ctx?.state !== 'running') return;
+    for (const id of this.pending.drain(performance.now())) this.play(id);
   }
 
   private applyVolume(): void {

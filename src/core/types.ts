@@ -3,6 +3,18 @@ import type Phaser from 'phaser';
 /** The only things game code may ask about. Touch, keyboard and gamepad all map to these. */
 export type Action = 'left' | 'right' | 'jump' | 'power';
 
+/** Which way a picture faces. The game flips it so it always faces the direction of travel. */
+export type Facing = 'right' | 'left';
+
+export interface PoseDef {
+  /** URL of the picture; undefined (file missing) falls back to the character's main image. */
+  image?: string;
+  /** Default 'right'. */
+  facing?: Facing;
+  /** Visible height in logical px; default the character's displayHeight, so poses swap without popping. */
+  displayHeight?: number;
+}
+
 export interface CharacterDef {
   id: string;
   name: string;
@@ -15,8 +27,13 @@ export interface CharacterDef {
   displayHeight?: number;
   /** Colour of the placeholder capsule used when there is no image (or it fails to load). */
   color?: number;
-  poses?: { run?: string; jump?: string };
-  sounds?: { pick?: string; jump?: string; win?: string };
+  /**
+   * Extra pictures (D-023): `run` on the ground while moving, `jump` in the air; `image` is used when idle
+   * and whenever a pose is missing or fails to load. Each is trimmed and scaled to the same visible height.
+   */
+  poses?: { run?: PoseDef; jump?: PoseDef };
+  /** Voice clips (URLs), one picked at random per play. Characters without voices use the generic sounds. */
+  sounds?: { pick?: string[]; jump?: string[]; win?: string[] };
   /** Key of a power animation. Cosmetic only; all characters share identical physics. */
   powerAnimation: string;
 }

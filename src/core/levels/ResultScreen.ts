@@ -1,5 +1,6 @@
-// End-of-level screen (D-020): 1-3 big stars fill one by one, then two big icon buttons,
-// Replay (circular arrow) and Home (house). No text. Tap a button, or Space = Replay, Escape/Enter = Home.
+// End-of-level screen (D-020, D-025): 1-3 big stars fill one by one, then big icon buttons: Replay
+// (circular arrow), Next (play triangle, biggest and pulsing, only if a level follows) and Home (house).
+// No text. Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home.
 import Phaser from 'phaser';
 import { audio } from '../audio/AudioManager';
 import type { Layout } from '../ui/layout';
@@ -8,6 +9,8 @@ const DEPTH = 2000;
 const STAR_R = 72;
 const STAR_GAP = 190;
 const BUTTON_R = 80; // as big as the Jump button
+const NEXT_R = 100;
+const HOME_R_WITH_NEXT = 70;
 const STAR_STEP_MS = 450;
 /** Buttons ignore input this long after they appear, so leftover mashing does not press them. */
 const ARM_MS = 600;
@@ -15,7 +18,11 @@ const ARM_MS = 600;
 export interface ResultHandlers {
   onReplay: () => void;
   onHome: () => void;
+  /** Omitted = no Next button. */
+  onNext?: () => void;
 }
+
+type Choice = 'replay' | 'next' | 'home';
 
 export class ResultScreen {
   static readonly DEPTH = DEPTH;
@@ -24,6 +31,7 @@ export class ResultScreen {
   private readonly stars: Phaser.GameObjects.Container[] = [];
   private readonly replay: Phaser.GameObjects.Container;
   private readonly home: Phaser.GameObjects.Container;
+  private readonly next: Phaser.GameObjects.Container | null;
   private armed = false;
   private done = false;
 
@@ -41,12 +49,22 @@ export class ResultScreen {
       this.root.add(star);
       this.stars.push(star);
     }
-    this.replay = this.makeButton(0x43a047, (g) => drawReplay(g, BUTTON_R * 0.5), () => this.choose('replay'));
-    this.home = this.makeButton(0x1e88e5, (g) => drawHouse(g, BUTTON_R * 0.5), () => this.choose('home'));
-    // Either side of the character, who celebrates in the middle of the screen.
-    this.replay.setPosition(-230, 150).setScale(0);
-    this.home.setPosition(230, 150).setScale(0);
-    this.root.add([this.replay, this.home]);
+    const hasNext = !!handlers.onNext;
+    const homeR = hasNext ? HOME_R_WITH_NEXT : BUTTON_R;
+    this.replay = this.makeButton(0x43a047, BUTTON_R, (g) => drawReplay(g, BUTTON_R * 0.5), () => this.choose('replay'));
+    this.home = this.makeButton(0x1e88e5, homeR, (g) => drawHouse(g, homeR * 0.5), () => this.choose('home'));
+    this.next = hasNext ? this.makeButton(0xff8f00, NEXT_R, (g) => drawNext(g, NEXT_R * 0.5), () => this.choose('next')) : null;
+    // Around the character, who celebrates in the middle of the screen. With Next: Home, Replay | Next.
+    if (this.next) {
+      this.home.setPosition(-385, 150).setScale(0);
+      this.replay.setPosition(-200, 150).setScale(0);
+      this.next.setPosition(245, 140).setScale(0);
+      this.root.add([this.replay, this.home, this.next]);
+    } else {
+      this.replay.setPosition(-230, 150).setScale(0);
+      this.home.setPosition(230, 150).setScale(0);
+      this.root.add([this.replay, this.home]);
+    }
     // Children need scrollFactor 0 too: Phaser hit-tests them with their own scroll factor.
     this.root.setScrollFactor(0, 0, true);
 
@@ -65,6 +83,22 @@ export class ResultScreen {
     return this.armed;
   }
 
+  /** Test hook: button centres in screen coordinates. */
+  buttons(): Array<{ id: Choice; x: number; y: number; r: number }> {
+    const list: Array<[Choice, Phaser.GameObjects.Container | null]> = [
+      ['replay', this.replay],
+      ['next', this.next],
+      ['home', this.home],
+    ];
+    return list
+      .filter((e): e is [Choice, Phaser.GameObjects.Container] => e[1] !== null)
+      .map(([id, c]) => ({ id, x: this.root.x + c.x, y: this.root.y + c.y, r: (c.getData('r') as number) ?? BUTTON_R }));
+  }
+
+  private get all(): Phaser.GameObjects.Container[] {
+    return this.next ? [this.replay, this.next, this.home] : [this.replay, this.home];
+  }
+
   private play(): void {
     const t = this.scene.tweens;
     t.add({ targets: this.dim, fillAlpha: 0.28, duration: 400 });
@@ -80,34 +114,38 @@ export class ResultScreen {
     }
     const buttonsAt = 450 + this.count * STAR_STEP_MS + 250;
     this.scene.time.delayedCall(buttonsAt, () => {
-      for (const b of [this.replay, this.home]) t.add({ targets: b, scale: 1, duration: 300, ease: 'Back.easeOut' });
+      for (const b of this.all) t.add({ targets: b, scale: 1, duration: 300, ease: 'Back.easeOut' });
       this.scene.time.delayedCall(ARM_MS, () => {
         this.armed = true;
-        // Gentle breathing so the buttons invite a tap.
-        t.add({ targets: this.replay, scale: 1.08, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        // Gentle breathing so the main button invites a tap: Next if there is one, else Replay.
+        const main = this.next ?? this.replay;
+        t.add({ targets: main, scale: 1.1, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       });
     });
   }
 
   private onKey(e: KeyboardEvent): void {
     if (e.repeat) return;
-    if (e.code === 'Space') this.choose('replay');
+    if (e.code === 'Space' || e.code === 'ArrowRight') this.choose(this.next ? 'next' : 'replay');
+    else if (e.code === 'KeyR') this.choose('replay');
     else if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'NumpadEnter') this.choose('home');
   }
 
-  private choose(which: 'replay' | 'home'): void {
+  private choose(which: Choice): void {
     if (!this.armed || this.done) return;
+    const target = which === 'replay' ? this.replay : which === 'home' ? this.home : this.next;
+    if (!target) return;
     this.done = true;
     audio.play('pick');
     this.scene.input.keyboard?.off(Phaser.Input.Keyboard.Events.ANY_KEY_DOWN, this.onKey, this);
-    const target = which === 'replay' ? this.replay : this.home;
     this.scene.tweens.killTweensOf(target);
+    const h = this.handlers;
     this.scene.tweens.add({
       targets: target,
       scale: 0.85,
       duration: 90,
       yoyo: true,
-      onComplete: () => (which === 'replay' ? this.handlers.onReplay() : this.handlers.onHome()),
+      onComplete: () => (which === 'replay' ? h.onReplay() : which === 'home' ? h.onHome() : h.onNext?.()),
     });
   }
 
@@ -123,11 +161,12 @@ export class ResultScreen {
     return this.scene.add.container(0, 0, [empty, full]);
   }
 
-  private makeButton(color: number, icon: (g: Phaser.GameObjects.Graphics) => void, onTap: () => void) {
-    const base = this.scene.add.circle(0, 0, BUTTON_R, color).setStrokeStyle(10, 0xffffff);
+  private makeButton(color: number, r: number, icon: (g: Phaser.GameObjects.Graphics) => void, onTap: () => void) {
+    const base = this.scene.add.circle(0, 0, r, color).setStrokeStyle(10, 0xffffff);
     const g = this.scene.add.graphics();
     icon(g);
-    const c = this.scene.add.container(0, 0, [base, g]).setSize(BUTTON_R * 2.3, BUTTON_R * 2.3);
+    // Hit area a little larger than the circle, but not so large that neighbours overlap.
+    const c = this.scene.add.container(0, 0, [base, g]).setSize(r * 2.2, r * 2.2).setData('r', r);
     c.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, onTap);
     return c;
   }
@@ -153,6 +192,12 @@ function drawReplay(g: Phaser.GameObjects.Graphics, s: number): void {
   const tip = { x: Math.cos(a) * s * 0.85, y: Math.sin(a) * s * 0.85 };
   g.fillStyle(0xffffff, 1);
   g.fillTriangle(tip.x - s * 0.55, tip.y - s * 0.2, tip.x + s * 0.25, tip.y - s * 0.5, tip.x + s * 0.15, tip.y + s * 0.45);
+}
+
+/** Play triangle ("go on"). */
+function drawNext(g: Phaser.GameObjects.Graphics, s: number): void {
+  g.fillStyle(0xffffff, 1);
+  g.fillTriangle(-s * 0.6, -s * 0.95, -s * 0.6, s * 0.95, s * 1.0, 0);
 }
 
 /** House. */

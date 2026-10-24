@@ -53,6 +53,13 @@ export const DEFAULT_RECIPES = {
       { freq: 1050, to: 390, at: 0.03, dur: 0.32, type: 'sine', gain: 0.18 },
     ],
   },
+  // Soft "your turn" cue after the demo: two gentle rising notes.
+  yourTurn: {
+    tones: [
+      { freq: 587, dur: 0.14, type: 'sine', gain: 0.55 },
+      { freq: 880, at: 0.14, dur: 0.3, type: 'sine', gain: 0.55 },
+    ],
+  },
   pick: {
     tones: [
       { freq: 660, dur: 0.08, type: 'sine' },
