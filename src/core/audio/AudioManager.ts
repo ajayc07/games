@@ -3,7 +3,6 @@
 import { DEFAULT_RECIPES, recipeDuration, type SynthRecipe } from './recipes';
 import { DEFAULT_LIMITS, VoiceLimiter } from './voiceLimiter';
 import { PendingQueue } from './pendingQueue';
-import { VoicePicker, type VoiceSlot } from './voices';
 
 export interface SoundDef {
   /** URL of an audio file. If missing or it fails to load, `synth` is used. */
@@ -11,12 +10,7 @@ export interface SoundDef {
   synth?: SynthRecipe;
   /** 0..1, default 1. */
   volume?: number;
-  /** Play nothing (instead of a synth) while the file is not decoded. For voice clips. */
-  silentFallback?: boolean;
 }
-
-/** Voice clips of one character, as file URLs per slot (CharacterDef.sounds). */
-export type VoiceFiles = Partial<Record<VoiceSlot, string[]>>;
 
 export type AudioState = 'locked' | 'running';
 
@@ -40,9 +34,6 @@ export class AudioManager {
   private volume = 0.8;
   private unlockInstalled = false;
   private readonly pending = new PendingQueue();
-  private readonly voicePicker = new VoicePicker();
-  /** characterId -> slot -> registered sound ids. */
-  private readonly voices = new Map<string, Partial<Record<VoiceSlot, string[]>>>();
   /** How often each id actually started (debug and tests). */
   readonly played = new Map<string, number>();
 
@@ -104,7 +95,6 @@ export class AudioManager {
       const entry = this.sounds.get(id);
       const volume = entry?.def.volume ?? 1;
       const buffer = entry?.buffer;
-      if (!buffer && entry?.def.silentFallback) return;
       const recipe = entry?.def.synth ?? FALLBACK;
       const durationMs = (buffer ? buffer.duration : recipeDuration(recipe)) * 1000;
       if (!this.limiter.tryStart(id, performance.now(), durationMs)) return;
@@ -114,37 +104,6 @@ export class AudioManager {
     } catch {
       // Audio must never break the game.
     }
-  }
-
-  /**
-   * Registers a character's voice clips (once per character; files start loading in the background).
-   * Missing or broken files simply stay silent: the generic sound effects carry on.
-   */
-  registerVoices(characterId: string, files: VoiceFiles | undefined): void {
-    if (this.voices.has(characterId)) return;
-    const slots: Partial<Record<VoiceSlot, string[]>> = {};
-    for (const [slot, urls] of Object.entries(files ?? {}) as Array<[VoiceSlot, string[] | undefined]>) {
-      const ids = (urls ?? []).filter(Boolean).map((file, i) => {
-        const id = `voice:${characterId}:${slot}:${i}`;
-        this.register(id, { file, silentFallback: true });
-        return id;
-      });
-      if (ids.length > 0) slots[slot] = ids;
-    }
-    this.voices.set(characterId, slots);
-  }
-
-  /** True if the character has at least one clip for the slot. */
-  hasVoice(characterId: string, slot: VoiceSlot): boolean {
-    return (this.voices.get(characterId)?.[slot]?.length ?? 0) > 0;
-  }
-
-  /** Plays a random clip of the slot, respecting the slot's quiet gap (jump: 1.5 s). */
-  playVoice(characterId: string, slot: VoiceSlot): void {
-    const ids = this.voices.get(characterId)?.[slot];
-    if (!ids || this.muted) return;
-    const i = this.voicePicker.pick(slot, ids.length, performance.now());
-    if (i !== null) this.play(ids[i]);
   }
 
   setMuted(muted: boolean): void {

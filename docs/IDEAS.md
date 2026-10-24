@@ -2,6 +2,15 @@
 
 Ideas that are not part of the current plan. Do not build these unless the parent asks. Newest first.
 
+## 2026-10-24: Mario content removed (Task 005d, D-038)
+The game is now the generic "Robo World" universe: no franchise names, pictures or voice clips in `src/`, the bundle or the
+built site (a unit test scans for the names). The removed files are archived locally in `_sources/archive-private/` (gitignored).
+Still needed before any commercial use:
+- **Git history:** the public repo history still contains the archived character images and voice clips. Rewrite it
+  (e.g. `git filter-repo` and a force push) or restart from a fresh repo with only original or licensed content.
+- **Audio:** original or licensed sound effects and music (the current sounds are code-generated placeholders and chimes).
+- **Store and legal items:** packaging, listing, kids' privacy rules and legal advice, as listed below.
+
 ## 2026-10-24: Possible commercial version (parked by the parent)
 Question raised: how far is this from something sellable? Answer for now: the engine is reusable, the content is not.
 

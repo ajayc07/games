@@ -1,19 +1,18 @@
-// Builds the chosen look for a character (D-032, D-037). Adding a body: implement AvatarLook, add its name
+// Builds the chosen look for an avatar option (D-032, D-037). Adding a body: implement AvatarLook, add its name
 // to LOOK_NAMES (config.ts) and a case here.
 import type Phaser from 'phaser';
-import type { CharacterDef } from '../types';
 import { BallLook } from './BallLook';
 import { RobotLook } from './RobotLook';
-import { parseLook, type LookName } from './config';
+import { parseLook, type AvatarDef, type LookName } from './config';
 import type { AvatarLook } from './types';
 
-export function createLook(scene: Phaser.Scene, name: LookName, character: CharacterDef, x: number, feet: number): AvatarLook {
+export function createLook(scene: Phaser.Scene, name: LookName, avatar: AvatarDef | undefined, x: number, feet: number): AvatarLook {
   switch (name) {
     case 'ball':
-      return new BallLook(scene, character, x, feet);
+      return new BallLook(scene, avatar, x, feet);
     case 'robot':
     default:
-      return new RobotLook(scene, character, x, feet);
+      return new RobotLook(scene, avatar, x, feet);
   }
 }
 

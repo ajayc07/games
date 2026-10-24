@@ -1,4 +1,4 @@
-// Avatar configuration (D-032, D-033, D-037): which look, and the character's palette and size factor.
+// Avatar configuration (D-032, D-033, D-037, D-038): which look, and an option's palette, size factor and antennae.
 // Pure and unit-tested; no Phaser.
 import { DEFAULT_PALETTE, SCALE_RANGE } from './robotSpec';
 
@@ -15,7 +15,7 @@ export interface AvatarPalette {
   eye: number;
 }
 
-/** Per-character avatar attributes in the manifest. Cosmetic only. */
+/** Avatar attributes of an option in the manifest (AvatarOptionDef extends this). Cosmetic only. */
 export interface AvatarDef {
   palette?: Partial<AvatarPalette>;
   /** Size factor for the Robot and the Ball (0.9..1.15). */

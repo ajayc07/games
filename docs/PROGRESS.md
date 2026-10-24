@@ -1,16 +1,17 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 005c done)_
+_Last updated: 2026-10-24 (Task 005d done)_
 
 ## Status
-Three playable levels (Grass 1 "Tap to hop", Grass 2 "Big Jump button", Grass 3 "Left and Right"), each with Next to the following
-level. Grass 1 and 2 are now about 60% of their old length (Task 005c). The player is a friendly code-built robot (default) in the
-chosen character's colours: it faces the player when standing and turns into a three-quarter view toward where it is going when
-walking, running, jumping or shooting (head first, then body). `?look=ball` shows a rolling ball instead; the real-picture (`sprite`)
-and `portrait` looks are gone (D-037). Robot and ball work in all levels, the demo ghost, the win screen and the Input Lab (Power
-shoots a harmless energy ball). Voices for Mario, Luigi, Peach, Toad and Bowser. Opening the app starts Grass 1; the Input Lab is
-behind `?lab=1`.
-Next: Task 006 (world map, stars, unlocking, storage).
+The game is now "Robo World" (D-038): all franchise content (names, pictures, voice clips) is gone from the code, the bundle and
+the site; the files are archived locally in `_sources/archive-private/`. The first visit opens a picker with eight colour cards
+(red, orange, yellow, green, teal, blue, purple, pink), each a little robot with its own colour, size, antennae and chime; Play
+stores the choice and starts Grass 1, later visits go straight to Grass 1 (`?picker=1` shows the picker again, the palette button
+on the win screen too). Three playable levels (Grass 1 "Tap to hop", Grass 2 "Big Jump button", Grass 3 "Left and Right"), each
+with Next. The robot faces the player when standing and turns into a three-quarter view when moving. Jump plays only the generic
+jump sound; the flag plays the chosen option's win chime. `?color=<id>` picks an option directly, `?look=ball` shows a ball,
+`?lab=1` opens the Input Lab.
+Next: Task 006 (world map, stars, unlocking, storage; migrates the stored choice).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -23,12 +24,12 @@ Next: Task 006 (world map, stars, unlocking, storage).
 | 005 | Grass 3 "Left and Right" (no auto-run) | Done |
 | 005b | Avatar looks (robot, ball; sprite and portrait later removed) | Done |
 | 005c | Robot three-quarter running view, remove sprite/portrait looks, re-pace Grass 1-2 | Done |
+| 005d | Generic "robo" universe, remove character voices, colour-card picker (D-038) | Done |
 | 006 | World map + stars + unlocking + per-universe progress storage | Next |
 | 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Planned |
 | 008 | Grass 5: move + jump gaps | Planned |
-| 009 | Character picker (real pictures, voices) | Planned |
-| 010 | Minimal parent view (sound, button size, unlock-all) | Planned |
-| later | Pipe/Sky/Castle worlds, boss question, polish | Later |
+| 009 | Minimal parent view (sound, button size, unlock-all) | Planned |
+| later | Cave/Sky/Castle worlds, polish | Later |
 
 ## Done
 - 2026-10-23: Planning, decisions D-001..D-011, starter pack, local repo created.
@@ -47,6 +48,12 @@ Next: Task 006 (world map, stars, unlocking, storage).
 - 2026-10-24: First tablet session with Athiran (D-037): robot liked best, loves shooting; bored by Grass 1-2, liked Grass 3.
 - 2026-10-24: Task 005c: robot three-quarter view (yaw, head-then-body turn, pure rig solver `robotRig.ts`), sprite and portrait
   looks and all pose/flipbook code removed (robot is the default), Grass 1 cut to 85 tiles and Grass 2 to 90 tiles.
+- 2026-10-24: D-038 (parent): the jump voice is annoying and goes; the universe becomes generic; only the idea of a selection
+  card stays, as a colour/size/antennae choice for the robot.
+- 2026-10-24: Task 005d: universe renamed `robo` ("Robo World"); 7 character images and 15 voice clips archived to
+  `_sources/archive-private/` and removed from the repo; voice machinery removed; eight colour options with synthesized pick/win
+  chimes; picker scene (cards, keyboard, Play), stored choice, win-screen palette button. Bundle 1,895,904 -> 1,358,453 bytes
+  (`dist/`), universe chunk 91,940 -> 101,868 bytes (picker code added, all media gone).
 
 ## In progress
 _(nothing)_
@@ -63,8 +70,8 @@ _(nothing)_
   there (unit-tested), but a turn in mid-air shows a one-frame swap of the tucked legs (the jump/fall poses are not left/right
   symmetric). Rare and brief; noting it in case it is visible.
 - The take-off arm swing is quick (arms back to arms up in 140 ms, about 0.65 rad per frame at most) so the V shows early.
-- Green avatars (Luigi, Yoshi, Bowser's joints) have low contrast against the green Grass hills; the outline helps but a darker
-  outline or a different palette may be wanted.
+- Avatar contrast on the green hills: every option now has dark joints (at least 3:1 against both hill colours, unit-tested) and the
+  body stays white; the green option's accent is still green on green. Check on the tablet (`_sources/review/005d/options-on-grass.png`).
 - Grass 3 tuning to confirm on the tablet: walk speed 220, ramp 60/80 ms, 4 coins left of the start, overhead coins 2.5 tiles up
   (need a standing jump), stars 10/16. All in `grass-3.json` / `core/levels/physics.ts`.
 - Facing flips on the first frame of a turn (D-029), so the character briefly slides about 10 px backwards (4 frames) while slowing.
@@ -77,7 +84,6 @@ _(nothing)_
 - Motion tuning (Task 004b) is by eye from frame captures; all numbers are in `core/levels/animation.ts` (the robot uses half of the squash and none of the stride lean, `ROBOT_CLIPS.motion`).
 - Phaser logs "Ignored attempt to cancel a touchcancel event" in the console when a touch is cancelled (Phaser calls preventDefault on it). Harmless.
 - High-DPI rendering (Task 003) zooms each scene's camera with origin (0, 0). Phaser's camera bounds and `startFollow` assume a centred origin, so scenes scroll by hand; children of screen-fixed containers need `setScrollFactor(0, 0, true)` or taps miss them. See ARCHITECTURE "Screen layout".
-- Voice mapping (D-023, D-031) is a guess; confirm by ear: Mario pick = yeah-ho, jump = ha-ha, win = yipee; Luigi pick = oh-yeah, jump = haha, win = yeah-ha-ha; Peach pick = hello, jump = yeah, win = he-he-yeah; Toad pick = toad-2, jump = toad-0, win = toad-1; Bowser pick = bowser-1, jump = bowser-0, win = he-ha-ha. `pick` clips are registered but not played until the character picker.
 - Grass 2 (Task 005c): 90 tiles, one 1-tile gap (42) and two 2-tile gaps (60-61, 76-77; 2-tile gaps need a press within about half a second), 18 coins, stars 9/15, demo unchanged (20 tiles, about 5 s), Jump button 0.28 of the screen height when it is the only button.
 - Bot timing (Task 005c, random presses about 1.5 per second, headless Chrome): Grass 1 25-45 s (median 31; the 45 s run fell in the
   gaps 6 times), Grass 2 29-33 s without the demo and 34-54 s with it (the demo is about 7 s; the slow runs fell 5-6 times).
@@ -89,17 +95,30 @@ _(nothing)_
 - Grass 1 tuning to confirm on the tablet (Task 005c): 85 tiles (about 25 s of running), 16 coins, two 1-tile gaps at 50 and 66, stars 7/12; run speed 200, jump peak 2.5 tiles. All in `grass-1.json` / `core/levels/physics.ts`.
 - Service worker uses a hand-written `src/sw.ts` (injectManifest) because workbox's generated SW breaks when the local path contains an apostrophe ("Athi's Game"). Fine on CI. Keep in mind if the PWA setup changes.
 - Not yet tested on a real phone/tablet (iOS Safari especially: fullscreen display, audio unlock, double-tap zoom).
-- Bowser as player vs castle boss: settle later (friendly race, or swap boss when Bowser is chosen).
 - Unlock rule: `openAtATime` is 3 (D-037), so all three Grass levels are open; the map (Task 006) applies it. Until then any level opens with `?level=` and Next goes 1 -> 2 -> 3 (checked).
-- Real pictures are now only for the character picker (Task 009); voices for Yoshi and Donkey Kong still missing. Not blocking.
 
-## Asset notes (architect, 2026-10-23)
-- Parent added 7 character images (originally `public/images/character-<name>.avif`). Code already moved them to `src/universes/mario/assets/<id>.avif` (mario, luigi, peach, toad, bowser, yoshi, donkeykong) and the manifest references them with `asset('<id>.avif')`. All are 600x844, transparent, one hero pose each (Mario/Luigi jump pose, Yoshi mid-run, Peach/Toad floating, Bowser/DK standing, front-ish view).
-- Characters occupy different amounts of their canvas, so normalise by display height per character in the manifest (e.g. `displayHeight`), do not edit the files.
-- Plan for Task 007: optionally move them into an `assets/characters/` subfolder, and convert AVIF to WebP (alpha, quality about 90) for wider browser support, unless the parent says all his devices handle AVIF.
-- (Superseded by D-037, Task 005c: pictures are no longer drawn in levels, so no run poses are needed; the images are for the picker.)
+- Picker (Task 005d), to judge on the tablet: does he understand the cards without text? Is the default (first card, or the last
+  choice) fine, or should a first launch have no selection until he taps? Dimming the other cards (0.24) may look like "disabled".
+- Chimes (Task 005d) were tuned by numbers only (unit tests for distinctness, range and loudness), not by ear. Listen to all eight
+  (tap each card): pleasant, clearly different, not too loud? Numbers in `core/audio/chimes.ts` and each option's `chime`.
+- Phaser re-sends queued keyboard events when several keys arrive in one frame (its duplicate check only remembers the last
+  event). The picker ignores repeats; the result screen and the level are not affected in practice (they act once), but keep it
+  in mind for any new key handling.
+- The picker reads the keyboard directly (arrows, Enter/Space), like the result screen; gamepads do not drive it yet.
+- `?level=` skips the picker even on a first launch (as the acceptance criteria ask); with `?picker=1` the picker comes first.
+- The "Pipe" world (empty) was renamed "Cave" to drop a franchise-like detail; the coin, flag, hills and clouds stay generic.
+
+## Asset notes
+- Task 005d (D-038): no media files in the game. The former character images and voice clips are archived in
+  `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 005d (rewriting the git history is a separate, later step; see docs/IDEAS.md):
+  - Open https://ajayc07.github.io/games/?picker=1 on the tablet: does he tap a card without help? Does he find the green Play button?
+  - Listen to all eight chimes (tap each card) and the win chime at the flag: pleasant, different, not too loud?
+  - Is jumping nicer without the voice? Does he miss it?
+  - Is the palette button on the win screen distracting, or does he enjoy changing colour?
+  - Do the robot sizes (yellow small, purple big) read as "different robots"?
 - After pushing Task 005c, a short check on the tablet (any level, e.g. https://ajayc07.github.io/games/?level=grass-3):
   - Does the robot now look like it runs forward, both ways? Does Athiran notice it turning round?
   - Standing still it faces him; is that friendly, or confusing about which way it will go?
@@ -111,7 +130,6 @@ _(nothing)_
   - Does he understand that letting go stops? Or does he keep the button held and get surprised at the wall?
   - Does he reach the four overhead coins (stop under one and press Jump)? Does he go left for the four coins behind the start?
   - Do the button sizes and spacing work for one hand (thumb on Left/Right, then over to Jump)? Any accidental presses?
-  - Listen to Peach, Toad and Bowser (`?char=peach`, `?char=toad`, `?char=bowser`): is each clip in the right slot (jump / win)?
 - After pushing Task 004b, watch Athi play Grass 1 and Grass 2 on the tablet:
   - Does the run feel lively without looking jittery or wobbly? Is the lean / bounce too much or too little?
   - Is the landing squash fun, or does it look like the character got hurt?
@@ -122,7 +140,6 @@ _(nothing)_
   - Does the "watch me" demo make sense to him? Does he watch it, or try to tap through it (a tap skips after 1.5 s)?
   - Does he press the red Jump button, or keep tapping elsewhere? Does the button's pulse after a miss-tap help him find it?
   - Is the Jump button big enough and in a comfortable place for his thumb (bottom-right)?
-  - Are the voice clips right for jump and win (Mario, and Luigi with `?char=luigi`)? Is the jump voice too often or too rare (at most every 1.5 s)?
   - Do the 2-tile gaps frustrate him? Does he notice the coin arcs need a press?
   - Does the first tap make a sound?
   - Does he find Next on the win screen? (`?demo=1` replays the demo; it otherwise plays once per session.)
@@ -133,7 +150,6 @@ _(nothing)_
   - Any frustration at the two small gaps (a fall floats him back on a cloud)? Does he enjoy the cloud or find it confusing?
   - Does he notice the coins and the stars at the end? Does he find Replay without help? (Home goes to the Input Lab for now.)
   - Is the picture sharp on the tablet? Any sound missing on the first tap?
-  - Optional: try `?char=toad`, `?char=bowser` etc. to see the other characters.
 - Input Lab (now at `?lab=1`): button size check with `?lab=1&buttonScale=1.3` or `0.8`; thumb slide Left to Right.
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task.
 

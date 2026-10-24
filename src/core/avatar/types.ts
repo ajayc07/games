@@ -5,7 +5,8 @@ import type Phaser from 'phaser';
 import type { Gait } from './clips';
 import type { LookName } from './config';
 
-export type AvatarEvent = 'jump' | 'land' | 'win' | 'shoot';
+/** `rest` ends a `win` (the picker's one-off wave); the look blends back to idle. */
+export type AvatarEvent = 'jump' | 'land' | 'win' | 'shoot' | 'rest';
 
 /** Everything a look needs for one frame. Positions are world coordinates; the root sits at the feet. */
 export interface AvatarState {

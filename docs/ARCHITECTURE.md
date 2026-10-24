@@ -10,15 +10,17 @@ games/
     core/
       input/             InputManager: touch buttons + keyboard + gamepad -> actions
       avatar/            how characters are drawn: AvatarLook (robot, ball), rig, shared motion
-      audio/             AudioManager: unlock on first gesture, placeholder beeps, voice clips
-      storage/           per-universe progress + settings (IndexedDB or localStorage wrapper)
+      audio/             AudioManager: unlock on first gesture, placeholder beeps, per-option chimes
+      storage/           per-universe progress + settings (for now only the chosen option, choice.ts)
+      picker/            PickerScene (colour cards), pure selection + layout
       levels/            level JSON loader/runner, control-ladder rules
       ui/                reusable big buttons, cloud/lock visuals
     universes/
       registry.ts        id -> () => import('./<id>')   (lazy loading)
-      mario/
-        manifest.ts      characters, worlds, unlock config
-        scenes/          Phaser scenes specific to Mario universe
+      robo/              "Robo World" (D-038); id and title in universe.ts
+        manifest.ts      options, worlds, unlock config, routing
+        options.ts       the eight colour cards
+        scenes/          Phaser scenes specific to this universe (Input Lab)
         levels/          level JSON files
         assets/          images/audio (placeholders first, real files later)
   public/                PWA icons, manifest bits
@@ -28,37 +30,33 @@ games/
 
 ## Shell vs universe
 - **Shell** is always loaded and small. For now there is no launcher: `main.ts` reads `config.defaultUniverse` and opens it directly. A launcher screen is added when a second universe exists.
-- **Universe module** is a dynamic import, so Ben 10 files are never downloaded for Mario. Each exports a `UniverseManifest`.
+- **Universe module** is a dynamic import, so one universe's files are never downloaded for another. Each exports a `UniverseManifest`.
 
 ```ts
 type Action = 'left' | 'right' | 'jump' | 'power';
 
 interface UniverseManifest {
-  id: string;                     // 'mario'
-  title: string;
-  characters: CharacterDef[];     // 7 for Mario
-  defaultCharacterId: string;
-  worlds: WorldDef[];             // grass, pipe, sky, castle
+  id: string;                     // 'robo'
+  title: string;                  // 'Robo World'
+  options: AvatarOptionDef[];     // 8 colour cards; the first is the fallback
+  worlds: WorldDef[];             // grass, cave, sky, castle
   unlock: { openAtATime: number };// default 2..3 levels open at once
   start(game: Phaser.Game): void; // boots the universe's first scene
 }
 
-interface CharacterDef {
-  id: string; name: string;
-  image?: string;                 // URL from assets/; not drawn in levels (D-037), kept for the character picker
-  color?: number;                 // placeholder colour for the picker
-  sounds?: { pick?: string[]; jump?: string[]; win?: string[] };  // voice clip URLs, random pick
-  avatar?: { palette?: Partial<AvatarPalette>; scale?: number; antennae?: number }; // code-built looks (Task 005b)
-  powerAnimation: string;         // key of a power animation; cosmetic only
+interface AvatarOptionDef extends AvatarDef {   // AvatarDef = { palette?, scale?, antennae? }
+  id: string;                     // 'blue'; used by ?color= and storage
+  chime: { semitones: number; timbre: 'bell' | 'soft' | 'pluck' | 'bright' };
 }
 ```
-All characters share identical physics (jump height, speed). Differences are cosmetic.
+All options share identical physics (jump height, speed). Differences are cosmetic. No names, no pictures, no voices (D-038).
 
 **Removed in Task 005c (D-037):** the `sprite` look (the real pictures in levels), the `portrait` look, and everything only they
 used: `poses` (`idle`/`run`/`jump`, D-023), the run flipbook (`runFrames`, `runFps`, Task 004b), the idle-pose rule (Task 005),
 `displayHeight`, the `portrait` crop, `characterLook.ts`, `poses.ts`, `SpriteLook.ts`, `portrait.ts` and the run-pose images.
-Kept for the character picker: the `image` files and field, `core/levels/characterTexture.ts` (decode, trim, pre-scale a picture,
-silent failure) and `makeCapsuleTexture` (placeholder when there is no picture).
+**Removed in Task 005d (D-038):** the character cast (names, pictures, voice clips), `CharacterDef` (`image`, `color`, `sounds`,
+`powerAnimation`), `characterTexture.ts`, `makeCapsuleTexture`, the voice slots (`voices.ts`, `registerVoices`/`playVoice`, the
+1.5 s jump-voice limiter, `silentFallback`) and `?char=`. The files are archived outside git in `_sources/archive-private/`.
 
 ### Lively motion (Task 004b)
 All character motion is visual only (the 40x84 physics body never changes) and works for every character and look.
@@ -131,8 +129,9 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
 - **Ball**: a 96 px ball in the accent colour with a band and spots that roll (angle = distance / radius) under a fixed
   highlight; the face (eyes with pupils, cheeks, mouth) stays upright and slides toward the facing. Happy eyes and a grin on win;
   "shoot" opens the mouth.
-- **Character attributes** (`avatar` in the manifest, `resolveAvatar`): palette (body, joint, accent, visor, eye; defaults
+- **Option attributes** (the `AvatarDef` part of each option, `resolveAvatar`): palette (body, joint, accent, visor, eye; defaults
   white / dark grey / cyan / dark visor / cyan eyes), scale clamped to 0.9-1.15, antennae 0-2 (default 2). Colour only, no emblems.
+  Looks take an `AvatarDef` (`createLook(scene, name, avatar, x, feet)`). Event `rest` ends a `win` (the picker's one-off wave).
 - **Shooting** exists only in the Input Lab for now: Power plays `shoot` and fires a harmless energy ball (accent colour) from
   `muzzle()`. Power becomes gameplay in Grass 4 (D-037).
 - **Adding a body:** implement `AvatarLook` (use `AvatarState`, return your `motion()` weights), add the name to `LOOK_NAMES`
@@ -140,14 +139,34 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
 - `?debug=1`: `__level.anim()` / `ghostAnim()` include `look` and the look's own numbers (robot: head/body yaw, weights, limb
   angles, flash, cannon, eye openness, ear depth; ball: face direction).
 
-### Voices (D-023)
-`audio.registerVoices(characterId, sounds)` (called by LevelScene) registers each clip as `voice:<id>:<slot>:<n>`
-with `silentFallback`, so a missing or broken file is simply silent (the generic sounds carry on).
-Voices exist for Mario, Luigi (D-023), Peach, Toad and Bowser (D-031); Yoshi and Donkey Kong use the generic sounds.
-`audio.playVoice(id, slot)` picks at random (never the same clip twice in a row when there is a choice) through
-`VoicePicker` (`core/audio/voices.ts`, tested): `jump` at most once per 1.5 s, `pick`/`win` unlimited.
-The generic `jump` sfx always plays; `win` voice plays 350 ms after the win jingle. `pick` is registered but used by the
-character picker later (Task 007).
+### Avatar options and picker (D-038, Task 005d)
+- **Options** (`universes/robo/options.ts`): eight colour cards in order red, orange, yellow, green, teal, blue, purple, pink.
+  Body stays the default white; `accent` = the hue, `joint` = a dark shade (contrast at least 3:1 against both hill colours,
+  unit-tested), `eye` = a light tint. Scale 0.92 (yellow, one antenna) to 1.12 (purple); teal also has one antenna.
+  `core/avatar/options.ts` (pure, tested): `validateOptions` (ids unique and lower-case, scale/antennae/chime ranges; problems are
+  console warnings at start), `findOption`, `colorFromSearch` (`?color=<id>`, case-insensitive; unknown = first option + one warning).
+- **Chimes** (`core/audio/chimes.ts`, pure, tested): one recipe per kind, shaped by the option's `semitones` (from C5, clamped
+  -7..+10) and `timbre`. `pick`: a quick rising glide into a held upper note (under 0.4 s). `win`: a 5-6 note arpeggio (under 1.3 s;
+  bell = sine + inharmonic overtone, soft = pure sine major, pluck = short bouncing triangle, bright = triangle with octave
+  shimmer). Overtones above 4.5 kHz are dropped; summed peak gain stays 0.6-1.6 (x 0.3 in the AudioManager). The eight options'
+  pitches are at least 2 semitones apart and neighbours never share a timbre; bigger robots sound lower. `playChime(option, kind)`
+  (`chimePlayer.ts`) registers `chime:<id>:<kind>` on first use and plays it. Jump plays only the generic `jump` sound; the flag
+  plays the option's win chime instead of the generic `win` jingle; a card pick plays its pick chime.
+- **PickerScene** (`core/picker/`, generic; data `{ options, selectedId, onPlay }`): cards in 2 rows of 4 from `pickerLayout`
+  (pure, tested at 844x390, 1280x800, 1024x768, 1366x512, 2400x1000 and with insets): Play (green circle, r 84) in the bottom-right
+  corner inside the insets, cards at most 250x300 (at least 120) centred on the screen or pushed left of Play. Each card is a
+  rounded panel in the accent colour with a front-on robot (an `AvatarDriver` fed "standing" every frame, inside a container
+  scaled about 1.44 so the option's own scale still shows). A tap selects: card pop, robot hop + wave for 1.1 s (then `rest`),
+  pick chime, white/yellow ring and a star badge, other cards dim (0.24 overlay). Keys (`selection.ts`, pure, tested): arrows/WASD
+  move a yellow cursor (Left/Right wrap through the cards, Up/Down move a row), Enter/Space selects the cursor's card, again plays.
+  Phaser re-sends queued key events when several arrive in one frame, so the scene ignores an event it has already handled.
+  `?debug=1`: `window.__picker.state()` (selection, card rects, dim, Play, fps).
+- **Choice storage** (`core/storage/choice.ts`): one localStorage key `athi.<universe>.choice` with the option id, every access
+  in try/catch (blocked storage = nothing stored; the game still works). Task 006 migrates it into the progress record.
+- **Flow** (until the map, Task 006): `?lab=1` Input Lab; `?color=<id>` straight to the level (no picker, nothing stored);
+  `?picker=1`, or no stored choice and no `?level=`, shows the picker; otherwise the level with the stored option. Play stores the
+  choice and opens `?level=` or Grass 1. The win screen has a palette button (top-right, r 56, hit area 123 px; key C) that reopens
+  the picker and then replays the same level.
 
 ### Walking (D-029, Task 005)
 Levels with `autoRun: false` move by holding Left/Right. `walk.ts` (pure, tested): `walkDirection(left, right)` (both = stand),
@@ -224,18 +243,16 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   ground on both sides), `starsFor`. Pure and unit-tested (`levels.test.ts`).
 - `physics.ts`: the one shared tuning file (D-021): run speed 200, walk speed 220 (ramp 60 ms up / 80 ms down), gravity 1800, jump velocity 760 (peak 160 px = 2.5
   tiles, ~2.6 tiles carried at 200 px/s), max fall 1100, coyote 120 ms, jump buffer 150 ms, body 40x84. Fixed jump height.
-- `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, character,
-  onHome }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
+- `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, option,
+  onHome, onNext?, onPicker? }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
   look (robot or ball, lively motion, see "Avatar looks" above). Camera follows by hand with a look-ahead (see "Walking");
   scenery ground extends past both level ends.
-  Falls: whoosh, a cloud carries the player to the respawn spot. Flag: stop, win sound, hop, confetti, `ResultScreen`.
+  Falls: whoosh, a cloud carries the player to the respawn spot. Flag: stop, the option's win chime, hop, confetti, `ResultScreen`.
   `?debug=1` exposes `window.__level` (state, scene, input, layout, audio) for tests.
 - `theme.ts`: `LevelTheme` = colours for sky, hills, clouds, ground, coin, flag plus optional image files per texture
   (`ground-top`, `ground-fill`, `coin`, `flag-pole`, `flag-cloth`, `hills-far`, `hills-near`, `cloud`).
 - `placeholders.ts`: generates the theme textures (and effect/capsule textures) at 2x resolution for any texture without
-  a file. Real art: drop the file into the universe assets; the Mario theme already looks up `grass-ground-top.png` etc.
-- `characterTexture.ts`: decodes a character picture with `Image.decode()` (failure = null, no console errors), trims transparent
-  margins and pre-scales it to a given height x 2 for a crisp picture. Not used in levels since Task 005c; kept for the picker.
+  a file. Real art: drop the file into the universe assets; the Grass theme already looks up `grass-ground-top.png` etc.
 - `background.ts`: parallax sky gradient, wrapping clouds and two tiling hill strips, all screen-fixed and scrolled by hand.
 - `walk.ts` (pure, tested): walking direction, speed ramp, soft level-end walls, facing hysteresis (see "Walking").
 - `Player.ts`: the physics box + look of one character (movement, buffered/coyote jump, facing, the AvatarDriver's
@@ -243,17 +260,18 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 - `animation.ts` (pure, tested): all motion tuning and maths. `motionFx.ts`: pooled dust emitters for the real player.
 - `ResultScreen.ts` (D-025): 3 star slots filling one by one, then big icon buttons that only accept input 600 ms after
   appearing, so leftover mashing does not press them: Home (left, smaller), Replay, and Next (right, biggest, pulsing;
-  only when `LevelSceneData.onNext` is given). Without Next: Replay and Home either side of the character.
-  Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home.
+  only when `LevelSceneData.onNext` is given). Without Next: Replay and Home either side of the character. With `onPicker`, a
+  small palette button in the top-right corner (Task 005d).
+  Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home, C = picker.
 - `progression.ts`: `nextLevelId(worlds, id)` = the next level in the same world or null (tested). The universe passes
-  `onNext` from it; Next keeps the chosen character.
+  `onNext` from it; Next keeps the chosen option.
 
-Mario routing (`universes/mario/manifest.ts`, until the world map exists): `/games/` opens the first Grass level;
-`?level=<id>` any level, `?char=<id>` any character, `?demo=0|1`, `?lab=1` the Input Lab. Home goes to the Input Lab
-for now. The world list is plain data in `universes/mario/worlds.ts` (Grass: grass-1, grass-2, grass-3), and so is the cast
-(`universes/mario/characters.ts`: images, avatar colours, voices), so tests can read both without Phaser.
+Robo World routing (`universes/robo/manifest.ts`, until the world map exists): see "Avatar options and picker" for the picker
+flow; `?level=<id>` any level, `?color=<id>` any option, `?demo=0|1`, `?lab=1` the Input Lab. Home goes to the Input Lab
+for now. The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1, grass-2, grass-3; then Cave, Sky, Castle,
+empty), and so are the options (`universes/robo/options.ts`), so tests can read both without Phaser.
 
-Mario levels (re-paced in Task 005c, D-037: about 60% of their old length, same coin density):
+Grass levels (re-paced in Task 005c, D-037: about 60% of their old length, same coin density):
 Grass 1 "Tap to hop": 85 tiles, tap anywhere, no demo, 16 coins (3 at head height, two five-coin arcs, one five-coin arc over the
 1-tile gap at 50 and a three-coin arc over the 1-tile gap at 66), flag at 80, stars 7/12 (was 140 tiles, 26 coins, 12/20).
 Grass 2 "Big Jump button": 90 tiles, only the Jump button (taps elsewhere never jump), demo `{ tiles: 20, jumpsAtTiles: [8, 15] }`,
@@ -291,15 +309,17 @@ Size comes from the short edge times `buttonScale` (`?buttonScale=` for now). Bl
 
 ## Audio
 `core/audio/AudioManager` (`audio` singleton) unlocks Web Audio on the first touch/click/key. `register(id, { file?, synth?, volume? })`,
-`play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, pick, power).
+`play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, whoosh, yourTurn, pick, power;
+plus the per-option chimes, see "Avatar options and picker").
 Never throws; a failed file logs one warning. A play request made while audio is still unlocking (the first tap both
 unlocks and jumps) is queued (`pendingQueue.ts`, tested: one per id, at most 4) and played once the context runs if it is
 at most 300 ms old. Per-sound cap of 3 voices and a 40 ms retrigger gap (`voiceLimiter.ts`, unit-tested);
 a compressor on the master bus prevents clipping. `setMuted`, `setMasterVolume`, `state` (locked/running).
-Shared sounds are generic; per-character sounds (pick / jump / win) will be registered from the universe manifest.
+All sounds are generic synth recipes or per-option chimes; there are no voice clips (D-038). A future real sound is a file in the
+universe's assets plus a `register(id, { file, synth })` entry: the synth stays the fallback.
 
 ## Storage
-Per-universe keys: `{ chosenCharacterId, levelStars: Record<levelId, 0..3>, settings }`. Progress is shared across characters within a universe. Parent settings: sound on/off, button size, unlock-all.
+Task 005d: only the chosen option id (`athi.<universe>.choice`, see above). Planned for Task 006 (D-036): per-universe `{ chosenCharacterId, levelStars: Record<levelId, 0..3>, settings }`. Progress is shared across characters within a universe. Parent settings: sound on/off, button size, unlock-all.
 
 ## PWA / hosting
 - GitHub Pages project site, Vite `base: '/games/'`. No router needed yet (scene-based navigation); if URLs are added later, use hash routing since Pages has no SPA fallback.
@@ -309,4 +329,4 @@ Per-universe keys: `{ chosenCharacterId, levelStars: Record<levelId, 0..3>, sett
 - Asset budget: keep each universe under about 15-20 MB.
 
 ## Map and unlocking (later tasks)
-World map with winding path and level dots; locked levels behind clouds; `unlock.openAtATime` levels open at a time (Mario: 3, D-037, so all three Grass levels are open from the start); stars gate each world's final level. Evolves to a walkable map later.
+World map with winding path and level dots; locked levels behind clouds; `unlock.openAtATime` levels open at a time (Robo World: 3, D-037, so all three Grass levels are open from the start); stars gate each world's final level. Evolves to a walkable map later.

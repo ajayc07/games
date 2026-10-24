@@ -1,25 +1,19 @@
 import type Phaser from 'phaser';
 import type { AvatarDef } from './avatar/config';
+import type { ChimeDef } from './audio/chimes';
 
 /** The only things game code may ask about. Touch, keyboard and gamepad all map to these. */
 export type Action = 'left' | 'right' | 'jump' | 'power';
 
-export interface CharacterDef {
+/**
+ * One avatar option (a card in the picker, D-038): the robot's colours, size factor and antennae, plus
+ * the option's own synthesized chimes. Cosmetic only; every option shares identical physics.
+ */
+export interface AvatarOptionDef extends AvatarDef {
+  /** Unique id, also used in `?color=` and in storage. */
   id: string;
-  name: string;
-  /**
-   * URL of the character's picture, resolved by the universe from its assets/ folder. Not drawn in levels
-   * (the avatar is code-built, D-037); kept for the character picker (Task 009).
-   */
-  image?: string;
-  /** Colour of a placeholder when there is no picture (character picker). */
-  color?: number;
-  /** Voice clips (URLs), one picked at random per play. Characters without voices use the generic sounds. */
-  sounds?: { pick?: string[]; jump?: string[]; win?: string[] };
-  /** How the code-built avatar (Robot, Ball; D-032, D-033) looks for this character: palette, size factor, antennae. Cosmetic only. */
-  avatar?: AvatarDef;
-  /** Key of a power animation. Cosmetic only; all characters share identical physics. */
-  powerAnimation: string;
+  /** Pitch and timbre of the option's pick and win chimes. */
+  chime: ChimeDef;
 }
 
 export interface WorldDef {
@@ -32,8 +26,8 @@ export interface WorldDef {
 export interface UniverseManifest {
   id: string;
   title: string;
-  characters: CharacterDef[];
-  defaultCharacterId: string;
+  /** Avatar options in picker order; the first one is the fallback. */
+  options: AvatarOptionDef[];
   worlds: WorldDef[];
   unlock: { openAtATime: number };
   /** Boots the universe's first scene. */

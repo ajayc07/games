@@ -4,7 +4,6 @@
 // body in a turn), and the pure rig solver (robotRig.ts) works out every part's position, angle and width.
 // Nothing is redrawn per frame. Proportions, colours, view and clip numbers live in robotSpec.ts.
 import type Phaser from 'phaser';
-import type { CharacterDef } from '../types';
 import { widthFor } from '../levels/animation';
 import {
   BLINK_MS,
@@ -28,7 +27,7 @@ import {
   yawTarget,
   type RobotPose,
 } from './clips';
-import { resolveAvatar, type ResolvedAvatar } from './config';
+import { resolveAvatar, type AvatarDef, type ResolvedAvatar } from './config';
 import { PART_RES, partImage, robotParts, type Part, type RobotParts } from './parts';
 import { solveRig, type Xf } from './robotRig';
 import { ROBOT, ROBOT_CLIPS } from './robotSpec';
@@ -99,8 +98,8 @@ export class RobotLook implements AvatarLook {
   private tint = -1;
   private earFront = false;
 
-  constructor(scene: Phaser.Scene, character: CharacterDef, x: number, feet: number) {
-    this.avatar = resolveAvatar(character.avatar);
+  constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number) {
+    this.avatar = resolveAvatar(avatar);
     this.parts = robotParts(scene, this.avatar.palette);
     const p = this.parts;
     const mk = (part: Part) => partImage(scene, part);
@@ -157,7 +156,7 @@ export class RobotLook implements AvatarLook {
     else if (event === 'win') {
       this.winning = true;
       this.winAt = now;
-    }
+    } else if (event === 'rest') this.winning = false; // the win pose blends back out
   }
 
   update(s: AvatarState): void {

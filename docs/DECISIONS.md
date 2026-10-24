@@ -202,3 +202,14 @@ Decisions:
 - Re-pace: Grass 1 and 2 shortened to about 60%, `openAtATime` default 3 so he can reach Grass 3 immediately. Supersedes the default of 2 in D-036.
 - Content direction: he is ready for more. Because he loves shooting, the Power button comes next as gameplay ("Grass 4 Shoot": friendly bubbles/targets that pop into coins, no enemies, nothing harmful), then move-plus-jump gaps ("Grass 5").
 Updated order: 005c (this cleanup/fix/pacing), 006 map and progress, 007 Grass 4 Shoot (Power), 008 Grass 5 move+jump, 009 character picker, 010 parent view.
+
+## D-038 (2026-10-24) Generic "robo" universe; Mario content removed; colour-card picker; no character voices
+Parent decisions: the character jump voice is annoying and goes; the universe becomes generic; Mario-related content is stripped except the idea of a
+character selection card, which is kept as a colour/size/antennae selection for the robot.
+- Universe id `robo`, title "Robo World" (single constant, easy to rename). `universes/mario` becomes `universes/robo`.
+- Cast of 7 Nintendo characters (names, images, voices, face crops) is removed from the game and bundle; files are archived locally in `_sources/archive-private/` (gitignored), not deleted from the parent's disk.
+- Character options become generic colour cards (ids: red, orange, yellow, green, teal, blue, purple, pink) with palette, small scale variation and antenna count.
+- Sounds: no voice clips. Jump uses only the generic jump sound. Each card has a synthesized pick chime and win chime (same recipe, different pitch/timbre).
+- Supersedes D-004 (cast), D-005 (real art/voices bundled), D-023 voices and D-031 voice mapping. D-001..D-003, D-006..D-022 otherwise stand.
+- The public git history still contains the removed Nintendo files until it is rewritten (see docs/IDEAS.md); that is a separate parent action.
+- Order: 005d (this), 006 map and progress, 007 Grass 4 Shoot, 008 Grass 5 move+jump, 009 parent view. The picker is now part of 005d.

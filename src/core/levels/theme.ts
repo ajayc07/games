@@ -16,7 +16,7 @@ export const THEME_TEXTURES = [
 export type ThemeTexture = (typeof THEME_TEXTURES)[number];
 
 export interface LevelTheme {
-  /** Used to namespace texture keys, e.g. 'mario-grass'. */
+  /** Used to namespace texture keys, e.g. 'robo-grass'. */
   id: string;
   sky: { top: number; bottom: number };
   hills: { far: number; near: number; farShade: number; nearShade: number };

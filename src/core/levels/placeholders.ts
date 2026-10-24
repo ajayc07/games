@@ -144,19 +144,6 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
   });
 }
 
-/** A friendly capsule with eyes: a character with no picture (kept for the character picker, D-037). */
-export function makeCapsuleTexture(scene: Phaser.Scene, color: number): string {
-  const key = `char-capsule-${color.toString(16)}`;
-  if (scene.textures.exists(key)) return key;
-  generate(scene, key, 56, 100, (g, w, h) => {
-    g.fillStyle(0xffffff, 1).fillRoundedRect(0, 0, w, h, w / 2);
-    g.fillStyle(color, 1).fillRoundedRect(3, 3, w - 6, h - 6, w / 2 - 3);
-    g.fillStyle(0xffffff, 1).fillCircle(w * 0.5, h * 0.3, 8).fillCircle(w * 0.8, h * 0.3, 8);
-    g.fillStyle(0x222222, 1).fillCircle(w * 0.55, h * 0.3, 4).fillCircle(w * 0.85, h * 0.3, 4);
-  });
-  return key;
-}
-
 function generate(
   scene: Phaser.Scene,
   key: string,

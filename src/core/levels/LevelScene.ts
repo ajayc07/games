@@ -1,11 +1,12 @@
-// Generic level scene: runs any level JSON with any theme and character. Knows nothing about a
+// Generic level scene: runs any level JSON with any theme and avatar option. Knows nothing about a
 // specific universe; the universe passes everything in through LevelSceneData.
 import Phaser from 'phaser';
-import type { Action, CharacterDef } from '../types';
+import type { Action, AvatarOptionDef } from '../types';
 import { INPUT_EVENTS, InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { getLayout, type Layout } from '../ui/layout';
 import { audio } from '../audio/AudioManager';
+import { playChime } from '../audio/chimePlayer';
 import type { DemoConfig, LevelData } from './format';
 import { extractEntities, findRespawn, mergeSolids, starsFor, type Cell, type GridEntities } from './grid';
 import { PHYSICS } from './physics';
@@ -25,11 +26,14 @@ import { DemoCues, drawFinger } from './demoFx';
 export interface LevelSceneData {
   level: LevelData;
   theme: LevelTheme;
-  character: CharacterDef;
+  /** The chosen avatar option (colours, size, antennae, chimes). */
+  option: AvatarOptionDef;
   /** Leave the level (Home button). */
   onHome: () => void;
   /** Go to the next level in the world (Next button); omitted on a world's last level (D-025). */
   onNext?: () => void;
+  /** Reopen the avatar picker (small icon on the win screen) until the map has its own button. */
+  onPicker?: () => void;
 }
 
 /** demo: the ghost shows the control; turn: "your turn" cue; then the real run. */
@@ -54,8 +58,6 @@ const INVITE_EVERY_MS = 2600;
 const LOOK_TURN_MS = 350;
 /** The player always stays at least this far inside the safe area (fraction of its width). */
 const CAMERA_MARGIN = 0.15;
-/** Delay of the win voice after the win jingle starts (ms). */
-const WIN_VOICE_DELAY_MS = 350;
 
 export class LevelScene extends Phaser.Scene {
   static readonly KEY = 'level';
@@ -154,7 +156,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { theme, character } = this.data0;
+    const { theme } = this.data0;
     this.layout = getLayout();
     this.gridTop = this.layout.height - this.grid.rows * this.tile;
     makeThemeTextures(this, theme, this.tile);
@@ -170,7 +172,6 @@ export class LevelScene extends Phaser.Scene {
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
     this.buildHud();
-    audio.registerVoices(character.id, character.sounds);
 
     // Buttons follow the level's controls from the start (the demo presses them), but input is only
     // read in play mode, so taps during the demo do nothing except skip it.
@@ -284,7 +285,7 @@ export class LevelScene extends Phaser.Scene {
     return new Player(this, {
       x,
       feet,
-      look: createLook(this, this.lookName, this.data0.character, x, feet),
+      look: createLook(this, this.lookName, this.data0.option, x, feet),
       gait: gaitFor(this.level.controls.autoRun),
       colliders: this.groundBodies,
       depth,
@@ -488,8 +489,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private onJump(): void {
-    audio.play('jump'); // the generic sound always plays
-    audio.playVoice(this.data0.character.id, 'jump'); // the voice at most once per 1.5 s (D-023)
+    audio.play('jump'); // the generic jump sound is the only sound on a jump (D-038)
     if (this.hint) {
       LevelScene.hintDone = true;
       const h = this.hint;
@@ -622,9 +622,7 @@ export class LevelScene extends Phaser.Scene {
     player.halt();
     if (!player.grounded) return;
     this.mode = 'result';
-    audio.play('win');
-    const charId = this.data0.character.id;
-    this.time.delayedCall(WIN_VOICE_DELAY_MS, () => audio.playVoice(charId, 'win'));
+    playChime(this.data0.option, 'win'); // the chosen option's own win chime (D-038)
     player.avatar.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
     player.hop(this.time.now);
     this.confetti.explode(70, this.flagX, this.flagTopY + 20);
@@ -639,6 +637,7 @@ export class LevelScene extends Phaser.Scene {
         // Leave after this frame: stopping the scene mid-update would break the rest of the frame.
         onHome: () => this.afterStep(this.data0.onHome),
         onNext: this.data0.onNext && (() => this.afterStep(this.data0.onNext!)),
+        onPicker: this.data0.onPicker && (() => this.afterStep(this.data0.onPicker!)),
       });
     });
   }
@@ -692,6 +691,8 @@ export class LevelScene extends Phaser.Scene {
         facing: this.player.facing,
         invite: this.invite !== null,
         hasNext: !!this.data0.onNext,
+        option: this.data0.option.id,
+        resultButtons: this.result?.buttons() ?? [],
         resultArmed: this.result?.isArmed ?? false,
         stars: this.mode === 'result' ? starsFor(true, this.coinCount, this.level.stars) : 0,
         hint: this.hint !== null,

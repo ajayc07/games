@@ -6,7 +6,7 @@ import type { UniverseManifest, UniverseModule } from '../core/types';
  * that may reference one.
  */
 export const universes: Record<string, () => Promise<UniverseModule>> = {
-  mario: () => import('./mario'),
+  robo: () => import('./robo'),
 };
 
 export async function loadUniverse(id: string): Promise<UniverseManifest> {

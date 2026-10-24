@@ -1,10 +1,9 @@
 // The Ball look (D-032): a round body that rolls with the distance travelled while its face stays upright
 // and looks where it is going. Numbers live in robotSpec.ts (BALL).
 import type Phaser from 'phaser';
-import type { CharacterDef } from '../types';
 import { widthFor } from '../levels/animation';
 import { BLINK_MS, blinkOpen, eyeLook, nextBlinkAt, rollAngle, turnToward } from './clips';
-import { resolveAvatar, type ResolvedAvatar } from './config';
+import { resolveAvatar, type AvatarDef, type ResolvedAvatar } from './config';
 import { PART_RES, ballParts, partImage, type BallParts, type Part } from './parts';
 import { BALL } from './robotSpec';
 import type { AvatarEvent, AvatarLook, AvatarState, MotionWeights } from './types';
@@ -35,8 +34,8 @@ export class BallLook implements AvatarLook {
   private winning = false;
   private muzzlePoint = { x: 0, y: 0 };
 
-  constructor(scene: Phaser.Scene, character: CharacterDef, x: number, feet: number) {
-    this.avatar = resolveAvatar(character.avatar);
+  constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number) {
+    this.avatar = resolveAvatar(avatar);
     this.parts = ballParts(scene, this.avatar.palette);
     const p = this.parts;
     this.body = partImage(scene, p.body);
@@ -61,6 +60,7 @@ export class BallLook implements AvatarLook {
   trigger(event: AvatarEvent, now: number): void {
     if (event === 'shoot') this.shootAt = now;
     else if (event === 'win') this.winning = true;
+    else if (event === 'rest') this.winning = false;
   }
 
   update(s: AvatarState): void {

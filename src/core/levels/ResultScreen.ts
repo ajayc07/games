@@ -1,6 +1,7 @@
 // End-of-level screen (D-020, D-025): 1-3 big stars fill one by one, then big icon buttons: Replay
 // (circular arrow), Next (play triangle, biggest and pulsing, only if a level follows) and Home (house).
-// No text. Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home.
+// A small palette button in the top-right corner reopens the avatar picker (Task 005d, until the map has one).
+// No text. Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home, C = picker.
 import Phaser from 'phaser';
 import { audio } from '../audio/AudioManager';
 import type { Layout } from '../ui/layout';
@@ -11,6 +12,9 @@ const STAR_GAP = 190;
 const BUTTON_R = 80; // as big as the Jump button
 const NEXT_R = 100;
 const HOME_R_WITH_NEXT = 70;
+/** The picker button: small, but its hit area (2.2 x r) is still over 120 px. */
+const PICKER_R = 56;
+const PICKER_INSET = 84;
 const STAR_STEP_MS = 450;
 /** Buttons ignore input this long after they appear, so leftover mashing does not press them. */
 const ARM_MS = 600;
@@ -20,9 +24,11 @@ export interface ResultHandlers {
   onHome: () => void;
   /** Omitted = no Next button. */
   onNext?: () => void;
+  /** Omitted = no picker button. */
+  onPicker?: () => void;
 }
 
-type Choice = 'replay' | 'next' | 'home';
+type Choice = 'replay' | 'next' | 'home' | 'picker';
 
 export class ResultScreen {
   static readonly DEPTH = DEPTH;
@@ -36,6 +42,7 @@ export class ResultScreen {
   private readonly replay: Phaser.GameObjects.Container;
   private readonly home: Phaser.GameObjects.Container;
   private readonly next: Phaser.GameObjects.Container | null;
+  private readonly picker: Phaser.GameObjects.Container | null;
   private armed = false;
   private done = false;
 
@@ -71,6 +78,11 @@ export class ResultScreen {
     }
     // Children need scrollFactor 0 too: Phaser hit-tests them with their own scroll factor.
     this.root.setScrollFactor(0, 0, true);
+    // The picker button sits in a screen corner (inside the device insets), not around the character.
+    this.picker = handlers.onPicker
+      ? this.makeButton(0x8e24aa, PICKER_R, (g) => drawPalette(g, PICKER_R * 0.55), () => this.choose('picker'))
+      : null;
+    this.picker?.setScale(0).setDepth(DEPTH + 1).setScrollFactor(0, 0, true);
 
     scene.input.keyboard?.on(Phaser.Input.Keyboard.Events.ANY_KEY_DOWN, this.onKey, this);
     this.layout(layout);
@@ -80,6 +92,8 @@ export class ResultScreen {
   layout(l: Layout): void {
     this.dim.setSize(l.width, l.height);
     this.root.setPosition(l.centerX, l.height / 2);
+    const p = l.anchor('top-right', PICKER_INSET, PICKER_INSET);
+    this.picker?.setPosition(p.x, p.y);
   }
 
   /** Test hook: is the screen accepting input yet? */
@@ -94,13 +108,16 @@ export class ResultScreen {
       ['next', this.next],
       ['home', this.home],
     ];
-    return list
+    const out = list
       .filter((e): e is [Choice, Phaser.GameObjects.Container] => e[1] !== null)
       .map(([id, c]) => ({ id, x: this.root.x + c.x, y: this.root.y + c.y, r: (c.getData('r') as number) ?? BUTTON_R }));
+    if (this.picker) out.push({ id: 'picker', x: this.picker.x, y: this.picker.y, r: PICKER_R });
+    return out;
   }
 
   private get all(): Phaser.GameObjects.Container[] {
-    return this.next ? [this.replay, this.next, this.home] : [this.replay, this.home];
+    const main = this.next ? [this.replay, this.next, this.home] : [this.replay, this.home];
+    return this.picker ? [...main, this.picker] : main;
   }
 
   private play(): void {
@@ -132,12 +149,13 @@ export class ResultScreen {
     if (e.repeat) return;
     if (e.code === 'Space' || e.code === 'ArrowRight') this.choose(this.next ? 'next' : 'replay');
     else if (e.code === 'KeyR') this.choose('replay');
+    else if (e.code === 'KeyC') this.choose('picker');
     else if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'NumpadEnter') this.choose('home');
   }
 
   private choose(which: Choice): void {
     if (!this.armed || this.done) return;
-    const target = which === 'replay' ? this.replay : which === 'home' ? this.home : this.next;
+    const target = { replay: this.replay, home: this.home, next: this.next, picker: this.picker }[which];
     if (!target) return;
     this.done = true;
     audio.play('pick');
@@ -149,7 +167,7 @@ export class ResultScreen {
       scale: 0.85,
       duration: 90,
       yoyo: true,
-      onComplete: () => (which === 'replay' ? h.onReplay() : which === 'home' ? h.onHome() : h.onNext?.()),
+      onComplete: () => ({ replay: h.onReplay, home: h.onHome, next: h.onNext, picker: h.onPicker })[which]?.(),
     });
   }
 
@@ -210,4 +228,17 @@ function drawHouse(g: Phaser.GameObjects.Graphics, s: number): void {
   g.fillTriangle(-s * 1.05, -s * 0.05, 0, -s * 1.0, s * 1.05, -s * 0.05);
   g.fillRect(-s * 0.72, -s * 0.1, s * 1.44, s * 0.95);
   g.fillStyle(0x1e88e5, 1).fillRoundedRect(-s * 0.22, s * 0.25, s * 0.44, s * 0.6, { tl: s * 0.2, tr: s * 0.2, bl: 0, br: 0 });
+}
+
+/** Painter's palette with four colour dots: "choose your colour". */
+function drawPalette(g: Phaser.GameObjects.Graphics, s: number): void {
+  g.fillStyle(0xffffff, 1).fillEllipse(0, 0, s * 2.1, s * 1.75);
+  g.fillStyle(0x8e24aa, 1).fillCircle(s * 0.48, s * 0.42, s * 0.26); // thumb hole
+  const dots: Array<[number, number, number]> = [
+    [0xe53935, -s * 0.5, -s * 0.38],
+    [0xfdd835, s * 0.08, -s * 0.52],
+    [0x43a047, s * 0.6, -s * 0.18],
+    [0x1e88e5, -s * 0.52, s * 0.28],
+  ];
+  for (const [c, x, y] of dots) g.fillStyle(c, 1).fillCircle(x, y, s * 0.24);
 }

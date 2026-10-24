@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Athi's Game: a gentle Mario-style platformer for a 3-year-old.",
+  "description": "Athi's Game: a gentle robot platformer for a 3-year-old.",
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",
