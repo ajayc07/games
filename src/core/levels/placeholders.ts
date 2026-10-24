@@ -124,6 +124,15 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
     if (!scene.textures.exists(key)) generate(scene, key, w, h, paint);
   };
   once('fx-dust', 24, 24, (g, w) => g.fillStyle(0xffffff, 1).fillCircle(w / 2, w / 2, w / 2));
+  // Soft ground shadow: stacked ellipses, faint at the rim and darker in the middle.
+  once('fx-shadow', 64, 16, (g, w, h) => {
+    for (let i = 0; i < 6; i++) {
+      const k = 1 - i * 0.15;
+      g.fillStyle(0x000000, 0.22).fillEllipse(w / 2, h / 2, w * k, h * k);
+    }
+  });
+  // Speed streak: a thin rounded line.
+  once('fx-streak', 30, 4, (g, w, h) => g.fillStyle(0xffffff, 1).fillRoundedRect(0, 0, w, h, h / 2));
   once('fx-confetti', 10, 14, (g, w, h) => g.fillStyle(0xffffff, 1).fillRect(0, 0, w, h));
   once('fx-sparkle', 28, 28, (g, w) => {
     const c = w / 2;

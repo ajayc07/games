@@ -26,6 +26,10 @@ type Choice = 'replay' | 'next' | 'home';
 
 export class ResultScreen {
   static readonly DEPTH = DEPTH;
+  /** Time from the screen appearing until the buttons pop in (all earned stars filled), ms. */
+  static fillMs(count: number): number {
+    return 450 + count * STAR_STEP_MS + 250;
+  }
   private readonly root: Phaser.GameObjects.Container;
   private readonly dim: Phaser.GameObjects.Rectangle;
   private readonly stars: Phaser.GameObjects.Container[] = [];
@@ -112,7 +116,7 @@ export class ResultScreen {
         t.add({ targets: this.stars[i], angle: { from: -12, to: 0 }, duration: 320, ease: 'Sine.easeOut' });
       });
     }
-    const buttonsAt = 450 + this.count * STAR_STEP_MS + 250;
+    const buttonsAt = ResultScreen.fillMs(this.count);
     this.scene.time.delayedCall(buttonsAt, () => {
       for (const b of this.all) t.add({ targets: b, scale: 1, duration: 300, ease: 'Back.easeOut' });
       this.scene.time.delayedCall(ARM_MS, () => {

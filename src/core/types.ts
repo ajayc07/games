@@ -31,7 +31,18 @@ export interface CharacterDef {
    * Extra pictures (D-023): `run` on the ground while moving, `jump` in the air; `image` is used when idle
    * and whenever a pose is missing or fails to load. Each is trimmed and scaled to the same visible height.
    */
-  poses?: { run?: PoseDef; jump?: PoseDef };
+  poses?: {
+    run?: PoseDef;
+    jump?: PoseDef;
+    /**
+     * Optional run cycle (Task 004b): 2 or more pictures played as a flipbook on the ground while running,
+     * instead of `run`. Each is trimmed and scaled like a pose (default height: `run`'s, then the character's),
+     * feet on the same ground line. Frames that fail to load are skipped; under 2 usable frames = no flipbook.
+     */
+    runFrames?: PoseDef[];
+    /** Flipbook speed at the level's normal run speed (frames per second, default 10); scales with speed. */
+    runFps?: number;
+  };
   /** Voice clips (URLs), one picked at random per play. Characters without voices use the generic sounds. */
   sounds?: { pick?: string[]; jump?: string[]; win?: string[] };
   /** Key of a power animation. Cosmetic only; all characters share identical physics. */

@@ -119,3 +119,14 @@ level (in-memory for now; persistence decides later), `?demo=1` forces it, `?dem
 
 ## D-025 (2026-10-24) Win screen gets a Next button
 Replay, Next (only if another level follows in the world; the biggest and pulsing) and Home. The map replaces this in Task 006.
+
+## D-026 (2026-10-24) Task 004 review outcomes
+Approved: pose objects `{ image, facing, displayHeight }`, smaller run-pose heights (86/90) to match body size, ghost without voice,
+`worlds.ts` data file. Luigi's mirrored cap "L" is accepted for now; a right-facing Luigi run image can replace it later (poses support facing).
+Voice mapping stays a guess until the parent has listened on the tablet.
+
+## D-027 (2026-10-24) Ripped game sprite sheets are not used
+Mario/Luigi (NSMB) and Bowser (Super Mario Maker) sheets are low-resolution, opaque-background rips in a different art style
+from the HD renders, so they would look soft and mismatched. Parked in `_sources/` (gitignored, not bundled).
+Run animation is made from the HD renders: procedural motion now (Task 004b), optional extra HD frames later via `poses.runFrames`.
+`src/universes/<id>/assets/` is for files the game uses only: every file there is bundled.

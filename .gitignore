@@ -5,3 +5,6 @@ Thumbs.db
 *.log
 .vite/
 coverage/
+
+# Raw source material that is not part of the game (not bundled, not committed)
+_sources/

@@ -47,7 +47,8 @@ interface CharacterDef {
   image?: string;                 // URL from assets/ (placeholder capsule if missing); idle picture
   displayHeight?: number;         // visible height in logical px after trimming (default 104)
   color?: number;                 // placeholder capsule colour
-  poses?: { run?: PoseDef; jump?: PoseDef };       // D-023
+  poses?: { run?: PoseDef; jump?: PoseDef;         // D-023
+            runFrames?: PoseDef[]; runFps?: number }; // optional run-cycle flipbook (Task 004b)
   sounds?: { pick?: string[]; jump?: string[]; win?: string[] };  // voice clip URLs, random pick
   powerAnimation: string;         // key of a power animation; cosmetic only
 }
@@ -60,9 +61,37 @@ All characters share identical physics (jump height, speed). Differences are cos
 `displayHeight` (default: the character's). Fallbacks: missing or undecodable pose -> main image -> capsule.
 `poses.ts` (pure, tested) picks the pose: ground + moving = run, air = jump (after 70 ms, so a bump does not flicker),
 otherwise idle (before the run, cloud ride, win screen after the hop). `flipSign(travel, facing)` mirrors a picture so it
-faces the direction of travel: a left-facing picture (Luigi's run) is mirrored when going right. Bob/stretch/squash stay.
+faces the direction of travel: a left-facing picture (Luigi's run) is mirrored when going right.
 Mario's and Luigi's main images are jump poses with a raised arm, so their run poses use a smaller `displayHeight`
 (86/90) to keep head and body the same size across the swap. Characters without poses use the single image everywhere.
+
+### Lively motion (Task 004b)
+All character motion is visual only (the 40x84 physics body never changes) and works for every character, with one
+picture or several. Numbers and maths live in `core/levels/animation.ts` (`ANIM`, pure functions, unit-tested in
+`animation.test.ts`); `Player.updateSprite` applies them. The sprite's origin is at the feet, so squash and lean stay grounded.
+- **Run:** a stride phase advances with distance travelled on the ground (one whole number per footfall, step 56 px), so
+  faster = quicker steps and standing = no stride. Per step: bounce (5 px), squash at foot-strike, stretch mid-stride,
+  a forward lean (~4 deg) and an alternating rock (~2 deg). A run blend (in 160 ms, out 220 ms) fades it all in and out.
+- **Air / landing:** take-off, landing, the flag hop and respawn placement each start a squash/stretch `Pulse`
+  (ease to a peak, settle back; landing settles in 120 ms). A new pulse starts from the current value, so a jump that
+  interrupts a landing squash, or mashing, never pops. In the air the lean follows vertical speed (up = back, down = forward),
+  eased toward its target.
+- **Idle:** slow breathing. **Win:** `Player.celebrate` bounces on the spot (450 ms per bounce, the star-fill rhythm) until the
+  Result buttons appear (`ResultScreen.fillMs`).
+- **Shadow:** a soft ellipse (`fx-shadow`) on the ground under the character, smaller and fainter with height; hidden over a gap
+  and on the cloud ride. LevelScene supplies `groundAt(x, feet)` from the grid.
+- **Dust:** `motionFx.ts` owns three pooled Phaser emitters: a small puff per footfall (at most every 220 ms), a flat ring on
+  landing, and short speed streaks behind the runner (one per 140 ms). Only the real player gets a `MotionFx`; the demo ghost
+  shares all the motion and its shadow but has no dust.
+- **Run flipbook (optional):** `poses.runFrames` (2 or more `PoseDef`s) plays on the ground instead of `poses.run`, at `runFps`
+  (default 10) scaled by speed / the level's run speed, with the procedural motion at 45% strength. Frames are trimmed and
+  scaled like poses (default height = `poses.run.displayHeight`, then the character's), so feet sit on the same line and size
+  does not change; each frame has its own `facing` for mirroring. A frame that fails to decode is skipped; with fewer than
+  2 usable frames the character uses `poses.run` exactly as before.
+  **To add frames:** drop the files into `src/universes/<id>/assets/`, then in the manifest:
+  `poses: { run: {...}, runFrames: [{ image: asset('mario-run-1.png'), facing: 'right' }, { image: asset('mario-run-2.png'), facing: 'right' }], runFps: 10 }`.
+  Done; no code change.
+- `?debug=1`: `__level.anim()` / `__level.ghostAnim()` give pose, frame, rotation, scales, stretch, blend, shadow and dust counts.
 
 ### Voices (D-023)
 `audio.registerVoices(characterId, sounds)` (called by LevelScene) registers each clip as `voice:<id>:<slot>:<n>`
@@ -121,7 +150,7 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   tiles, ~2.6 tiles carried at 200 px/s), max fall 1100, coyote 120 ms, jump buffer 150 ms, body 40x84. Fixed jump height.
 - `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, character,
   onHome }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
-  sprite (bob while running, stretch on take-off, squash on landing, flip by direction). Camera follows by hand with the
+  sprite (lively motion, see "Lively motion" above). Camera follows by hand with the
   player ~36% across the safe area (look-ahead to the right); scenery ground extends past both level ends.
   Falls: whoosh, a cloud carries the player to the respawn spot. Flag: stop, win sound, hop, confetti, `ResultScreen`.
   `?debug=1` exposes `window.__level` (state, scene, input, layout, audio) for tests.
@@ -132,8 +161,9 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 - `characterTexture.ts`: decodes the character image with `Image.decode()` (failure = silent capsule fallback, no console
   errors), trims transparent margins and pre-scales it to `displayHeight` x 2 for a crisp, non-shimmering sprite.
 - `background.ts`: parallax sky gradient, wrapping clouds and two tiling hill strips, all screen-fixed and scrolled by hand.
-- `Player.ts`: the physics box + picture of one character (movement, buffered/coyote jump, poses, bob/squash/flip,
-  cloud ride). Used for the real player and the demo ghost.
+- `Player.ts`: the physics box + picture of one character (movement, buffered/coyote jump, poses and run frames,
+  lively motion and shadow, flip, cloud ride). Used for the real player and the demo ghost.
+- `animation.ts` (pure, tested): all motion tuning and maths. `motionFx.ts`: pooled dust emitters for the real player.
 - `ResultScreen.ts` (D-025): 3 star slots filling one by one, then big icon buttons that only accept input 600 ms after
   appearing, so leftover mashing does not press them: Home (left, smaller), Replay, and Next (right, biggest, pulsing;
   only when `LevelSceneData.onNext` is given). Without Next: Replay and Home either side of the character.

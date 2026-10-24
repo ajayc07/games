@@ -15,6 +15,7 @@ import { CharacterLook } from './characterLook';
 import { ParallaxBackground } from './background';
 import { ResultScreen } from './ResultScreen';
 import { Player } from './Player';
+import { MotionFx } from './motionFx';
 import { DEMO_SKIP_AFTER_MS, DemoScript, demoOverrideFrom, shouldPlayDemo } from './demo';
 import { DemoCues, drawFinger } from './demoFx';
 
@@ -84,7 +85,7 @@ export class LevelScene extends Phaser.Scene {
   private hud!: { icon: Phaser.GameObjects.Image; count: Phaser.GameObjects.Text };
   private hint: Phaser.GameObjects.Container | null = null;
   private result: ResultScreen | null = null;
-  private dust!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private motionFx!: MotionFx;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private confetti!: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -146,7 +147,8 @@ export class LevelScene extends Phaser.Scene {
     this.buildCoins();
     this.buildFlag();
     this.look = new CharacterLook(this, character);
-    this.player = this.makePlayer(DEPTH.player, 1);
+    this.motionFx = new MotionFx(this, DEPTH.player - 1);
+    this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
     this.buildHud();
     audio.registerVoices(character.id, character.sounds);
@@ -256,7 +258,8 @@ export class LevelScene extends Phaser.Scene {
     this.tweens.add({ targets: this.flagCloth, scaleX: this.flagCloth.scaleX * 0.88, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
-  private makePlayer(depth: number, alpha: number): Player {
+  /** The real player gets dust; the demo ghost does not. */
+  private makePlayer(depth: number, alpha: number, dust: boolean): Player {
     return new Player(this, {
       x: this.cellCenter(this.grid.start).x,
       feet: this.startFeet(),
@@ -265,22 +268,29 @@ export class LevelScene extends Phaser.Scene {
       depth,
       tile: this.tile,
       alpha,
+      runSpeed: this.runSpeed,
+      groundAt: this.groundAt,
+      fx: dust ? this.motionFx : undefined,
     });
   }
+
+  /** World y of the top of the ground under x, at or below `feet`; null over a gap (shadow). */
+  private readonly groundAt = (x: number, feet: number): number | null => {
+    const T = this.tile;
+    const { solid, cols, rows } = this.grid;
+    const col = Phaser.Math.Clamp(Math.floor(x / T), 0, cols - 1); // scenery ground continues past both ends
+    for (let row = 0; row < rows; row++) {
+      const top = this.gridTop + row * T;
+      if (solid[row][col] && top >= feet - 4) return top;
+    }
+    return null;
+  };
 
   private startFeet(): number {
     return this.gridTop + (this.grid.start.row + 1) * this.tile;
   }
 
   private buildEffects(): void {
-    this.dust = this.add.particles(0, 0, 'fx-dust', {
-      emitting: false,
-      speedX: { min: -90, max: 90 },
-      speedY: { min: -60, max: -10 },
-      scale: { start: 0.55, end: 0.1 },
-      alpha: { start: 0.8, end: 0 },
-      lifespan: 380,
-    }).setDepth(DEPTH.fx);
     this.sparkle = this.add.particles(0, 0, 'fx-sparkle', {
       emitting: false,
       speed: { min: 90, max: 220 },
@@ -335,7 +345,7 @@ export class LevelScene extends Phaser.Scene {
   private startDemo(config: DemoConfig): void {
     this.mode = 'demo';
     this.player.setPresent(false);
-    this.ghost = this.makePlayer(DEPTH.ghost, GHOST_ALPHA);
+    this.ghost = this.makePlayer(DEPTH.ghost, GHOST_ALPHA, false);
     this.demoScript = new DemoScript(config, this.tile);
     this.demoCues = new DemoCues(this, this.touch);
     this.demoCues.showFinger();
@@ -356,7 +366,6 @@ export class LevelScene extends Phaser.Scene {
       if (this.level.controls.tapAnywhereJumps) this.demoCues!.rippleAt(ghost.body.center.x, ghost.body.center.y);
     }
     if (r.jumped) audio.play('jump'); // generic only: the voice belongs to the child's own jumps
-    if (r.landed) this.dust.explode(5, ghost.body.center.x, ghost.body.bottom - 4);
     if (done || ghost.body.top > this.layout.height + 40) this.endDemo();
   }
 
@@ -374,7 +383,7 @@ export class LevelScene extends Phaser.Scene {
     const ghost = this.ghost!;
     ghost.body.setVelocity(0, 0);
     ghost.body.enable = false;
-    this.tweens.add({ targets: ghost.sprite, alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
+    this.tweens.add({ targets: [ghost.sprite, ghost.shadow], alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
     this.ghost = null;
     this.demoCues!.hideFinger();
     this.player.setPresent(true);
@@ -423,7 +432,6 @@ export class LevelScene extends Phaser.Scene {
     }
     const r = this.player.step(now, { vx, jumpPressed: pressed });
     if (r.jumped) this.onJump();
-    if (r.landed) this.dust.explode(7, this.player.body.center.x, this.player.body.bottom - 4);
 
     this.collectCoins();
 
@@ -555,12 +563,14 @@ export class LevelScene extends Phaser.Scene {
     const charId = this.data0.character.id;
     this.time.delayedCall(WIN_VOICE_DELAY_MS, () => audio.playVoice(charId, 'win'));
     player.sprite.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
-    player.hop();
+    player.hop(this.time.now);
     this.confetti.explode(70, this.flagX, this.flagTopY + 20);
     this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
     this.tweens.add({ targets: this.flagCloth, angle: { from: -8, to: 8 }, duration: 160, yoyo: true, repeat: 3 });
     const stars = starsFor(true, this.coinCount, this.level.stars);
     this.time.delayedCall(1100, () => {
+      // A joyful bounce on the spot while the stars fill, ending as the buttons appear.
+      player.celebrate(this.time.now, ResultScreen.fillMs(stars));
       this.result = new ResultScreen(this, this.layout, stars, {
         onReplay: () => this.scene.restart(this.data0),
         // Leave after this frame: stopping the scene mid-update would break the rest of the frame.
@@ -627,6 +637,8 @@ export class LevelScene extends Phaser.Scene {
         spriteHeight: this.player.sprite.displayHeight,
         ghostTexture: this.ghost?.sprite.texture.key ?? null,
       }),
+      anim: () => this.player.animState(),
+      ghostAnim: () => this.ghost?.animState() ?? null,
     };
   }
 }

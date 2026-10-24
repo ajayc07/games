@@ -1,9 +1,9 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 004 done)_
+_Last updated: 2026-10-24 (Task 004b done)_
 
 ## Status
-Two playable levels. Grass 1 "Tap to hop" (tap anywhere) and Grass 2 "Big Jump button" (only a big on-screen Jump button; taps elsewhere make it pulse instead of jumping), with a "watch me" ghost demo the first time Grass 2 opens. Mario and Luigi have run/jump poses and voice clips; the other five use their single image and generic sounds. Win screen has Replay, Next (Grass 1 -> Grass 2) and Home. Opening the app starts Grass 1; the Input Lab is behind `?lab=1`. Next: Task 005 (Grass 3 "Left and Right").
+Two playable levels. Grass 1 "Tap to hop" (tap anywhere) and Grass 2 "Big Jump button" (only a big on-screen Jump button; taps elsewhere make it pulse instead of jumping), with a "watch me" ghost demo the first time Grass 2 opens. Mario and Luigi have run/jump poses and voice clips; the other five use their single image and generic sounds. Win screen has Replay, Next (Grass 1 -> Grass 2) and Home. Opening the app starts Grass 1; the Input Lab is behind `?lab=1`. Characters now move with lively procedural motion (stride bounce, lean, squash/stretch, soft shadow, subtle dust) and support an optional multi-frame run cycle. Next: Task 005 (Grass 3 "Left and Right").
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -12,6 +12,7 @@ Two playable levels. Grass 1 "Tap to hop" (tap anywhere) and Grass 2 "Big Jump b
 | 002 | Core input layer (touch/keyboard/gamepad -> actions) + audio manager | Done |
 | 003 | Level engine + player physics + Grass 1 "Tap to hop" (auto-run, tap anywhere) | Done |
 | 004 | Grass 2 "Big Jump button" + "watch me" demo system | Done |
+| 004b | Lively character motion (procedural run, shadow, dust, optional run frames) | Done |
 | 005 | Grass 3 "Left and Right" (no auto-run) | Next |
 | 006 | World map + stars + unlocking + per-universe progress storage | Planned |
 | 007 | Character picker + 7-character cast with placeholders + asset import of real files | Planned |
@@ -26,11 +27,14 @@ Two playable levels. Grass 1 "Tap to hop" (tap anywhere) and Grass 2 "Big Jump b
 - 2026-10-24: Task 003 level engine and Grass 1 (plus MAX_WIDTH 1920 and high-DPI rendering).
 - 2026-10-24: Mario/Luigi voice clips and run poses committed (`assets:` commit before Task 004).
 - 2026-10-24: Task 004 Grass 2, "watch me" demo, character poses and voices, Next button, first-tap sound fix.
+- 2026-10-24: Task 004b lively motion (procedural run/air/idle motion, win bounce, shadow, dust, optional `poses.runFrames` flipbook).
 
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Motion tuning (Task 004b) is by eye from frame captures; all numbers are in `core/levels/animation.ts`. Landing squash is 15%, take-off stretch 18%, run lean ~4 deg plus ~2 deg rock, bounce 5 px.
+- The flipbook (`poses.runFrames`) is tested only with temporary rotated copies of the run pose; real HD run frames have not been tried yet.
 - Phaser logs "Ignored attempt to cancel a touchcancel event" in the console when a touch is cancelled (Phaser calls preventDefault on it). Harmless.
 - High-DPI rendering (Task 003) zooms each scene's camera with origin (0, 0). Phaser's camera bounds and `startFollow` assume a centred origin, so scenes scroll by hand; children of screen-fixed containers need `setScrollFactor(0, 0, true)` or taps miss them. See ARCHITECTURE "Screen layout".
 - Voice mapping (D-023) is a guess; confirm by ear: Mario pick = yeah-ho, jump = ha-ha, win = yipee; Luigi pick = oh-yeah, jump = haha, win = yeah-ha-ha. `pick` clips are registered but not played until the character picker (Task 007).
@@ -53,6 +57,13 @@ _(nothing)_
 - No side-view run poses yet; use bob/stretch/flip tricks (ARCHITECTURE.md). Side-view images may be added later as `run` poses.
 
 ## Parent action items
+- Nine new sound files appeared in `src/universes/mario/assets/` during Task 004b (`sound-bowser-*.mp3`, `sound-peach-*.mp3`, `sound-toad-*.mp3`). Left untracked and unwired (not in the 004b commit). Say which slot each is (pick / jump / win) and they can be wired in the manifest; note every file in that folder is bundled once committed.
+- After pushing Task 004b, watch Athi play Grass 1 and Grass 2 on the tablet:
+  - Does the run feel lively without looking jittery or wobbly? Is the lean / bounce too much or too little?
+  - Is the landing squash fun, or does it look like the character got hurt?
+  - Is the shadow or the dust (footfall puffs, landing ring, speed streaks) distracting for him, or does he not notice?
+  - Does the win bounce while the stars fill feel joyful?
+  - Still 60 fps on the tablet (no stutter while mashing Jump)?
 - Three new files appeared in `src/universes/mario/assets/` during Task 004: `Bowser sprite.png`, `Luigi spirite.png`, `Mario sprite.png`. Left untracked and unwired. Note every file in that folder is bundled; say what they are for (more poses? sprite sheets?) and they can be wired in a later task (file names without spaces are safer).
 - After pushing Task 004, try Grass 2 on the tablet with Athi (finish Grass 1 and press the orange Next button, or open `?level=grass-2`):
   - Does the "watch me" demo make sense to him? Does he watch it, or try to tap through it (a tap skips after 1.5 s)?
