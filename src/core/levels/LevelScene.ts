@@ -668,14 +668,16 @@ export class LevelScene extends Phaser.Scene {
     this.respawns++;
     audio.play('whoosh');
     const player = this.player;
-    const spot: Cell = findRespawn(this.grid.solid, player.lastGroundedCol) ?? this.grid.start;
+    // Put him back on the side he came from: a fall while walking left over a gap must not carry him across it.
+    const dir = player.facing;
+    const spot: Cell = findRespawn(this.grid.solid, player.lastGroundedCol, 3, dir) ?? this.grid.start;
     const T = this.tile;
     const target = { x: spot.col * T + T / 2, y: this.gridTop + (spot.row + 1) * T };
     const body = player.body;
     player.halt();
     body.setVelocity(0, 0);
     body.enable = false;
-    player.facing = 1;
+    player.facing = dir; // looks toward the gap he fell into
 
     // The player rides a little cloud: up out of the gap, across, and gently down onto safe ground.
     const H = this.layout.height;

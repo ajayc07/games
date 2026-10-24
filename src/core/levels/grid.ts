@@ -104,19 +104,29 @@ export function surfaceRow(solid: readonly (readonly boolean[])[], col: number):
 
 /**
  * Where to put the player back after a fall (D-019): the nearest column at least `back` cells behind
- * the last column the player stood on that has ground to stand on. Prefers a column whose neighbours are
- * also ground at the same height, so the player does not land on the lip of a gap.
+ * the last column the player stood on that has ground to stand on. "Behind" is against the direction of travel
+ * `dir` (1 = heading right, the default; -1 = heading left, so a fall while walking back over a gap puts the
+ * player on the side he came from, not across the gap). Prefers a column whose neighbours are
+ * also ground at the same height, so the player does not land on the lip of a gap. Heading left, if nothing is
+ * found on the right (the end of the level), the left side is searched.
  * Returns the cell the player stands in (the empty cell just above the ground), or null if none.
  */
 export function findRespawn(
   solid: readonly (readonly boolean[])[],
   lastGroundedCol: number,
   back = 3,
+  dir: 1 | -1 = 1,
 ): Cell | null {
+  if (dir === 1) return searchRespawn(solid, lastGroundedCol, back, -1);
+  return searchRespawn(solid, lastGroundedCol, back, 1) ?? searchRespawn(solid, lastGroundedCol, back, -1);
+}
+
+/** One direction of findRespawn: `step` -1 searches to the left of the start column, 1 to the right. */
+function searchRespawn(solid: readonly (readonly boolean[])[], lastGroundedCol: number, back: number, step: 1 | -1): Cell | null {
   const cols = solid[0]?.length ?? 0;
-  const from = Math.min(cols - 1, Math.floor(lastGroundedCol) - back);
+  const from = Math.floor(lastGroundedCol) + step * back;
   let fallback: Cell | null = null;
-  for (let col = from; col >= 0; col--) {
+  for (let col = step === -1 ? Math.min(cols - 1, from) : from; col >= 0 && col < cols; col += step) {
     const row = surfaceRow(solid, col);
     if (row === null || row === 0) continue;
     const spot = { col, row: row - 1 };

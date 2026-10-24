@@ -6,5 +6,5 @@ A small bubble in the row on the ground rests on it; one row higher it floats 1 
 the bottom row sits on the bottom of the screen. Add the level id to its world in `../worlds.ts`.
 Open any level for testing with `?level=<id>` (`&demo=0` skips, `&demo=1` forces the "watch me" demo).
 `levels.test.ts` checks the level files (Grass 2 coins, gaps, demo; Grass 3 coins and demo script;
-Grass 4 bubbles, reach, coins, stars and demo), the world
+Grass 4 bubbles, reach, coins, stars and demo; Grass 5 gaps, safe stretches, crossing margins, coins and stars), the world
 order and the avatar options.

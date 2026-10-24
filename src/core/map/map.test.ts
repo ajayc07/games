@@ -117,20 +117,39 @@ describe('map layout', () => {
     expect(clampScroll(-50, g.width, narrow)).toBe(0);
   });
 
-  it('every dot is fully on screen when it is the focus, at all test sizes', () => {
-    const g = mapGeometry(3, 3);
-    for (const [w, h] of [
-      [844, 390],
-      [1280, 800],
-      [1024, 768],
-      [2400, 1000],
-    ]) {
-      const sw = logicalWidthFor(w, h);
-      for (const d of g.dots) {
-        const x = d.x - scrollFor(g.width, sw, d.x);
-        expect(x - MAP.dotHit / 2).toBeGreaterThanOrEqual(0);
-        expect(x + MAP.dotHit / 2).toBeLessThanOrEqual(sw);
+  it('every dot is fully on screen when it is the focus, at all test sizes, with 3, 4 or 5 levels (Task 008)', () => {
+    for (const levels of [3, 4, 5]) {
+      const g = mapGeometry(levels, 3);
+      for (const [w, h] of [
+        [844, 390],
+        [1280, 800],
+        [1024, 768],
+        [1366, 512],
+        [2400, 1000],
+      ]) {
+        const sw = logicalWidthFor(w, h);
+        for (const d of g.dots) {
+          const x = d.x - scrollFor(g.width, sw, d.x);
+          expect(x - MAP.dotHit / 2, `${levels} levels at ${w}x${h}`).toBeGreaterThanOrEqual(0);
+          expect(x + MAP.dotHit / 2, `${levels} levels at ${w}x${h}`).toBeLessThanOrEqual(sw);
+        }
       }
+    }
+  });
+
+  it('scrolled to the far end, the last dot, the teasers and the map end are reachable (five levels)', () => {
+    const g = mapGeometry(5, 3);
+    expect(g.width).toBe(2485);
+    for (const sw of [960, 1152, 1558, 1728, 1920]) {
+      const end = clampScroll(99999, g.width, sw);
+      for (const t of g.teasers) {
+        const x = t.x - end;
+        expect(x - MAP.teaserHit / 2).toBeGreaterThanOrEqual(0);
+        expect(x + MAP.teaserHit / 2).toBeLessThanOrEqual(sw);
+      }
+      // The scroll never goes past either end of the map, so no empty space is shown.
+      expect(clampScroll(-500, g.width, sw)).toBe(0);
+      expect(end).toBe(g.width - sw);
     }
   });
 

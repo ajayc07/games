@@ -165,6 +165,27 @@ describe('findRespawn', () => {
   });
 });
 
+describe('findRespawn heading left (Task 008)', () => {
+  const { solid } = extractEntities(['....................', '..S.................', '#########..#########']);
+
+  it('heading right, behind means to the left (the default); heading left, behind means to the right', () => {
+    // Gap at columns 9 and 10. Fell walking right, last on col 8: back to col 5. Walking left, last on col 11: on to col 14.
+    expect(findRespawn(solid, 8)).toEqual({ col: 5, row: 1 });
+    expect(findRespawn(solid, 8, 3, 1)).toEqual({ col: 5, row: 1 });
+    expect(findRespawn(solid, 11, 3, -1)).toEqual({ col: 14, row: 1 });
+  });
+
+  it('never carries the player across the gap he fell into', () => {
+    expect(findRespawn(solid, 11, 3, -1)!.col).toBeGreaterThan(10);
+    expect(findRespawn(solid, 8, 3, 1)!.col).toBeLessThan(9);
+  });
+
+  it('heading left at the right end of the level falls back to the left side', () => {
+    const end = extractEntities(['.......', '#######']).solid;
+    expect(findRespawn(end, 6, 3, -1)).toEqual({ col: 3, row: 0 });
+  });
+});
+
 describe('physics tuning (D-021)', () => {
   const tile = 64;
   it('peaks about 2.5 tiles high', () => {

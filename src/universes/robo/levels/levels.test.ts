@@ -15,9 +15,24 @@ import grass1 from './grass-1.json';
 import grass2 from './grass-2.json';
 import grass3 from './grass-3.json';
 import grass4 from './grass-4.json';
+import grass5 from './grass-5.json';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT } from '../../../core/levels/shots';
 import { worldDots } from '../../../core/map/unlock';
+
+/**
+ * How far a jump carries at walk speed (px), for the gap check (Task 008). The jump lands level after 2 v / g seconds.
+ * "standing" = pressing Right and Jump together from rest at the edge: the walk ramp loses half of its ramp-up time of speed.
+ */
+function walkingJumpReach(speed: number) {
+  const air = (2 * PHYSICS.jumpVelocity) / PHYSICS.gravity;
+  return { running: air * speed, standing: air * speed - (speed * PHYSICS.walkRampUpMs) / 2000 };
+}
+/**
+ * Travel of the body centre needed to clear a gap of `tiles`, starting with the centre on the near edge (the body still
+ * overlaps the ground): the body's far side must pass the far edge, so the centre must reach gap width minus half the body.
+ */
+const gapNeed = (tiles: number) => tiles * 64 - PHYSICS.body.width / 2;
 
 describe('Robo World level files', () => {
   /** Runs of missing ground in the row under the start. */
@@ -170,20 +185,85 @@ describe('Robo World level files', () => {
     }
   });
 
-  it('the grass world lists grass-1..4: Next goes 1 -> 2 -> 3 -> 4 and is hidden on 4', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4']);
+  it('grass-5 "Move and Jump" (D-043): Left/Right/Jump, walking, gaps of 1 or 2 tiles with 6+ tiles of ground between, 22-28 coins', () => {
+    const r = parseLevel(grass5);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const { controls, stars, grid } = r.level;
+    expect(controls.enabled).toEqual(['left', 'right', 'jump']);
+    expect(controls.autoRun).toBe(false);
+    expect(controls.tapAnywhereJumps).toBe(false);
+    expect(controls.demo && 'script' in controls.demo && controls.demo.script.map((s) => s.action)).toContain('jump');
+    const e = extractEntities(grid);
+    expect(e.cols).toBeGreaterThanOrEqual(70);
+    expect(e.cols).toBeLessThanOrEqual(80);
+    expect(e.bubbles).toEqual([]);
+    expect(e.start.col).toBe(6);
+    expect(e.flag.col).toBeGreaterThan(e.cols - 8);
+
+    // Gap widths 1, 1, 2, 1, 2, 2 and a safe stretch of at least 6 tiles before, between and after the gaps.
+    const gaps = gapsOf(e);
+    expect(gaps.map((g) => g.length)).toEqual([1, 1, 2, 1, 2, 2]);
+    expect(gaps[0][0] - e.start.col).toBeGreaterThanOrEqual(6);
+    for (let i = 1; i < gaps.length; i++) {
+      const prevEnd = gaps[i - 1][gaps[i - 1].length - 1];
+      expect(gaps[i][0] - prevEnd - 1, `stretch before gap ${i + 1}`).toBeGreaterThanOrEqual(6);
+    }
+    const lastGap = gaps[gaps.length - 1];
+    expect(e.flag.col - lastGap[lastGap.length - 1] - 1).toBeGreaterThanOrEqual(6);
+    // Gaps go through every ground row, and the flag stands on ground.
+    for (const g of gaps) for (let row = e.start.row + 1; row < e.rows; row++) for (const c of g) expect(e.solid[row][c]).toBe(false);
+    expect(e.solid[e.start.row + 1][e.flag.col]).toBe(true);
+
+    // Every gap can be crossed from a standing start at its edge, with a margin of at least 40 px (0.18 s of walking).
+    const reach = walkingJumpReach(PHYSICS.walkSpeed);
+    for (const g of gaps) expect(reach.standing, `gap of ${g.length}`).toBeGreaterThanOrEqual(gapNeed(g.length) + 40);
+
+    // Coins: an arc over every gap (a coin above the gap), 3-4 to the left of the start, 22-28 in all, none in the ground.
+    expect(e.coins.length).toBeGreaterThanOrEqual(22);
+    expect(e.coins.length).toBeLessThanOrEqual(28);
+    for (const g of gaps) {
+      expect(e.coins.some((c) => c.col >= g[0] && c.col <= g[g.length - 1] && c.row < e.start.row), `arc over gap at ${g[0]}`).toBe(true);
+    }
+    const left = e.coins.filter((c) => c.col < e.start.col);
+    expect(left.length).toBeGreaterThanOrEqual(3);
+    expect(left.length).toBeLessThanOrEqual(4);
+    for (const c of e.coins) expect(c.row).toBeLessThan(e.start.row);
+    // A jump from the edge of a 1-tile gap flies over the next two columns at head height and lands about three columns
+    // after the gap starts, so no walking coin sits there (the bot found them out of reach at the apex).
+    for (const g of gaps.filter((x) => x.length === 1)) {
+      const flownOver = e.coins.filter((c) => c.row === e.start.row - 1 && c.col > g[0] && c.col <= g[0] + 2);
+      expect(flownOver, `coins right behind the gap at ${g[0]}`).toEqual([]);
+    }
+
+    // Stars: two need about half the coins, three need most, and three is reachable.
+    expect(stars.two).toBeGreaterThanOrEqual(Math.floor(e.coins.length * 0.4));
+    expect(stars.two).toBeLessThanOrEqual(Math.ceil(e.coins.length * 0.6));
+    expect(stars.three).toBeGreaterThan(stars.two);
+    expect(stars.three).toBeGreaterThanOrEqual(Math.floor(e.coins.length * 0.7));
+    expect(stars.three).toBeLessThanOrEqual(e.coins.length);
+    // Walking alone cannot give three stars: coins above head height (jump only) are needed.
+    const jumpOnly = e.coins.filter((c) => c.row < e.start.row - 1).length;
+    expect(e.coins.length - jumpOnly).toBeLessThan(stars.three);
+  });
+
+  it('the grass world lists grass-1..5: Next goes 1 -> 2 -> 3 -> 4 -> 5 and is hidden on 5', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5']);
     expect(nextLevelId(worlds, 'grass-1')).toBe('grass-2');
     expect(nextLevelId(worlds, 'grass-2')).toBe('grass-3');
     expect(nextLevelId(worlds, 'grass-3')).toBe('grass-4');
-    expect(nextLevelId(worlds, 'grass-4')).toBeNull();
+    expect(nextLevelId(worlds, 'grass-4')).toBe('grass-5');
+    expect(nextLevelId(worlds, 'grass-5')).toBeNull();
   });
 
-  it('grass-4 is under a cloud on a fresh start (openAtATime 3) and opens once Grass 1 is cleared', () => {
+  it('grass-4 and grass-5 are under clouds on a fresh start (openAtATime 3); 4 opens after one clear, 5 after two', () => {
     const grass = worlds.find((w) => w.id === 'grass')!;
-    const fresh = worldDots(grass, {}, { openAtATime: 3, unlockAll: false });
-    expect(fresh.map((d) => d.open)).toEqual([true, true, true, false]);
-    const after = worldDots(grass, { 'grass-1': { stars: 1, bestCoins: 0 } }, { openAtATime: 3, unlockAll: false });
-    expect(after.map((d) => d.open)).toEqual([true, true, true, true]);
+    const open = (levels: Record<string, { stars: number; bestCoins: number }>) =>
+      worldDots(grass, levels, { openAtATime: 3, unlockAll: false }).map((d) => d.open);
+    const cleared = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, { stars: 1, bestCoins: 0 }]));
+    expect(open({})).toEqual([true, true, true, false, false]);
+    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false]);
+    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true]);
   });
 });
 

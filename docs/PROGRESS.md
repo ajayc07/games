@@ -1,16 +1,15 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 007 done)_
+_Last updated: 2026-10-24 (Task 008 done)_
 
 ## Status
-"Robo World" (D-038) has four Grass levels on the world map (Task 007). New: Grass 4 "Shoot", where the new control is the
-Power button (purple, star icon, bottom-right in Jump's place; there is no Jump in this level). Walking as in Grass 3; Power
-fires a soft orb in the robot's accent colour (holding repeats every 0.3 s, at most 3 in flight). Shots pop friendly bubbles
-(no faces, they never move): each small bubble gives 3 coins, the big bubble 6, and the coins fly to the robot by themselves.
-The big bubble about 60% along blocks the path (soft stop) until popped; it is the only gate. A 7 s "watch me" demo shows two
-shots ahead and one behind. On a fresh start Grass 4 is under a cloud and opens when Grass 1 is cleared. The Input Lab now
-shoots with the same code. The teaser signposts' clouds are opaque (D-040 housekeeping).
-Next: Task 008 (Grass 5: move + jump gaps).
+"Robo World" (D-038) has five Grass levels on the world map (Task 008). New: Grass 5 "Move and Jump", the first level that
+combines two controls he knows: walk with Left/Right and press Jump to cross gaps (1, 1, 2, 1, 2, 2 tiles, always 8 or more tiles
+of ground between them). He can walk to an edge, stop and press Jump when ready, or jump while walking; a coin arc shows where to
+jump. Falling still floats him back on the cloud, now to the side he came from (a fall while walking left no longer carries him
+across the gap). Buttons are the same as Grass 3 (Left, Right, Jump). Grass 4 "Shoot" (Task 007) and the rest are unchanged. On
+a fresh start Grass 4 and 5 are under clouds; Grass 4 opens after one level is cleared and Grass 5 after two.
+Next: Task 009 (Grass 6 "Everything": Left, Right, Jump and Power together, D-043).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -26,8 +25,9 @@ Next: Task 008 (Grass 5: move + jump gaps).
 | 005d | Generic "robo" universe, remove character voices, colour-card picker (D-038) | Done |
 | 006 | World map + stars + unlocking + per-universe progress storage | Done |
 | 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Done |
-| 008 | Grass 5: move + jump gaps | Next |
-| 009 | Minimal parent view (sound, button size, unlock-all) | Planned |
+| 008 | Grass 5 "Move and Jump": walking over gaps (D-043) | Done |
+| 009 | Grass 6 "Everything": Left, Right, Jump and Power together (D-043) | Next |
+| 010 | Minimal parent view (sound, button size, unlock-all, reset progress) | Planned |
 | later | Cave/Sky/Castle worlds, polish | Later |
 
 ## Done
@@ -65,10 +65,29 @@ Next: Task 008 (Grass 5: move + jump gaps).
   pure geometry/hit/coin flow, `BubbleField`), soft big-bubble blocker, Power button in Jump's slot, demo `power` steps, pop sounds,
   `grass-4.json`, four map dots, opaque teaser clouds. Universe chunk 125,446 -> 139,797 bytes; `dist/` 1,382,446 -> 1,397,162 bytes.
 
+- 2026-10-24: D-042..D-044 (architect): Task 007 review, Grass 6 "Everything", second tablet session (replay boredom is the main risk).
+- 2026-10-24: Task 008: Grass 5 `grass-5.json` (75 tiles, six gaps, 28 coins, stars 14/22, 8 s demo), `findRespawn` heading direction
+  (a fall while walking left puts him back on the right side of the gap), five-dot map, tests (gaps, safe stretches, crossing margins,
+  coins, stars, respawn direction, map with 3/4/5 levels). Universe chunk and `dist/` sizes in the task file.
+
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Grass 5 (Task 008), to judge on the tablet: does he walk to the edge and stop, or press Jump while walking? Does he understand the
+  coin arcs? Are the 2-tile gaps frustrating? Does the cloud float-back confuse him (he is put back 2.5-3 tiles from the gap he fell into)?
+  All in `grass-5.json` and `core/levels/physics.ts`.
+- Grass 5 length (Task 008): a bot that mashes with a right-leaning bias (Right 2.5/s, Jump 1.5/s, Left 0.5/s, presses held 150-500 ms)
+  finished 5 of 5 runs in a median of 131 s (108-173 s) with 10-23 falls, against the task's target of about 60 s. An unbiased bot
+  (all three buttons 1.5/s, as in the earlier timing tests) is a random walk on a walking level and reached only x 806 of 4700 in
+  120 s. A child who walks on purpose will be much faster (one hold of Right walks the level in about 21 s plus the jumps), so this is
+  mostly about mashing. Easy levers if the tablet shows it is too long: fewer tiles between the gaps (8 down to 6 saves about 12
+  tiles), or fewer gaps. Each fall costs about 5 s for a masher (1.7 s on the cloud, then walking back).
+- Respawn loop (Task 008): holding Right only falls at the first gap, floats back, walks on and falls again until he lets go or
+  presses Jump (7 falls in 24 s). It is never a soft lock and costs no stars; if the tablet shows him holding Right forever, the
+  respawn could ignore held Right for a moment or put him farther back.
+- Frame rate (Task 008, headless Chrome, 844x390): blank page 53.2 fps today (60.2 in Task 007; the machine was busier), map 58.5,
+  Grass 5 while mashing Jump about 20 times a second, walking and falling: average 57.4, lowest 54.1, no console errors.
 - Grass 4 (Task 007), to judge on the tablet: does he find Power and see that it shoots the way the robot faces (one bubble is
   behind the start)? Is the cooldown (300 ms) too slow or too fast? Are the pops (a rising "plip" for quick pops) pleasant?
   Is the big bubble a problem or fun? Stars 22/34 of 39 coins. All in `grass-4.json`, `core/levels/shots.ts` (`SHOT`) and
@@ -149,6 +168,12 @@ _(nothing)_
   `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 008 (tablet, https://ajayc07.github.io/games/, or `?level=grass-5`; `?demo=1` replays the demo):
+  - Grass 5 opens after two levels are cleared (or `?unlock=all`). Does the cloud over the fifth dot clear when he finishes his second level?
+  - Does he walk to a gap edge and stop, or press Jump while walking? Both work.
+  - Does he follow the coin arcs over the gaps? Are the 2-tile gaps frustrating or fun?
+  - Does the cloud that carries him back after a fall confuse him? Does he keep walking into the same gap?
+  - Is the level too long (about 75 tiles) for him? Does the demo (about 8 s) make sense?
 - After pushing Task 007 (tablet, https://ajayc07.github.io/games/, or `?level=grass-4`; `?demo=1` replays the demo):
   - Does he find the purple Power button by himself (it pulses until first pressed)? Does the demo's finger on it help?
   - Does he understand that it shoots the way the robot faces (turn round for the bubble behind the start)?

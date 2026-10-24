@@ -184,7 +184,8 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
   and only with `?debug=1` an `?open=N` override of `openAtATime` (to see the unlock animation with Grass 1-3).
 - **MapScene** (`core/map/`, generic; data `{ theme, dots, teasers, option, look, arrival?, onPlay, onPicker }`): one world as a
   horizontal map (`mapLayout.ts`, pure, tested): dots 300 px apart on a wavy line (y 320-440), three teaser signposts after the
-  last dot; with four Grass levels the map is 2185 px wide (scrolls on every screen, the avatar's dot stays in view). A map narrower than the screen is centred; a wider one scrolls (drag with a finger, 14 px
+  last dot; with five Grass levels the map is 2485 px wide (scrolls on every screen, the avatar's dot stays in view; tested
+  with 3, 4 and 5 levels at all five screen sizes). A map narrower than the screen is centred; a wider one scrolls (drag with a finger, 14 px
   threshold so taps stay taps) and eases to keep the avatar at 42% of the screen. Sky, clouds and hills reuse
   `ParallaxBackground` and the theme textures; the path is a sandy spline, then stepping stones toward the teasers. Each dot is
   a round pad (orange open, green cleared, grey locked) with 3 star slots; a locked pad is under a theme cloud. Teaser clouds are fully opaque (Task 007), so the
@@ -284,14 +285,16 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   valid actions, star thresholds), `parseLevelOrThrow`.
 - `grid.ts`: `extractEntities` (solid map, coins, bubbles, start, flag), `mergeSolids` (few collision rectangles, no seams),
   `surfaceRow`, `findRespawn` (D-019: nearest standable column at least 3 behind the last grounded column, preferring
-  ground on both sides), `starsFor`. Pure and unit-tested (`levels.test.ts`).
+  ground on both sides; Task 008: `dir` = the way he was heading, so a fall while walking LEFT over a gap puts him on the
+  side he came from, 3 or more columns to the right of where he last stood, and never across the gap; at the right end of
+  the level it falls back to the left side), `starsFor`. Pure and unit-tested (`levels.test.ts`).
 - `physics.ts`: the one shared tuning file (D-021): run speed 200, walk speed 220 (ramp 60 ms up / 80 ms down), gravity 1800, jump velocity 760 (peak 160 px = 2.5
   tiles, ~2.6 tiles carried at 200 px/s), max fall 1100, coyote 120 ms, jump buffer 150 ms, body 40x84. Fixed jump height.
 - `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, option, look?,
   onHome, onNext?, nextAvailable?, onResult?, onPicker? }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
   look (robot or ball, lively motion, see "Avatar looks" above). Camera follows by hand with a look-ahead (see "Walking");
   scenery ground extends past both level ends.
-  Falls: whoosh, a cloud carries the player to the respawn spot. Flag: stop, the option's win chime, hop, confetti, `ResultScreen`.
+  Falls: whoosh, a cloud carries the player to the respawn spot, facing the gap he fell into (his facing at the fall). Flag: stop, the option's win chime, hop, confetti, `ResultScreen`.
   `?debug=1` exposes `window.__level` (state, scene, input, layout, audio) for tests.
 - `theme.ts`: `LevelTheme` = colours for sky, hills, clouds, ground, coin, flag plus optional image files per texture
   (`ground-top`, `ground-fill`, `coin`, `flag-pole`, `flag-cloth`, `hills-far`, `hills-near`, `cloud`).
@@ -345,7 +348,7 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   popped, coins), `pops`, `coinsFlying`, `gridCoins`, `muzzle`; `__lab.shots()`.
 
 Robo World routing: see "Map and flow"; test params `?level=<id>`, `?color=<id>`, `?look=`, `?size=`, `?picker=1`,
-`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1, grass-2, grass-3, grass-4; then Cave, Sky,
+`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1 .. grass-5; then Cave, Sky,
 Castle, empty), and so are the options (`universes/robo/options.ts`), so tests can read both without Phaser.
 
 Grass levels (re-paced in Task 005c, D-037: about 60% of their old length, same coin density):
@@ -363,6 +366,23 @@ Grass 4 "Shoot" (Task 007): 80 tiles, flat, no gaps, Left/Right/Power (no Jump),
 and one big bubble at columns 48-49 (60%), flag at column 74: 39 coins, stars 22/34 (3 stars need 10 of the 11 small bubbles and the
 big one; the big one alone gives 1 star). Demo script (about 7 s): right 0.5 s, Power, right 0.9 s, Power, left 0.9 s, Power (the
 bubble behind the start), right 0.3 s.
+Grass 5 "Move and Jump" (Task 008): 75 tiles, walking, Left/Right/Jump laid out exactly as in Grass 3, no Power, no bubbles, start
+at column 6, flag at column 71. Six gaps of 1, 1, 2, 1, 2, 2 tiles at columns 14, 23, 32-33, 42, 51-52, 61-62, always 8 or more tiles
+of ground between them (6 is the tested minimum), 14 tiles of ground before the first gap. 28 coins: 4 to
+the LEFT of the start (head height), a coin arc over every gap (a coin before it, one or two above it, one after), 3 at the very end;
+stars 14/22 (the bot gets all 28). The coin after a 1-tile gap sits 3 columns after the gap starts (where a jump from the edge lands):
+a coin 1-2 columns after it is flown over at the apex and cannot be collected without walking back (found by the bot, tested).
+Demo script (about 8.2 s): right 2.2 s to the first gap's edge, Jump + right 1 s, right 1.5 s, Jump + right 1 s over the second gap.
+
+**Walking over gaps (Task 008, measured in the browser).** Air time 2 x 760 / 1800 = 0.844 s. A jump carries 186 px at walk speed 220
+(running) and about 179-189 px from a standing start (the ramp loses about 7 px; measured 178-189). The body centre must travel
+`gap - 20 px` when it starts on the edge (the far side of the 40 px body has to reach the far edge), so 1 tile needs 44 px, 2 tiles
+108 px (margin 71 px, about 0.3 s of walking) and 3 tiles 172 px (margin 7 px: too tight, so gaps are 1 or 2 tiles). A body supported
+by the ground overhangs by up to 20 px, so a standing player can be 20 px past the edge, which only makes a jump easier. A 1-tile gap
+(64 px) is wider than the 40 px body: a stationary player with the centre between 16 and 44 px past the near edge falls in, and
+walking over without a jump falls too. All six gaps were crossed from a standing start at the edge (centre 0 and 19 px past it)
+with Right and Jump pressed together. Holding Right only: he falls at the first gap, floats back (about 160 px behind the gap),
+walks on and falls again, in a loop (7 falls in 24 s) that is never a soft lock: a Jump at the edge crosses it at any time.
 
 ## Screen layout (D-013)
 `core/ui/layout.ts`: logical height is always 720, logical width follows the screen (960..1920, D-017). `getLayout()` gives
