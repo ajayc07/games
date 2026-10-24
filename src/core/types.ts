@@ -32,6 +32,11 @@ export interface CharacterDef {
    * and whenever a pose is missing or fails to load. Each is trimmed and scaled to the same visible height.
    */
   poses?: {
+    /**
+     * Standing still on the ground (Task 005). If missing and the main image is the jump pose
+     * (`jump.image` equals `image`), the `run` picture is used standing still; otherwise the main image.
+     */
+    idle?: PoseDef;
     run?: PoseDef;
     jump?: PoseDef;
     /**

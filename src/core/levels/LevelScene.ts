@@ -1,7 +1,7 @@
 // Generic level scene: runs any level JSON with any theme and character. Knows nothing about a
 // specific universe; the universe passes everything in through LevelSceneData.
 import Phaser from 'phaser';
-import type { CharacterDef } from '../types';
+import type { Action, CharacterDef } from '../types';
 import { INPUT_EVENTS, InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { getLayout, type Layout } from '../ui/layout';
@@ -16,7 +16,8 @@ import { ParallaxBackground } from './background';
 import { ResultScreen } from './ResultScreen';
 import { Player } from './Player';
 import { MotionFx } from './motionFx';
-import { DEMO_SKIP_AFTER_MS, DemoScript, demoOverrideFrom, shouldPlayDemo } from './demo';
+import { DEMO_SKIP_AFTER_MS, createDemo, demoOverrideFrom, shouldPlayDemo, type DemoRunner } from './demo';
+import { walkDirection } from './walk';
 import { DemoCues, drawFinger } from './demoFx';
 
 export interface LevelSceneData {
@@ -45,8 +46,12 @@ const COIN_HIT_R = 18;
 const CAMERA_ANCHOR = 0.36;
 const DEPTH = { ground: 0, coins: 10, flag: 5, ghost: 19, player: 20, fx: 30, hint: 40, hud: 900 };
 const GHOST_ALPHA = 0.55;
-/** The Jump button gives a gentle "press me" pulse this often until the first press (ms). */
+/** Each button gives a gentle "press me" pulse this often until its first press (ms); Left and Right take turns. */
 const INVITE_EVERY_MS = 2600;
+/** Camera look-ahead turns round only after moving the new way this long (ms), so quick turns do not swing it. */
+const LOOK_TURN_MS = 350;
+/** The player always stays at least this far inside the safe area (fraction of its width). */
+const CAMERA_MARGIN = 0.15;
 /** Delay of the win voice after the win jingle starts (ms). */
 const WIN_VOICE_DELAY_MS = 350;
 
@@ -64,7 +69,8 @@ export class LevelScene extends Phaser.Scene {
   /** World y of the top of grid row 0 (grid bottom sits on the screen bottom). */
   private gridTop = 0;
   private worldW = 0;
-  private runSpeed: number = PHYSICS.runSpeed;
+  /** Moving speed: run speed on auto-run levels, walk speed on Left/Right levels (D-029). */
+  private moveSpeed: number = PHYSICS.runSpeed;
 
   private layout!: Layout;
   private input2!: InputManager;
@@ -73,11 +79,13 @@ export class LevelScene extends Phaser.Scene {
   private look!: CharacterLook;
   private player!: Player;
   private ghost: Player | null = null;
-  private demoScript: DemoScript | null = null;
+  private demo: DemoRunner | null = null;
   private demoCues: DemoCues | null = null;
   private demoStartedAt = 0;
   private invite: Phaser.Time.TimerEvent | null = null;
-  private firstPress = false;
+  /** Buttons pressed at least once this run (their "press me" pulses stop). */
+  private pressedOnce = new Set<Action>();
+  private inviteTick = 0;
   private coins: Coin[] = [];
   private flagX = 0;
   private flagTopY = 0;
@@ -95,6 +103,9 @@ export class LevelScene extends Phaser.Scene {
   private camX = 0;
   private camAnchor = CAMERA_ANCHOR;
   private cameraSnapped = false;
+  /** Direction of the camera look-ahead, and how long the actor has moved the other way (ms). */
+  private lookDir = 1;
+  private lookTurnMs = 0;
 
   constructor() {
     super({
@@ -108,18 +119,23 @@ export class LevelScene extends Phaser.Scene {
     this.level = data.level;
     this.grid = extractEntities(data.level.grid);
     this.tile = data.level.tileSize;
-    this.runSpeed = data.level.runSpeed ?? PHYSICS.runSpeed;
+    this.moveSpeed = data.level.controls.autoRun
+      ? (data.level.runSpeed ?? PHYSICS.runSpeed)
+      : (data.level.walkSpeed ?? PHYSICS.walkSpeed);
     this.worldW = this.grid.cols * this.tile;
     this.mode = 'play';
     this.coinCount = 0;
     this.respawns = 0;
     this.cameraSnapped = false;
     this.camAnchor = CAMERA_ANCHOR;
+    this.lookDir = 1;
+    this.lookTurnMs = 0;
     this.ghost = null;
-    this.demoScript = null;
+    this.demo = null;
     this.demoCues = null;
     this.invite = null;
-    this.firstPress = false;
+    this.pressedOnce = new Set();
+    this.inviteTick = 0;
     this.result = null;
     this.hint = null;
     this.coins = [];
@@ -172,8 +188,8 @@ export class LevelScene extends Phaser.Scene {
 
   override update(time: number, deltaMs: number): void {
     const dt = Math.min(deltaMs, 50) / 1000;
-    if (this.mode === 'demo') this.updateDemo(time);
-    else if (this.mode === 'play') this.updatePlay(time);
+    if (this.mode === 'demo') this.updateDemo(time, dt * 1000);
+    else if (this.mode === 'play') this.updatePlay(time, dt * 1000);
     else if (this.mode === 'finish') this.updateFinish();
     this.player.updateSprite(time, dt);
     this.ghost?.updateSprite(time, dt);
@@ -268,7 +284,11 @@ export class LevelScene extends Phaser.Scene {
       depth,
       tile: this.tile,
       alpha,
-      runSpeed: this.runSpeed,
+      speed: this.moveSpeed,
+      ramp: !this.level.controls.autoRun,
+      // Invisible walls at both ends of the grid (the scenery carries on past them).
+      minX: PHYSICS.body.width / 2,
+      maxX: this.worldW - PHYSICS.body.width / 2,
       groundAt: this.groundAt,
       fx: dust ? this.motionFx : undefined,
     });
@@ -346,8 +366,8 @@ export class LevelScene extends Phaser.Scene {
     this.mode = 'demo';
     this.player.setPresent(false);
     this.ghost = this.makePlayer(DEPTH.ghost, GHOST_ALPHA, false);
-    this.demoScript = new DemoScript(config, this.tile);
-    this.demoCues = new DemoCues(this, this.touch);
+    this.demo = createDemo(config, this.tile);
+    this.demoCues = new DemoCues(this, this.touch, this.demo.firstAction);
     this.demoCues.showFinger();
     this.demoStartedAt = this.time.now;
     // Any tap or key after a moment skips the demo.
@@ -355,18 +375,22 @@ export class LevelScene extends Phaser.Scene {
     this.input.keyboard?.on(Phaser.Input.Keyboard.Events.ANY_KEY_DOWN, this.trySkipDemo, this);
   }
 
-  private updateDemo(now: number): void {
+  private updateDemo(now: number, dtMs: number): void {
     const ghost = this.ghost!;
-    const { jump, done } = this.demoScript!.step(ghost.body.center.x);
-    // The ghost always walks right, through the same movement and jump code as the player.
-    const r = ghost.step(now, { vx: this.runSpeed, jumpPressed: jump });
-    if (jump) {
-      this.touch.animatePress('jump');
-      this.demoCues!.tap();
-      if (this.level.controls.tapAnywhereJumps) this.demoCues!.rippleAt(ghost.body.center.x, ghost.body.center.y);
+    const demo = this.demo!;
+    const f = demo.step(now - this.demoStartedAt, ghost.body.center.x);
+    // The ghost moves through the same movement and jump code as the player.
+    const r = ghost.step(now, { move: f.move, jumpPressed: f.jump }, dtMs);
+    const cues = this.demoCues!;
+    for (const p of f.presses) {
+      this.touch.animatePress(p.action, p.holdMs);
+      cues.tap(p.action, p.holdMs);
     }
+    if (f.presses.length === 0) cues.aim(f.aim);
+    if (f.jump && this.level.controls.tapAnywhereJumps) cues.rippleAt(ghost.body.center.x, ghost.body.center.y);
     if (r.jumped) audio.play('jump'); // generic only: the voice belongs to the child's own jumps
-    if (done || ghost.body.top > this.layout.height + 40) this.endDemo();
+    // A timed demo also waits for the ghost to land, so it never fades out mid-jump.
+    if ((f.done && (!demo.timed || ghost.grounded)) || ghost.body.top > this.layout.height + 40) this.endDemo();
   }
 
   private trySkipDemo(): void {
@@ -386,6 +410,7 @@ export class LevelScene extends Phaser.Scene {
     this.tweens.add({ targets: [ghost.sprite, ghost.shadow], alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
     this.ghost = null;
     this.demoCues!.hideFinger();
+    this.demoCues!.aim(this.demo!.firstAction); // "your turn" pulses the first button the demo pressed
     this.player.setPresent(true);
     this.player.placeAt(this.cellCenter(this.grid.start).x, this.startFeet(), this.time.now);
     this.time.delayedCall(800, () => {
@@ -406,31 +431,47 @@ export class LevelScene extends Phaser.Scene {
     const controls = this.level.controls;
     if (controls.tapAnywhereJumps) {
       if (!LevelScene.hintDone) this.buildHint();
-    } else if (controls.enabled.includes('jump')) {
-      this.invite = this.time.addEvent({ delay: INVITE_EVERY_MS, loop: true, callback: () => this.touch.pulse('jump', 'invite') });
+    } else if (this.buttonActions().length > 0) {
+      this.invite = this.time.addEvent({ delay: INVITE_EVERY_MS, loop: true, callback: () => this.inviteButtons() });
     }
   }
 
-  /** A tap that hit no button: the Jump button gives one friendly pulse ("press me"). Never a jump. */
-  private onMissTap(): void {
-    if (this.mode === 'play' || this.mode === 'respawn') this.touch.pulse('jump', 'nudge');
+  /** Movement and jump buttons this level shows (power comes later). */
+  private buttonActions(): Action[] {
+    const c = this.level.controls;
+    return c.tapAnywhereJumps ? [] : c.enabled.filter((a) => a === 'left' || a === 'right' || a === 'jump');
+  }
+
+  /** "Press me" pulses for buttons not yet pressed: Jump each time, Left and Right taking turns. */
+  private inviteButtons(): void {
+    const waiting = this.buttonActions().filter((a) => !this.pressedOnce.has(a));
+    if (waiting.length === 0) {
+      this.invite?.remove();
+      this.invite = null;
+      return;
+    }
+    const moves = waiting.filter((a) => a !== 'jump');
+    if (moves.length > 0) this.touch.pulse(moves[this.inviteTick++ % moves.length], 'invite');
+    if (waiting.includes('jump')) this.touch.pulse('jump', 'invite');
+  }
+
+  /** A tap that hit no button: the nearest button gives one friendly pulse ("press me"). Never a move or jump. */
+  private onMissTap(e: { x: number; y: number }): void {
+    if (this.mode !== 'play' && this.mode !== 'respawn') return;
+    const near = this.touch.nearest(e.x, e.y);
+    if (near) this.touch.pulse(near, 'nudge');
   }
 
   // ---------- per frame ----------
 
-  private updatePlay(now: number): void {
+  private updatePlay(now: number, dtMs: number): void {
     const input = this.input2;
     const controls = this.level.controls;
-    const vx = controls.autoRun
-      ? this.runSpeed
-      : ((input.isDown('right') ? 1 : 0) - (input.isDown('left') ? 1 : 0)) * this.runSpeed;
+    // Hold = move, release = stop; both held = stand (D-029).
+    const move = controls.autoRun ? 1 : walkDirection(input.isDown('left'), input.isDown('right'));
+    for (const a of ['left', 'right', 'jump'] as const) if (input.justPressed(a)) this.pressedOnce.add(a);
     const pressed = input.justPressed('jump');
-    if (pressed && !this.firstPress) {
-      this.firstPress = true;
-      this.invite?.remove();
-      this.invite = null;
-    }
-    const r = this.player.step(now, { vx, jumpPressed: pressed });
+    const r = this.player.step(now, { move, jumpPressed: pressed }, dtMs);
     if (r.jumped) this.onJump();
 
     this.collectCoins();
@@ -486,14 +527,29 @@ export class LevelScene extends Phaser.Scene {
     const followX = actor.ride ? actor.ride.x : actor.body.center.x;
     // At the finish the character moves to the screen centre, between the result buttons.
     const finished = this.mode === 'finish' || this.mode === 'result';
-    const anchorGoal = finished ? 0.5 : actor.facing >= 0 ? CAMERA_ANCHOR : 1 - CAMERA_ANCHOR;
-    this.camAnchor += (anchorGoal - this.camAnchor) * Math.min(1, dt * 2);
+    // Look-ahead toward where the character is heading. It only turns round after moving the new way
+    // for LOOK_TURN_MS, so quick back-and-forth does not swing the view.
+    const vx = actor.body.velocity.x;
+    const movingOther = Math.abs(vx) > 40 && Math.sign(vx) !== this.lookDir;
+    this.lookTurnMs = movingOther ? this.lookTurnMs + dt * 1000 : 0;
+    if (this.lookTurnMs >= LOOK_TURN_MS) {
+      this.lookDir = -this.lookDir;
+      this.lookTurnMs = 0;
+    }
+    const anchorGoal = finished ? 0.5 : this.lookDir >= 0 ? CAMERA_ANCHOR : 1 - CAMERA_ANCHOR;
+    this.camAnchor += (anchorGoal - this.camAnchor) * Math.min(1, dt * 1.6);
     const target = followX - (safe.x + safe.width * this.camAnchor);
     if (!this.cameraSnapped) {
       this.camX = target;
       this.cameraSnapped = true;
     } else {
       this.camX += (target - this.camX) * Math.min(1, dt * 6);
+    }
+    // Never let the character leave the central safe area, however the smoothing lags.
+    if (!finished) {
+      const minCam = followX - (safe.x + safe.width * (1 - CAMERA_MARGIN));
+      const maxCam = followX - (safe.x + safe.width * CAMERA_MARGIN);
+      this.camX = Phaser.Math.Clamp(this.camX, minCam, maxCam);
     }
     const cam = this.cameras.main;
     cam.scrollX = this.camX;
@@ -511,6 +567,7 @@ export class LevelScene extends Phaser.Scene {
     const T = this.tile;
     const target = { x: spot.col * T + T / 2, y: this.gridTop + (spot.row + 1) * T };
     const body = player.body;
+    player.halt();
     body.setVelocity(0, 0);
     body.enable = false;
     player.facing = 1;
@@ -543,7 +600,7 @@ export class LevelScene extends Phaser.Scene {
 
   private reachFlag(): void {
     this.mode = 'finish';
-    this.player.body.setVelocityX(0);
+    this.player.halt();
     this.invite?.remove();
     this.invite = null;
     this.input2.configure({ enabled: [], tapAnywhereJumps: false });
@@ -556,7 +613,7 @@ export class LevelScene extends Phaser.Scene {
   /** Waits until the player is on the ground, then celebrates once. */
   private updateFinish(): void {
     const player = this.player;
-    player.body.setVelocityX(0);
+    player.halt();
     if (!player.grounded) return;
     this.mode = 'result';
     audio.play('win');
@@ -621,7 +678,10 @@ export class LevelScene extends Phaser.Scene {
         jumps: this.player.jumps,
         respawns: this.respawns,
         ghost: this.ghost && { x: this.ghost.body.center.x, jumps: this.ghost.jumps, alpha: this.ghost.sprite.alpha },
-        demoPresses: this.demoScript?.pressed ?? 0,
+        demoPresses: this.demo?.pressed ?? 0,
+        vx: this.player.body.velocity.x,
+        pressedOnce: [...this.pressedOnce],
+        lookDir: this.lookDir,
         playerVisible: this.player.sprite.visible,
         pose: this.player.pose,
         flipX: Math.sign(this.player.sprite.scaleX),

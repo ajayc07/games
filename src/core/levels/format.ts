@@ -25,14 +25,37 @@ export interface LevelControls {
 }
 
 /**
- * "Watch me" demo (D-024). A ghost runs from the start until it reaches grid column `tiles`, pressing
- * Jump when its centre enters each column in `jumpsAtTiles`. Columns count from the left edge of the
- * grid (0-based), the same as reading the grid strings.
+ * "Watch me" demo (D-024, D-030), one of two forms:
+ * - `DemoTilesConfig` (auto-run levels): the ghost runs from the start until it reaches grid column `tiles`,
+ *   pressing Jump when its centre enters each column in `jumpsAtTiles`. Columns count from the left edge
+ *   of the grid (0-based), the same as reading the grid strings.
+ * - `DemoScriptConfig` (time-based): presses at `t` ms after the demo starts; Left/Right are held for `hold` ms.
  */
-export interface DemoConfig {
+export type DemoConfig = DemoTilesConfig | DemoScriptConfig;
+
+export interface DemoTilesConfig {
   tiles: number;
   jumpsAtTiles: number[];
 }
+
+export type DemoAction = 'left' | 'right' | 'jump';
+
+export interface DemoStepDef {
+  /** Time of the press after the demo starts (ms). */
+  t: number;
+  action: DemoAction;
+  /** How long Left/Right is held (ms). Always set after parsing (default DEFAULT_DEMO_HOLD_MS); jump has none. */
+  hold?: number;
+}
+
+export interface DemoScriptConfig {
+  script: DemoStepDef[];
+}
+
+/** Hold time of a scripted Left/Right press without `hold` (ms). */
+export const DEFAULT_DEMO_HOLD_MS = 600;
+
+export const isScriptDemo = (d: DemoConfig): d is DemoScriptConfig => 'script' in d;
 
 export interface LevelData {
   version: 1;
@@ -42,8 +65,10 @@ export interface LevelData {
   controls: LevelControls;
   /** Size of one grid cell in logical px. */
   tileSize: number;
-  /** Run speed in px/s; the shared default from physics.ts if omitted. */
+  /** Run speed in px/s (auto-run levels); the shared default from physics.ts if omitted. */
   runSpeed?: number;
+  /** Walk speed in px/s (Left/Right levels, D-029); the shared default from physics.ts if omitted. */
+  walkSpeed?: number;
   /** Coins needed for 2 and 3 stars. Finishing always gives 1 (D-020). */
   stars: { two: number; three: number };
   /** Equal-length rows, top row first. */
@@ -69,6 +94,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
   }
   if (!isPositive(raw.tileSize)) err('"tileSize" must be a positive number');
   if (raw.runSpeed !== undefined && !isPositive(raw.runSpeed)) err('"runSpeed" must be a positive number');
+  if (raw.walkSpeed !== undefined && !isPositive(raw.walkSpeed)) err('"walkSpeed" must be a positive number');
 
   // controls
   const c = raw.controls;
@@ -88,6 +114,13 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       if (typeof c[key] !== 'boolean') err(`"controls.${key}" must be true or false`);
     }
     demo = parseDemo(c.demo, err);
+    if (demo && isScriptDemo(demo) && Array.isArray(c.enabled)) {
+      for (const step of demo.script) {
+        if (!c.enabled.includes(step.action)) {
+          err(`"controls.demo.script" presses "${step.action}", which is not in "controls.enabled"`);
+        }
+      }
+    }
   }
 
   // stars
@@ -121,7 +154,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
     });
     if (starts !== 1) err(`grid needs exactly one "S" (player start), found ${starts}`);
     if (flags !== 1) err(`grid needs exactly one "F" (flag), found ${flags}`);
-    if (demo && starts === 1) {
+    if (demo && !isScriptDemo(demo) && starts === 1) {
       const startCol = rows.find((r) => r.includes('S'))!.indexOf('S');
       if (demo.tiles <= startCol || demo.tiles > width) {
         err(`"controls.demo.tiles" (${demo.tiles}) must be a column after the start (${startCol}) and inside the grid (width ${width})`);
@@ -151,21 +184,34 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       },
       tileSize: raw.tileSize as number,
       runSpeed: raw.runSpeed as number | undefined,
+      walkSpeed: raw.walkSpeed as number | undefined,
       stars: { two: (s as { two: number }).two, three: (s as { three: number }).three },
       grid: [...(g as string[])],
     },
   };
 }
 
-const DEMO_SHAPE = 'false or { "tiles": <column>, "jumpsAtTiles": [<column>, ...] }';
+const DEMO_SHAPE =
+  'false, { "tiles": <column>, "jumpsAtTiles": [<column>, ...] } or { "script": [{ "t": <ms>, "action": "left"|"right"|"jump", "hold": <ms> }, ...] }';
+const DEMO_ACTIONS: readonly string[] = ['left', 'right', 'jump'];
 
-/** `controls.demo`: missing or false = no demo; otherwise the object form, checked field by field. */
+/** `controls.demo`: missing or false = no demo; otherwise one of the two object forms, checked field by field. */
 function parseDemo(v: unknown, err: (msg: string) => void): DemoConfig | false {
   if (v === undefined || v === false) return false;
   if (!isObject(v)) {
     err(`"controls.demo" must be ${DEMO_SHAPE} (got ${JSON.stringify(v)})`);
     return false;
   }
+  const hasScript = 'script' in v;
+  const hasTiles = 'tiles' in v || 'jumpsAtTiles' in v;
+  if (hasScript && hasTiles) {
+    err('"controls.demo" mixes the two forms: use either "script" or "tiles" + "jumpsAtTiles", not both');
+    return false;
+  }
+  return hasScript ? parseDemoScript(v, err) : parseDemoTiles(v, err);
+}
+
+function parseDemoTiles(v: Record<string, unknown>, err: (msg: string) => void): DemoTilesConfig | false {
   let ok = true;
   if (!isCount(v.tiles) || v.tiles === 0) {
     err(`"controls.demo.tiles" must be a whole number above 0 (got ${JSON.stringify(v.tiles)})`);
@@ -184,6 +230,50 @@ function parseDemo(v: unknown, err: (msg: string) => void): DemoConfig | false {
   if (!ok) return false;
   const jumps = [...new Set(v.jumpsAtTiles as number[])].sort((a, b) => a - b);
   return { tiles: v.tiles as number, jumpsAtTiles: jumps };
+}
+
+function parseDemoScript(v: Record<string, unknown>, err: (msg: string) => void): DemoScriptConfig | false {
+  let ok = true;
+  const fail = (msg: string) => {
+    err(msg);
+    ok = false;
+  };
+  for (const key of Object.keys(v)) {
+    if (key !== 'script') fail(`"controls.demo" has unknown field "${key}" (a script demo has only "script")`);
+  }
+  if (!Array.isArray(v.script) || v.script.length === 0) {
+    fail(`"controls.demo.script" must be a non-empty array of steps (got ${JSON.stringify(v.script)})`);
+    return false;
+  }
+  const script: DemoStepDef[] = [];
+  let lastT = -Infinity;
+  v.script.forEach((raw: unknown, i: number) => {
+    const at = `"controls.demo.script" step ${i + 1}`;
+    if (!isObject(raw)) {
+      fail(`${at} must be an object like { "t": 500, "action": "right", "hold": 800 } (got ${JSON.stringify(raw)})`);
+      return;
+    }
+    for (const key of Object.keys(raw)) {
+      if (key !== 't' && key !== 'action' && key !== 'hold') fail(`${at} has unknown field "${key}" (use "t", "action", "hold")`);
+    }
+    const { t, action, hold } = raw;
+    if (typeof t !== 'number' || !Number.isFinite(t) || t < 0) fail(`${at}: "t" must be a time in ms, 0 or more (got ${JSON.stringify(t)})`);
+    else if (t < lastT) fail(`${at}: "t" (${t}) is earlier than the step before (${lastT}); list steps in time order`);
+    else lastT = t;
+    if (typeof action !== 'string' || !DEMO_ACTIONS.includes(action)) {
+      fail(`${at}: "action" must be "left", "right" or "jump" (got ${JSON.stringify(action)})`);
+    }
+    if (hold !== undefined) {
+      if (action === 'jump') fail(`${at}: "hold" is only for "left" and "right" (Jump is a single press)`);
+      else if (!isPositive(hold)) fail(`${at}: "hold" must be a positive time in ms (got ${JSON.stringify(hold)})`);
+    }
+    if (ok) {
+      const step: DemoStepDef = { t: t as number, action: action as DemoAction };
+      if (action !== 'jump') step.hold = (hold as number | undefined) ?? DEFAULT_DEMO_HOLD_MS;
+      script.push(step);
+    }
+  });
+  return ok ? { script } : false;
 }
 
 /** Like parseLevel, but throws one Error listing every problem. */

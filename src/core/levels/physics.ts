@@ -5,6 +5,11 @@
 export const PHYSICS = {
   /** Default run speed (px/s); a level may override it with `runSpeed`. */
   runSpeed: 200,
+  /** Walk speed (px/s) on levels without auto-run (D-029); a level may override it with `walkSpeed`. */
+  walkSpeed: 220,
+  /** Time to reach walk speed from standing, and to stop from walk speed (ms). Short: no sliding. */
+  walkRampUpMs: 60,
+  walkRampDownMs: 80,
   /** Downward acceleration (px/s^2). Low-ish for a floaty, readable arc. */
   gravity: 1800,
   /** Take-off speed (px/s). Peak height = jumpVelocity^2 / (2 * gravity) = 160 px. */

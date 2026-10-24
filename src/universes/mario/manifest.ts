@@ -1,61 +1,12 @@
 import type Phaser from 'phaser';
-import type { CharacterDef, UniverseManifest } from '../../core/types';
+import type { UniverseManifest } from '../../core/types';
 import { LevelScene, type LevelSceneData } from '../../core/levels/LevelScene';
 import { nextLevelId } from '../../core/levels/progression';
-import { asset, assets } from './assets';
+import { characters } from './characters';
 import { levels } from './levels';
 import { themeForWorld } from './themes';
 import { worlds } from './worlds';
 import { InputLabScene } from './scenes/InputLabScene';
-
-// Files live in ./assets/ and are named after the character id (D-009).
-// displayHeight is the on-screen height of the visible character (margins trimmed), tuned by eye
-// so the cast reads as about the same size; the big ones are a little taller.
-// Poses and voices (D-023): Mario's and Luigi's main images are jump poses, so they double as `jump`;
-// the run poses are side views (Mario's faces right, Luigi's faces left). The main pictures include a
-// raised arm and stretched legs, so the run poses get a smaller displayHeight: that keeps the head and
-// body the same size when the pose swaps (tuned side by side). Voice mapping to confirm by ear.
-const characters: CharacterDef[] = [
-  {
-    id: 'mario',
-    name: 'Mario',
-    image: asset('mario.avif'),
-    displayHeight: 104,
-    poses: {
-      run: { image: asset('mario-run.png'), facing: 'right', displayHeight: 86 },
-      jump: { image: asset('mario.avif') },
-    },
-    sounds: {
-      pick: assets('mario-yeah-ho.mp3'),
-      jump: assets('mario-ha-ha.mp3'),
-      win: assets('mario-yipee.mp3'),
-    },
-    color: 0xe53935,
-    powerAnimation: 'fireball',
-  },
-  {
-    id: 'luigi',
-    name: 'Luigi',
-    image: asset('luigi.avif'),
-    displayHeight: 108,
-    poses: {
-      run: { image: asset('luigi-run.png'), facing: 'left', displayHeight: 90 },
-      jump: { image: asset('luigi.avif') },
-    },
-    sounds: {
-      pick: assets('luigi-oh-yeah.mp3'),
-      jump: assets('luigi-haha.mp3'),
-      win: assets('luigi-yeah-ha-ha.mp3'),
-    },
-    color: 0x43a047,
-    powerAnimation: 'fireball',
-  },
-  { id: 'peach', name: 'Peach', image: asset('peach.avif'), displayHeight: 108, color: 0xf06292, powerAnimation: 'sparkle' },
-  { id: 'toad', name: 'Toad', image: asset('toad.avif'), displayHeight: 96, color: 0xffffff, powerAnimation: 'spin' },
-  { id: 'bowser', name: 'Bowser', image: asset('bowser.avif'), displayHeight: 112, color: 0xff8f00, powerAnimation: 'roar' },
-  { id: 'yoshi', name: 'Yoshi', image: asset('yoshi.avif'), displayHeight: 104, color: 0x7cb342, powerAnimation: 'tongue' },
-  { id: 'donkeykong', name: 'Donkey Kong', image: asset('donkeykong.avif'), displayHeight: 110, color: 0x8d6e63, powerAnimation: 'groundpound' },
-];
 
 const DEFAULT_CHARACTER = 'mario';
 

@@ -1,5 +1,8 @@
-// The pictures of one character in a level (D-023): idle (main image), run and jump poses, plus an
+// The pictures of one character in a level (D-023): main image, idle, run and jump poses, plus an
 // optional run-cycle flipbook (`poses.runFrames`, Task 004b).
+// Idle rule (Task 005): `poses.idle` if given; else, when the main image doubles as the jump pose
+// (`poses.jump.image` is the main image: Mario, Luigi), the run picture standing still; else the main image.
+// The main image ("win" pose) is still shown after the flag hop.
 // Every picture is trimmed and pre-scaled to its visible height, so swapping never pops the size.
 // Anything missing or undecodable falls back: pose -> main image -> placeholder capsule; a run frame
 // that fails is skipped, and with fewer than 2 usable frames there is no flipbook.
@@ -21,7 +24,9 @@ export interface PoseLook {
 }
 
 export class CharacterLook {
-  private readonly loaded: Partial<Record<PoseName, PoseLook>> = {};
+  private readonly loaded: Partial<Record<PoseName | 'main', PoseLook>> = {};
+  /** The main image is a jump pose, so it is not used for standing (see the idle rule above). */
+  private readonly mainIsJump: boolean;
   private readonly capsule: PoseLook;
   private frames: readonly PoseLook[] = [];
   /** Flipbook frames per second at normal run speed. */
@@ -37,14 +42,16 @@ export class CharacterLook {
     const poses = character.poses;
     this.runFps = poses?.runFps && poses.runFps > 0 ? poses.runFps : ANIM.flipbook.fps;
 
-    const sources: Array<[PoseName, string | undefined, Facing, number]> = [
-      ['idle', character.image, 'right', displayH],
+    this.mainIsJump = !!character.image && poses?.jump?.image === character.image;
+    const sources: Array<['main' | PoseName, string | undefined, Facing, number]> = [
+      ['main', character.image, 'right', displayH],
+      ['idle', poses?.idle?.image, poses?.idle?.facing ?? 'right', poses?.idle?.displayHeight ?? displayH],
       ['run', poses?.run?.image, poses?.run?.facing ?? 'right', poses?.run?.displayHeight ?? displayH],
       ['jump', poses?.jump?.image, poses?.jump?.facing ?? 'right', poses?.jump?.displayHeight ?? displayH],
     ];
     const posesReady = sources.map(async ([pose, url, facing, h]) => {
       // A pose that reuses the main image (Mario's jump) shares its texture.
-      const name = url === character.image ? 'idle' : pose;
+      const name = url === character.image ? 'main' : pose;
       const key = await loadCharacterTexture(scene, `${character.id}-${name}`, url, h);
       if (key) this.loaded[pose] = { key, facing, scale: 1 / TEX_RES };
     });
@@ -67,7 +74,10 @@ export class CharacterLook {
 
   /** Picture for a pose, with fallbacks. Changes once pictures finish loading. */
   get(pose: PoseName): PoseLook {
-    return this.loaded[pose] ?? this.loaded.idle ?? this.capsule;
+    const main = this.loaded.main ?? this.capsule;
+    if (pose === 'win') return main;
+    if (pose === 'idle') return this.loaded.idle ?? (this.mainIsJump ? this.loaded.run : undefined) ?? main;
+    return this.loaded[pose] ?? main;
   }
 
   /** Usable run-cycle frames in order (empty = no flipbook, use the run pose). */

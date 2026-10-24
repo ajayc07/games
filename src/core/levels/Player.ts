@@ -6,6 +6,7 @@ import Phaser from 'phaser';
 import { PHYSICS } from './physics';
 import type { CharacterLook, PoseLook } from './characterLook';
 import { choosePose, flipSign, type PoseName } from './poses';
+import { edgeLimit, nextFacing, rampSpeed, type FacingState } from './walk';
 import {
   ANIM,
   advanceFlipbook,
@@ -34,8 +35,8 @@ import {
 
 /** What drives the player this frame: real input or the demo script. */
 export interface PlayerIntent {
-  /** Horizontal speed in px/s (negative = left). */
-  vx: number;
+  /** Direction to move: -1 left, 0 stand, 1 right. Speed comes from PlayerOptions.speed. */
+  move: -1 | 0 | 1;
   /** Jump was pressed this frame (buffered and coyote-timed, D-021). */
   jumpPressed: boolean;
 }
@@ -61,8 +62,13 @@ export interface PlayerOptions {
   depth: number;
   tile: number;
   alpha?: number;
-  /** The level's normal run speed (flipbook speed reference). */
-  runSpeed: number;
+  /** The level's moving speed: run speed on auto-run levels, walk speed otherwise (also the flipbook reference). */
+  speed: number;
+  /** Walk mode (D-029): speed ramps up and down (PHYSICS.walkRamp*). Off = speed is set at once (auto-run). */
+  ramp: boolean;
+  /** Invisible walls: the body centre stays between these x values and stops softly at them. */
+  minX: number;
+  maxX: number;
   /** World y of the ground surface under x at or below `feet`, or null over a gap (for the shadow). */
   groundAt: (x: number, feet: number) => number | null;
   fx?: MotionFxSink;
@@ -79,7 +85,7 @@ export class Player {
   readonly sprite: Phaser.GameObjects.Image;
   readonly shadow: Phaser.GameObjects.Image;
   /** +1 right, -1 left: the way the character travels and faces. */
-  facing = 1;
+  facing: 1 | -1 = 1;
   jumps = 0;
   lastGroundedCol = 0;
   /** While set, the picture follows this point instead of the body (cloud ride). */
@@ -96,7 +102,15 @@ export class Player {
   private airborneSince = -1;
   private readonly look: CharacterLook;
   private readonly tile: number;
-  private readonly runSpeed: number;
+  private readonly speed: number;
+  private readonly ramp: boolean;
+  private readonly minX: number;
+  private readonly maxX: number;
+  /** Walk speed before the edge limit (px/s, signed). */
+  private walkV = 0;
+  private facingChangedAt = -1e9;
+  /** After the flag hop: idle shows the main ("hero") picture instead of the standing pose. */
+  private winPose = false;
   private readonly groundAt: PlayerOptions['groundAt'];
   private readonly fx: MotionFxSink | undefined;
 
@@ -117,7 +131,10 @@ export class Player {
     const { width, height } = PHYSICS.body;
     this.look = opts.look;
     this.tile = opts.tile;
-    this.runSpeed = opts.runSpeed;
+    this.speed = opts.speed;
+    this.ramp = opts.ramp;
+    this.minX = opts.minX;
+    this.maxX = opts.maxX;
     this.groundAt = opts.groundAt;
     this.fx = opts.fx;
     this.zone = scene.add.zone(opts.x, opts.feet - height / 2, width, height);
@@ -141,7 +158,7 @@ export class Player {
   }
 
   /** Movement and jumping for one frame. */
-  step(now: number, intent: PlayerIntent): StepResult {
+  step(now: number, intent: PlayerIntent, dtMs: number): StepResult {
     const body = this.body;
     let landed = false;
     if (this.grounded) {
@@ -163,8 +180,14 @@ export class Player {
       this.airborneSince = now;
     }
 
-    body.setVelocityX(intent.vx);
-    if (intent.vx !== 0) this.facing = Math.sign(intent.vx);
+    // Walk mode ramps (D-029: about 60 ms up, 80 ms down, no sliding); auto-run sets the speed at once.
+    const target = intent.move * this.speed;
+    this.walkV = this.ramp ? rampSpeed(this.walkV, target, dtMs, this.speed, PHYSICS.walkRampUpMs, PHYSICS.walkRampDownMs) : target;
+    body.setVelocityX(edgeLimit(body.center.x, this.walkV, this.minX, this.maxX));
+    // Facing follows the pressed direction at once, at most one change per FACING_HOLD_MS (no flicker).
+    const f = nextFacing({ facing: this.facing, changedAt: this.facingChangedAt } satisfies FacingState, intent.move, now);
+    this.facing = f.facing;
+    this.facingChangedAt = f.changedAt;
 
     // Buffering and coyote time (D-021). Fixed height: no early release cut.
     if (intent.jumpPressed) this.jumpBufferUntil = now + PHYSICS.jumpBufferMs;
@@ -186,7 +209,14 @@ export class Player {
   hop(now: number): void {
     this.body.setVelocityY(-PHYSICS.jumpVelocity * 0.7);
     this.jumpUsed = true;
+    this.winPose = true;
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.hop);
+  }
+
+  /** Stops moving at once (flag, respawn); the next walk starts from standing. */
+  halt(): void {
+    this.walkV = 0;
+    this.body.setVelocityX(0);
   }
 
   /** Joyful repeat bounce on the spot (visual only) for at least `minMs`, ending on the ground. */
@@ -207,6 +237,8 @@ export class Player {
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.placed);
     this.lastX = x;
     this.stridePhase = 0;
+    this.walkV = 0;
+    this.winPose = false;
   }
 
   /** Hidden and frozen (the real player during the demo). */
@@ -235,6 +267,7 @@ export class Player {
         airborneMs: this.airborneSince < 0 ? 0 : time - this.airborneSince,
         jumped: this.jumpUsed,
       });
+      if (this.pose === 'idle' && this.winPose) this.pose = 'win';
     }
     const grounded = !riding && this.grounded;
     const speed = Math.abs(body.velocity.x);
@@ -253,7 +286,7 @@ export class Player {
     const amp = frames.length >= 2 ? ANIM.flipbook.motionScale : 1;
     let look: PoseLook;
     if (this.pose === 'run' && frames.length >= 2) {
-      this.flipPos = advanceFlipbook(this.flipPos, dtMs, this.look.runFps, speed, this.runSpeed);
+      this.flipPos = advanceFlipbook(this.flipPos, dtMs, this.look.runFps, speed, this.speed);
       this.frameIndex = flipbookFrame(this.flipPos, frames.length);
       look = frames[this.frameIndex];
     } else {

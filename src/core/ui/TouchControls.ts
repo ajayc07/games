@@ -92,6 +92,21 @@ export class TouchControls {
     return best;
   }
 
+  /** The visible button whose centre is closest to a point (game coordinates), or null if none is shown. */
+  nearest(x: number, y: number): Action | null {
+    let best: Action | null = null;
+    let bestDist = Infinity;
+    for (const b of this.buttons.values()) {
+      if (!b.visible) continue;
+      const d = Math.hypot(x - b.container.x, y - b.container.y);
+      if (d < bestDist) {
+        best = b.action;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+
   /** Shows a press (button down, lighter colour) without input, e.g. the demo pressing it. */
   animatePress(action: Action, ms = 220): void {
     const b = this.buttons.get(action);

@@ -1,7 +1,8 @@
 // Which picture the character shows, and which way to flip it (D-023). Pure and unit-tested.
 import type { Facing } from '../types';
 
-export type PoseName = 'idle' | 'run' | 'jump';
+/** `win` is the character's main ("hero") picture, shown after the flag hop. */
+export type PoseName = 'idle' | 'run' | 'jump' | 'win';
 
 /** Airborne this long (ms) before the jump pose shows, so a one-frame bump does not flicker the picture. */
 export const AIR_POSE_DELAY_MS = 70;

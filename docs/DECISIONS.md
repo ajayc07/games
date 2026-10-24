@@ -130,3 +130,38 @@ Mario/Luigi (NSMB) and Bowser (Super Mario Maker) sheets are low-resolution, opa
 from the HD renders, so they would look soft and mismatched. Parked in `_sources/` (gitignored, not bundled).
 Run animation is made from the HD renders: procedural motion now (Task 004b), optional extra HD frames later via `poses.runFrames`.
 `src/universes/<id>/assets/` is for files the game uses only: every file there is bundled.
+
+## D-028 (2026-10-24) Task 004b review outcomes
+Approved all three deviations (new dust replaces old landing dust; `hop(now)`; 70 ms take-off ease to avoid a 24% size jump).
+Motion numbers live in `ANIM`; the parent will judge dust/shadow on the tablet (they can be dialled down or off).
+
+## D-029 (2026-10-24) Walking feel for non-auto-run levels
+Holding Left/Right moves at a constant walk speed (about 220 px/s) with a very short ramp (about 60 ms up, 80 ms down), no sliding or
+momentum, so "hold = move, release = stop" is obvious. Facing flips at once. Air control equals ground control.
+Grass 3 has no gaps and no enemies: nothing requires moving and jumping at the same time (that is level 4).
+Coins at ground level teach walking (including a few to the LEFT of the start); a few lone coins about 2 tiles up teach pressing Jump while standing.
+
+## D-030 (2026-10-24) Demo script format v2
+`controls.demo` may now be `{ "tiles": N, "jumpsAtTiles": [...] }` (auto-run levels, as before) or
+`{ "script": [ { "t": ms, "action": "left"|"right"|"jump", "hold": ms? } ... ] }` (time-based; `hold` for left/right, default 600 ms).
+The ghost presses through the same Player code; the finger icon and button animation follow the scripted action. The demo ends 600 ms
+after the last step finishes. Both forms are validated with readable errors.
+
+## D-031 (2026-10-24) Voice slots for Peach, Toad and Bowser (guess, parent to confirm)
+Files are renamed to the character-first convention (drop the `sound-` prefix, `he-he0yeah` becomes `he-he-yeah`).
+Peach: pick = hello, jump = yeah, win = he-he-yeah. Bowser: pick = bowser-1, jump = bowser-0, win = he-ha-ha.
+Toad: pick = toad-2, jump = toad-0, win = toad-1 (by length and feel only; nobody has listened yet).
+Yoshi and Donkey Kong still have no voices and use the generic sounds.
+
+## D-032 (2026-10-24) Avatar "looks": sprite, ball, portrait, robot
+The player can be drawn in several interchangeable looks behind one `AvatarLook` interface: `sprite` (current real-image look),
+`ball`, `portrait` (ball with the character's face from its image) and `robot`. Selected with `?look=<name>` for now (parent setting
+later). Physics, hit box and gameplay are identical for every look and every character. The picker (Task 007) still shows the real
+images and plays the real voices; the chosen character supplies colours, a small size factor and sounds to the avatar.
+Default stays `sprite` until the parent has compared the looks on the tablet with Athiran.
+
+## D-033 (2026-10-24) Original, code-built characters (no Nintendo designs on avatars)
+Avatar bodies are built from code-drawn parts (cached generated textures assembled in a container hierarchy), animated by pure,
+unit-tested clip functions: idle, walk, run, jump, fall, land, win, shoot. No M cap, moustache or other character-specific signatures
+on avatars; character identity comes only from palette, size factor and sounds. The robot is an original design in the spirit of a
+friendly white/grey bot with cyan accents, a dark visor face and antennae. `_sources/robot-reference.png` is a style reference only; do not trace it.

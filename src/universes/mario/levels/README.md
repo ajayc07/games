@@ -4,4 +4,5 @@ One JSON file per level, loaded automatically by `index.ts` (format v1, D-018; s
 Legend: `#` ground, `.` empty, `c` coin, `S` player start, `F` flag. Rows are top-first and equal length;
 the bottom row sits on the bottom of the screen. Add the level id to its world in `../worlds.ts`.
 Open any level for testing with `?level=<id>` (`&demo=0` skips, `&demo=1` forces the "watch me" demo).
-`levels.test.ts` checks the Mario level files (Grass 2 coins, gaps, demo).
+`levels.test.ts` checks the Mario level files (Grass 2 coins, gaps, demo; Grass 3 coins and demo script),
+the world order and the character voice files.

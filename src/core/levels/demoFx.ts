@@ -1,5 +1,6 @@
-// Visual cues for the "watch me" demo (D-024): a finger that taps the on-screen button in sync with
-// the ghost's presses, a ripple at the character for tap-anywhere levels, and the "your turn" cue.
+// Visual cues for the "watch me" demo (D-024, D-030): a finger that presses the on-screen buttons in sync
+// with the ghost (gliding between Left, Right and Jump, staying down for held presses), a ripple at the
+// character for tap-anywhere levels, and the "your turn" cue.
 // Icons only, no text.
 import type Phaser from 'phaser';
 import type { Action } from '../types';
@@ -23,12 +24,20 @@ export class DemoCues {
   private readonly touch = { x: -0.05, y: 0.05 };
   private tapping = false;
   private tapT = 0;
+  /** Finger tip position (screen, logical), eased toward the aimed button. */
+  private pos: { x: number; y: number } | null = null;
+  private lastUpdate = -1;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly controls: TouchControls,
-    private readonly action: Action = 'jump',
+    private action: Action = 'jump',
   ) {}
+
+  /** Moves the finger to another button (it glides there). */
+  aim(action: Action): void {
+    this.action = action;
+  }
 
   private button(): { x: number; y: number; radius: number } | null {
     const b = this.controls.geometry().find((g) => g.action === this.action);
@@ -46,9 +55,11 @@ export class DemoCues {
     this.update();
   }
 
-  /** The finger presses the button: a quick dip, then back. Call when the ghost presses. */
-  tap(): void {
+  /** The finger presses `action`'s button: a quick dip, held down `holdMs`, then back. Call when the ghost presses. */
+  tap(action: Action = this.action, holdMs = 80): void {
+    this.action = action;
     if (!this.finger) return;
+    this.scene.tweens.killTweensOf(this);
     this.tapping = true;
     this.tapT = 0;
     this.scene.tweens.add({
@@ -56,7 +67,7 @@ export class DemoCues {
       tapT: 1,
       duration: 130,
       yoyo: true,
-      hold: 80,
+      hold: Math.max(80, holdMs - 130),
       ease: 'Sine.easeOut',
       onComplete: () => (this.tapping = false),
     });
@@ -78,10 +89,19 @@ export class DemoCues {
     }
     const t = this.tapping ? this.tapT : 0;
     const r = b.radius;
+    const target = { x: b.x + this.hover.x * r, y: b.y + this.hover.y * r };
+    // Glide between buttons (about 150 ms); the dip itself is applied directly so presses stay crisp.
+    const now = this.scene.time.now;
+    const dt = this.lastUpdate < 0 ? 1 : Math.min(0.05, (now - this.lastUpdate) / 1000);
+    this.lastUpdate = now;
+    if (!this.pos) this.pos = { ...target };
+    const k = Math.min(1, dt * 18);
+    this.pos.x += (target.x - this.pos.x) * k;
+    this.pos.y += (target.y - this.pos.y) * k;
     this.finger.setVisible(true).setScale(Math.max(0.8, r / 80));
     this.finger.setPosition(
-      b.x + (this.hover.x + (this.touch.x - this.hover.x) * t) * r,
-      b.y + (this.hover.y + (this.touch.y - this.hover.y) * t) * r,
+      this.pos.x + (this.touch.x - this.hover.x) * t * r,
+      this.pos.y + (this.touch.y - this.hover.y) * t * r,
     );
   }
 

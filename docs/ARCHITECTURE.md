@@ -47,7 +47,7 @@ interface CharacterDef {
   image?: string;                 // URL from assets/ (placeholder capsule if missing); idle picture
   displayHeight?: number;         // visible height in logical px after trimming (default 104)
   color?: number;                 // placeholder capsule colour
-  poses?: { run?: PoseDef; jump?: PoseDef;         // D-023
+  poses?: { idle?: PoseDef; run?: PoseDef; jump?: PoseDef;  // D-023; idle: Task 005
             runFrames?: PoseDef[]; runFps?: number }; // optional run-cycle flipbook (Task 004b)
   sounds?: { pick?: string[]; jump?: string[]; win?: string[] };  // voice clip URLs, random pick
   powerAnimation: string;         // key of a power animation; cosmetic only
@@ -60,10 +60,17 @@ All characters share identical physics (jump height, speed). Differences are cos
 `core/levels/characterLook.ts` loads `image` (idle) and the `run`/`jump` poses, each trimmed and pre-scaled to its
 `displayHeight` (default: the character's). Fallbacks: missing or undecodable pose -> main image -> capsule.
 `poses.ts` (pure, tested) picks the pose: ground + moving = run, air = jump (after 70 ms, so a bump does not flicker),
-otherwise idle (before the run, cloud ride, win screen after the hop). `flipSign(travel, facing)` mirrors a picture so it
+otherwise idle (standing, before the run, cloud ride); after the flag hop, `win` (the main image). `flipSign(travel, facing)` mirrors a picture so it
 faces the direction of travel: a left-facing picture (Luigi's run) is mirrored when going right.
 Mario's and Luigi's main images are jump poses with a raised arm, so their run poses use a smaller `displayHeight`
 (86/90) to keep head and body the same size across the swap. Characters without poses use the single image everywhere.
+
+**Idle rule (Task 005, chosen from screenshots):** standing still shows `poses.idle` if the character has one; otherwise, if the
+main image doubles as the jump pose (`poses.jump.image` is the main image: Mario, Luigi), the **run picture standing still**
+(no stride, only breathing); otherwise the main image. Why: with the main (jump) image as idle, Mario standing and Mario jumping
+were the same picture, so a standing jump showed no change, and he looked mid-air on the ground. The run picture also means no
+texture swap between standing and walking. The main image still shows on the win screen (`win` pose). A real standing picture
+can be added later as `poses.idle` with no code change.
 
 ### Lively motion (Task 004b)
 All character motion is visual only (the 40x84 physics body never changes) and works for every character, with one
@@ -96,10 +103,29 @@ picture or several. Numbers and maths live in `core/levels/animation.ts` (`ANIM`
 ### Voices (D-023)
 `audio.registerVoices(characterId, sounds)` (called by LevelScene) registers each clip as `voice:<id>:<slot>:<n>`
 with `silentFallback`, so a missing or broken file is simply silent (the generic sounds carry on).
+Voices exist for Mario, Luigi (D-023), Peach, Toad and Bowser (D-031); Yoshi and Donkey Kong use the generic sounds.
 `audio.playVoice(id, slot)` picks at random (never the same clip twice in a row when there is a choice) through
 `VoicePicker` (`core/audio/voices.ts`, tested): `jump` at most once per 1.5 s, `pick`/`win` unlimited.
 The generic `jump` sfx always plays; `win` voice plays 350 ms after the win jingle. `pick` is registered but used by the
 character picker later (Task 007).
+
+### Walking (D-029, Task 005)
+Levels with `autoRun: false` move by holding Left/Right. `walk.ts` (pure, tested): `walkDirection(left, right)` (both = stand),
+`rampSpeed` (0 to walk speed in `PHYSICS.walkRampUpMs` 60 ms, back to 0 in `walkRampDownMs` 80 ms; a reversal slows to 0 then
+speeds up, no sliding), `edgeLimit` (invisible walls at both grid ends: speed toward a wall fades over the last 24 px, so the player
+stops softly; Arcade world bounds stay as a backstop) and `nextFacing` (facing follows the pressed direction at once, at most one
+change per 90 ms, so frantic alternating never flickers the picture). Speed: `PHYSICS.walkSpeed` 220 px/s, or the level's `walkSpeed`.
+`Player.step(now, { move, jumpPressed }, dtMs)` takes a direction (-1/0/1); `PlayerOptions.ramp` switches the ramp on (walk levels)
+or off (auto-run: speed set at once, as before). Air control equals ground control. `Player.halt()` stops at once (flag, respawn).
+Stride, lean, run pose and blends from Task 004b follow the real speed, so standing has no stride motion.
+
+**Camera:** follows by hand with a look-ahead (player at 36% of the safe area when heading right, 64% when heading left). The
+look-ahead only turns round after moving the other way for 350 ms, and the anchor eases slowly, so quick back-and-forth does not swing
+the view. A hard clamp keeps the player between 15% and 85% of the safe area.
+
+**Buttons:** Left and Right bottom-left (shared band split at the midpoint), Jump bottom-right. Until a button's first press it gets a
+gentle `invite` pulse every 2.6 s (Jump each time, Left and Right taking turns). A tap on no button gives a `nudge` pulse to the
+nearest visible button (`TouchControls.nearest`); it never moves or jumps.
 
 ## Levels (data-driven)
 Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `index.ts` with `import.meta.glob`
@@ -113,7 +139,7 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
   "controls": { "enabled": ["jump"], "autoRun": true, "tapAnywhereJumps": true, "demo": false },
   // or "demo": { "tiles": 20, "jumpsAtTiles": [8, 15] }
   "tileSize": 64,
-  "runSpeed": 200,
+  "runSpeed": 200,              // auto-run levels; "walkSpeed": 220 for Left/Right levels (both optional)
   "stars": { "two": 12, "three": 20 },
   "grid": ["....", "S..F", "####"]
 }
@@ -125,17 +151,27 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 - `controls` is the **control ladder**: `InputManager.configure` follows it, and TouchControls only shows enabled
   actions (none with `tapAnywhereJumps`). `autoRun` runs right at `runSpeed`; otherwise Left/Right move and release stops.
 - `stars` (D-020): finishing = 1, `two` and `three` are coin thresholds. `runSpeed` is optional (default in physics.ts).
-- `demo` (D-024): `false` or `{ "tiles": N, "jumpsAtTiles": [..] }`. Both are grid columns, 0-based from the left edge
-  (as read in the grid strings): the ghost runs until its centre reaches column `tiles` and presses Jump on entering each
-  `jumpsAtTiles` column. Validation: tiles after the start column and inside the grid; every jump column after the start
-  and before `tiles`; unknown fields rejected; jump columns are sorted and deduplicated.
+- `demo` (D-024, D-030): `false`, or one of two forms (mixing them is an error):
+  - Tile form `{ "tiles": N, "jumpsAtTiles": [..] }` (auto-run levels). Both are grid columns, 0-based from the left edge
+    (as read in the grid strings): the ghost runs until its centre reaches column `tiles` and presses Jump on entering each
+    `jumpsAtTiles` column. Validation: tiles after the start column and inside the grid; every jump column after the start
+    and before `tiles`; unknown fields rejected; jump columns are sorted and deduplicated.
+  - Script form `{ "script": [{ "t": 300, "action": "right", "hold": 1500 }, { "t": 3300, "action": "jump" }] }`:
+    `t` = ms after the demo starts, `action` = left / right / jump, `hold` = ms for Left/Right only (default 600).
+    Validation (readable errors with the step number): non-empty array, `t` 0 or more and in time order (equal times allowed),
+    known actions that the level enables, `hold` positive and never on jump, unknown fields rejected.
 
 ### "Watch me" demo (D-024)
-`core/levels/demo.ts` (pure, tested): `DemoScript.step(x)` -> `{ jump, done }`, `shouldPlayDemo`, `demoOverrideFrom`.
+`core/levels/demo.ts` (pure, tested): `createDemo(config, tile)` returns a `DemoRunner` for either form; `step(elapsedMs, x)`
+gives `{ move, jump, presses, aim, done }`. `DemoScript` = tile form (always moves right). `TimedDemo` = script form: each step fires
+once (even if a long frame skips past it), Left/Right stay held for `hold` (both held = stand), the finger `aim`s at the held button,
+else the next one; the demo is done 600 ms after the last step finishes, and the scene also waits for the ghost to land, so it never
+fades out mid-jump. Also `shouldPlayDemo`, `demoOverrideFrom`.
 LevelScene modes: `demo` -> `turn` -> `play` (-> `respawn` / `finish` / `result`). In `demo` the real player is hidden
-and frozen, a ghost `Player` (alpha 0.55, same `Player` class and physics as real play, collects no coins) runs right and
-receives the scripted presses. Each press animates the on-screen button (`TouchControls.animatePress`) and a finger icon
-taps it (`demoFx.ts`); on tap-anywhere levels a ripple appears at the character instead. Input is not read during the
+and frozen, a ghost `Player` (alpha 0.55, same `Player` class, physics and walk ramp as real play, collects no coins) moves
+as scripted. Each press animates the on-screen button for its hold time (`TouchControls.animatePress(action, ms)`) and a finger
+icon presses it, gliding between Left, Right and Jump and staying down while held (`demoFx.ts`); on tap-anywhere levels a ripple
+appears at the character instead. The "your turn" pulse goes to the first button the demo pressed. Input is not read during the
 demo; a tap or key after 1.5 s skips it. At the end the ghost fades, the camera glides back to the start, then the
 "your turn" cue (bouncing arrow over the character, ripples at its feet, a button pulse and the soft `yourTurn` sound)
 and the real run starts. Plays once per session per level (static set in LevelScene); `?demo=1` forces, `?demo=0` skips.
@@ -146,12 +182,12 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 - `grid.ts`: `extractEntities` (solid map, coins, start, flag), `mergeSolids` (few collision rectangles, no seams),
   `surfaceRow`, `findRespawn` (D-019: nearest standable column at least 3 behind the last grounded column, preferring
   ground on both sides), `starsFor`. Pure and unit-tested (`levels.test.ts`).
-- `physics.ts`: the one shared tuning file (D-021): run speed 200, gravity 1800, jump velocity 760 (peak 160 px = 2.5
+- `physics.ts`: the one shared tuning file (D-021): run speed 200, walk speed 220 (ramp 60 ms up / 80 ms down), gravity 1800, jump velocity 760 (peak 160 px = 2.5
   tiles, ~2.6 tiles carried at 200 px/s), max fall 1100, coyote 120 ms, jump buffer 150 ms, body 40x84. Fixed jump height.
 - `LevelScene.ts`: the generic Phaser scene (Arcade physics). Started with `LevelSceneData { level, theme, character,
   onHome }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
-  sprite (lively motion, see "Lively motion" above). Camera follows by hand with the
-  player ~36% across the safe area (look-ahead to the right); scenery ground extends past both level ends.
+  sprite (lively motion, see "Lively motion" above). Camera follows by hand with a look-ahead (see "Walking");
+  scenery ground extends past both level ends.
   Falls: whoosh, a cloud carries the player to the respawn spot. Flag: stop, win sound, hop, confetti, `ResultScreen`.
   `?debug=1` exposes `window.__level` (state, scene, input, layout, audio) for tests.
 - `theme.ts`: `LevelTheme` = colours for sky, hills, clouds, ground, coin, flag plus optional image files per texture
@@ -161,6 +197,7 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 - `characterTexture.ts`: decodes the character image with `Image.decode()` (failure = silent capsule fallback, no console
   errors), trims transparent margins and pre-scales it to `displayHeight` x 2 for a crisp, non-shimmering sprite.
 - `background.ts`: parallax sky gradient, wrapping clouds and two tiling hill strips, all screen-fixed and scrolled by hand.
+- `walk.ts` (pure, tested): walking direction, speed ramp, soft level-end walls, facing hysteresis (see "Walking").
 - `Player.ts`: the physics box + picture of one character (movement, buffered/coyote jump, poses and run frames,
   lively motion and shadow, flip, cloud ride). Used for the real player and the demo ghost.
 - `animation.ts` (pure, tested): all motion tuning and maths. `motionFx.ts`: pooled dust emitters for the real player.
@@ -173,12 +210,16 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 
 Mario routing (`universes/mario/manifest.ts`, until the world map exists): `/games/` opens the first Grass level;
 `?level=<id>` any level, `?char=<id>` any character, `?demo=0|1`, `?lab=1` the Input Lab. Home goes to the Input Lab
-for now. The world list is plain data in `universes/mario/worlds.ts` (Grass: grass-1, grass-2).
+for now. The world list is plain data in `universes/mario/worlds.ts` (Grass: grass-1, grass-2, grass-3), and so is the cast
+(`universes/mario/characters.ts`: images, poses, voices), so tests can read both without Phaser.
 
 Mario levels: Grass 1 "Tap to hop" (tap anywhere, no demo). Grass 2 "Big Jump button": 150 tiles, only the Jump button
 (taps elsewhere never jump), demo `{ tiles: 20, jumpsAtTiles: [8, 15] }`, 30 coins (3 at head height, 9 three-coin arcs
 that need a timed press: pressing on entering column k-1 collects the arc centred on k), gaps at 58, 80, 103-104,
-125-126, each with an arc about 5 tiles before it, stars 15/25.
+125-126, each with an arc about 5 tiles before it, stars 15/25. Grass 3 "Left and Right": 70 tiles, flat, no gaps, no auto-run,
+Left/Right/Jump buttons, start at column 6, 22 coins (4 to the LEFT of the start, 14 at ground level in four short trails to the right,
+4 lone coins 2.5 tiles up that need a standing jump), flag at column 64, stars 10/16 (16 needs some left or overhead coins), demo script:
+right 1.5 s, left 0.9 s, one jump.
 
 ## Screen layout (D-013)
 `core/ui/layout.ts`: logical height is always 720, logical width follows the screen (960..1920, D-017). `getLayout()` gives

@@ -33,7 +33,7 @@ describe('controls.demo parsing', () => {
   });
 
   it('rejects true and other non-objects with a readable message', () => {
-    expect(errorsOf(true)[0]).toMatch(/"controls.demo" must be false or \{ "tiles"/);
+    expect(errorsOf(true)[0]).toMatch(/"controls.demo" must be false, \{ "tiles".* or \{ "script"/);
     expect(errorsOf('yes')[0]).toMatch(/got "yes"/);
     expect(errorsOf([8])[0]).toMatch(/"controls.demo" must be/);
   });
@@ -61,7 +61,7 @@ describe('DemoScript', () => {
     const script = new DemoScript({ tiles: 20, jumpsAtTiles: [8, 15] }, T);
     const pressesAt: number[] = [];
     for (let x = 3.5 * T; x < 21 * T; x += 3) {
-      const { jump, done } = script.step(x);
+      const { jump, done } = script.step(0, x);
       if (jump) pressesAt.push(Math.floor(x / T));
       if (done) {
         expect(Math.floor(x / T)).toBe(20);
@@ -74,22 +74,22 @@ describe('DemoScript', () => {
 
   it('never presses twice for one column, even if the ghost moves back', () => {
     const script = new DemoScript({ tiles: 20, jumpsAtTiles: [8] }, T);
-    expect(script.step(8 * T).jump).toBe(true);
-    expect(script.step(8 * T + 1).jump).toBe(false);
-    expect(script.step(7 * T).jump).toBe(false);
-    expect(script.step(8 * T).jump).toBe(false);
+    expect(script.step(0, 8 * T).jump).toBe(true);
+    expect(script.step(0, 8 * T + 1).jump).toBe(false);
+    expect(script.step(0, 7 * T).jump).toBe(false);
+    expect(script.step(0, 8 * T).jump).toBe(false);
   });
 
   it('a long frame that skips past two columns still makes one press that frame', () => {
     const script = new DemoScript({ tiles: 20, jumpsAtTiles: [8, 9] }, T);
-    expect(script.step(9.5 * T)).toEqual({ jump: true, done: false });
+    expect(script.step(0, 9.5 * T)).toMatchObject({ jump: true, done: false, move: 1 });
     expect(script.pressed).toBe(2);
   });
 
   it('is done at the end column', () => {
     const script = new DemoScript({ tiles: 10, jumpsAtTiles: [] }, T);
-    expect(script.step(10 * T - 1).done).toBe(false);
-    expect(script.step(10 * T).done).toBe(true);
+    expect(script.step(0, 10 * T - 1).done).toBe(false);
+    expect(script.step(0, 10 * T).done).toBe(true);
   });
 });
 
