@@ -1,7 +1,7 @@
 // Shared lively motion for every look (Task 004b maths, moved here from Player in Task 005b): stride phase,
 // run blend, squash/stretch pulses, lean, breathing, the win bounce, the soft shadow and dust. It turns
 // physics facts (position, velocity, grounded) into an AvatarState and hands it to the look. Each look
-// says how strongly the shared motion applies (`motion()`); the picture look uses it all, unchanged.
+// says how strongly the shared motion applies (`motion()`).
 import type Phaser from 'phaser';
 import {
   ANIM,
@@ -25,7 +25,6 @@ import {
   strideStretch,
   type Pulse,
 } from '../levels/animation';
-import { choosePose, type PoseName } from '../levels/poses';
 import type { Gait } from './clips';
 import type { AvatarLook, AvatarState, MotionFxSink } from './types';
 
@@ -35,7 +34,7 @@ export interface DriverOptions {
   feet: number;
   depth: number;
   alpha?: number;
-  /** The level's moving speed (flipbook speed reference). */
+  /** The level's moving speed (px/s). */
   refSpeed: number;
   gait: Gait;
   /** World y of the ground surface under x at or below `feet`, or null over a gap (for the shadow). */
@@ -73,7 +72,6 @@ const MAX_STRIDE_DX = 40;
 export class AvatarDriver {
   readonly look: AvatarLook;
   readonly shadow: Phaser.GameObjects.Image;
-  pose: PoseName = 'idle';
   /** Counts of dust events sent (for tests). */
   readonly fxCount = { footfall: 0, landing: 0, streak: 0 };
 
@@ -91,7 +89,6 @@ export class AvatarDriver {
   private celebrateFrom = -1;
   private celebrateUntil = -1;
   private stretch = 0;
-  private winPose = false;
   private visible = true;
   private alpha: number;
   private facing: 1 | -1 = 1;
@@ -127,9 +124,8 @@ export class AvatarDriver {
     this.look.trigger('land', now);
   }
 
-  /** Happy hop at the flag: from now on, standing shows the win pose. */
+  /** Happy hop at the flag: the look switches to its win animation. */
   hop(now: number): void {
-    this.winPose = true;
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.hop);
     this.look.trigger('win', now);
   }
@@ -145,7 +141,6 @@ export class AvatarDriver {
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.placed);
     this.lastX = x;
     this.stridePhase = 0;
-    this.winPose = false;
   }
 
   shoot(now: number): void {
@@ -181,10 +176,6 @@ export class AvatarDriver {
     if (input.ride) {
       x = input.ride.x;
       y = input.ride.y;
-      this.pose = 'idle';
-    } else {
-      this.pose = choosePose({ grounded: input.onGround, speedX: input.vx, airborneMs: input.airborneMs, jumped: input.jumped });
-      if (this.pose === 'idle' && this.winPose) this.pose = 'win';
     }
     const grounded = !riding && input.onGround;
     const speed = Math.abs(input.vx);
@@ -227,7 +218,6 @@ export class AvatarDriver {
       stretch,
       rotation,
       facing: this.facing,
-      pose: this.pose,
       grounded,
       speed,
       vy: input.vy,
@@ -277,7 +267,6 @@ export class AvatarDriver {
   animState(): Record<string, number | boolean | string> {
     return {
       look: this.look.name,
-      pose: this.pose,
       ...this.look.debug(),
       feet: this.lastBottom,
       stretch: this.stretch,

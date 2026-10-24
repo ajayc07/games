@@ -2,6 +2,7 @@
 // on-screen size (high-quality downscale instead of shimmering on the GPU). Loaded with a plain
 // Image + decode() so an unsupported or broken file (e.g. AVIF on an old browser) just returns
 // null, with no console errors; the caller then keeps the placeholder capsule.
+// Not used in levels since Task 005c (the avatar is code-built, D-037); kept for the character picker.
 import type Phaser from 'phaser';
 import { TEX_RES } from './placeholders';
 

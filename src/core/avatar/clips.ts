@@ -1,7 +1,7 @@
 // Animation clips for code-built avatars (Task 005b, D-033). Pure functions of phase or time that
 // return joint angles, offsets and flags; no Phaser, unit-tested. Numbers live in robotSpec.ts.
 // Conventions: see robotSpec.ts (0 = limb hanging down, positive = forward; knees bend back, elbows forward).
-import { ROBOT_CLIPS as C } from './robotSpec';
+import { ROBOT, ROBOT_CLIPS as C } from './robotSpec';
 
 export type Gait = 'walk' | 'run';
 
@@ -10,6 +10,8 @@ export interface Limb {
   a: number;
   /** Bend at the middle joint (knee backwards, elbow forwards), 0 = straight. */
   b: number;
+  /** Spread out to the side (arms; 0 for legs). Seen from the front this is what opens a V. */
+  s: number;
 }
 
 export interface LegPose extends Limb {
@@ -47,16 +49,16 @@ export function gaitFor(autoRun: boolean): Gait {
   return autoRun ? 'run' : 'walk';
 }
 
-const limb = (a: number, b: number): Limb => ({ a, b });
-const leg = (a: number, b: number, foot: number): LegPose => ({ a, b, foot });
+const limb = (a: number, b: number, s: number): Limb => ({ a, b, s });
+const leg = (a: number, b: number, foot: number): LegPose => ({ a, b, s: 0, foot });
 
 /** Blends two poses (w = 0 gives `p`, 1 gives `q`, clamped). */
 export function blendPose(p: RobotPose, q: RobotPose, w: number): RobotPose {
   const t = clamp01(w);
   if (t === 0) return p;
   if (t === 1) return q;
-  const bl = (x: Limb, y: Limb): Limb => ({ a: lerp(x.a, y.a, t), b: lerp(x.b, y.b, t) });
-  const bg = (x: LegPose, y: LegPose): LegPose => ({ a: lerp(x.a, y.a, t), b: lerp(x.b, y.b, t), foot: lerp(x.foot, y.foot, t) });
+  const bl = (x: Limb, y: Limb): Limb => ({ a: lerp(x.a, y.a, t), b: lerp(x.b, y.b, t), s: lerp(x.s, y.s, t) });
+  const bg = (x: LegPose, y: LegPose): LegPose => ({ a: lerp(x.a, y.a, t), b: lerp(x.b, y.b, t), s: 0, foot: lerp(x.foot, y.foot, t) });
   return {
     bob: lerp(p.bob, q.bob, t),
     lean: lerp(p.lean, q.lean, t),
@@ -83,10 +85,11 @@ export function idleClip(t: number): RobotPose {
     bob: k.bob * (0.5 + 0.5 * breath),
     lean: 0,
     head: k.head * Math.sin((TAU * t) / k.headMs),
-    armN: limb(k.armOut + 0.03 * breath, 0.25),
-    armF: limb(-k.armOut + 0.03 * breath, 0.25),
+    // Symmetric, so the front view (idle faces the player) looks the same mirrored.
+    armN: limb(k.armOut + 0.03 * breath, 0.25, k.spread + 0.02 * breath),
+    armF: limb(k.armOut + 0.03 * breath, 0.25, k.spread + 0.02 * breath),
     legN: leg(k.legOut, 0.04, 0),
-    legF: leg(-k.legOut, 0.04, 0),
+    legF: leg(k.legOut, 0.04, 0),
   };
 }
 
@@ -104,7 +107,7 @@ export function gaitClip(gait: Gait, phase: number): RobotPose {
     const b = k.knee + k.kneeLift * Math.max(0, Math.cos(x)); // the swinging leg lifts its knee
     return leg(a, b, -0.5 * (a - b));
   };
-  const armAt = (x: number): Limb => limb(-k.arm * Math.sin(x), k.elbow); // opposite to the leg on the same side
+  const armAt = (x: number): Limb => limb(-k.arm * Math.sin(x), k.elbow, k.spread); // opposite to the leg on the same side
   return {
     bob: k.bob * 0.5 * (1 + Math.cos(2 * th)), // highest as the legs pass, lowest at foot-strike
     lean: k.lean,
@@ -122,17 +125,18 @@ const CROUCH: RobotPose = {
   bob: 0,
   lean: 0.12,
   head: 0.05,
-  armN: limb(-0.6, 0.3),
-  armF: limb(-0.75, 0.3),
+  armN: limb(-0.6, 0.3, 0.25),
+  armF: limb(-0.75, 0.3, 0.25),
   legN: leg(0.5, 0.95, 0),
   legF: leg(0.4, 0.85, 0),
 };
+// Rising: both arms straight up and spread into a V (the V reads in front and three-quarter views).
 const RISE: RobotPose = {
   bob: 0,
   lean: -0.04,
   head: -0.08,
-  armN: limb(2.25, 0.1),
-  armF: limb(-2.25, -0.1),
+  armN: limb(2.95, 0.1, 0.62),
+  armF: limb(2.85, 0.1, 0.62),
   legN: leg(0.95, 1.45, 0.3),
   legF: leg(0.3, 0.9, 0.1),
 };
@@ -140,8 +144,8 @@ const FALL: RobotPose = {
   bob: 0,
   lean: 0.06,
   head: 0.06,
-  armN: limb(1.5, 0.2),
-  armF: limb(-1.1, 0.2),
+  armN: limb(1.7, 0.2, 1.0),
+  armF: limb(1.4, 0.2, 1.0),
   legN: leg(0.28, 0.35, 0.1),
   legF: leg(-0.15, 0.2, -0.05),
 };
@@ -151,10 +155,10 @@ export function jumpClip(t: number): RobotPose {
   return blendPose(CROUCH, RISE, smooth(t / C.jump.riseMs));
 }
 
-/** Falling: arms out, legs dangling, a little flail over time `t`. */
+/** Falling: arms out to the sides, legs dangling, a little flail over time `t`. */
 export function fallClip(t: number): RobotPose {
   const f = C.fall.flail * Math.sin((TAU * C.fall.flailHz * t) / 1000);
-  return { ...FALL, armN: limb(FALL.armN.a + f, FALL.armN.b), armF: limb(FALL.armF.a - f, FALL.armF.b) };
+  return { ...FALL, armN: limb(FALL.armN.a + f, FALL.armN.b, FALL.armN.s), armF: limb(FALL.armF.a - f, FALL.armF.b, FALL.armF.s) };
 }
 
 /** How much of the fall pose shows at vertical speed `vy` (px/s, down positive). */
@@ -173,8 +177,8 @@ export const LAND_POSE: RobotPose = {
   bob: 0,
   lean: 0.1,
   head: 0.06,
-  armN: limb(-0.2, 0.3),
-  armF: limb(-0.35, 0.3),
+  armN: limb(-0.2, 0.3, 0.2),
+  armF: limb(-0.35, 0.3, 0.2),
   legN: leg(0.45, 1.0, 0),
   legF: leg(0.35, 0.9, 0),
 };
@@ -188,7 +192,7 @@ export function landWeight(t: number): number {
 
 // ---------- win ----------
 
-/** Arms up in a V and waving, a little dance with alternating steps. Continuous in `t`. */
+/** Arms up in a V and waving, a little dance with alternating steps. Continuous in `t`. Seen from the front (win faces the player). */
 export function winClip(t: number): RobotPose {
   const k = C.win;
   const w = (TAU * t) / k.periodMs;
@@ -197,9 +201,9 @@ export function winClip(t: number): RobotPose {
     bob: k.bob * Math.abs(Math.sin(w / 2)),
     lean: 0,
     head: k.head * Math.sin(w / 2),
-    // A "V": the near arm up and forward, the far arm up and back, so both show beside the head.
-    armN: limb(2.3 + k.wave * Math.sin(w), 0.15),
-    armF: limb(-2.3 - k.wave * Math.sin(w + Math.PI), -0.15),
+    // A "V": both arms up and spread out to the sides, waving in turn.
+    armN: limb(2.75, 0.15, k.spread + k.wave * Math.sin(w)),
+    armF: limb(2.75, 0.15, k.spread + k.wave * Math.sin(w + Math.PI)),
     legN: leg(0.25 * step, 0.35 * Math.max(0, step), 0),
     legF: leg(-0.25 * step, 0.35 * Math.max(0, -step), 0),
   };
@@ -235,7 +239,7 @@ export function withShot(p: RobotPose, s: ShootState): RobotPose {
   return {
     ...p,
     lean: p.lean - 0.2 * s.recoil * w,
-    armN: { a: lerp(p.armN.a, Math.PI / 2 - s.recoil, w), b: lerp(p.armN.b, 0, w) },
+    armN: { a: lerp(p.armN.a, Math.PI / 2 - s.recoil, w), b: lerp(p.armN.b, 0, w), s: lerp(p.armN.s, 0, w) },
   };
 }
 
@@ -261,7 +265,63 @@ export function eyeLook(facing: number, vy: number, kx: number, ky: number, perV
   return { x: Math.max(-1, Math.min(1, facing)) * kx, y };
 }
 
-/** Moves the visible facing (-1..1) toward the real one, passing through 0 (a quick paper turn). */
+// ---------- yaw (three-quarter view, Task 005c) ----------
+
+export interface YawInput {
+  facing: 1 | -1;
+  /** Ground speed (px/s) and the level's normal speed. */
+  speed: number;
+  refSpeed: number;
+  /** Weights 0..1: in the air, shooting, winning. */
+  air: number;
+  shoot: number;
+  win: number;
+}
+
+/** Where the yaw is heading (-1..1, sign = facing): front-on when still, turned toward the way it goes when moving. */
+export function yawTarget(i: YawInput): number {
+  const Y = ROBOT.yaw;
+  const moving = smooth(i.speed / Math.max(1, i.refSpeed * Y.fullAtSpeed));
+  let mag = lerp(Y.idle, Y.move, moving);
+  mag = lerp(mag, Y.air, clamp01(i.air));
+  mag = lerp(mag, Math.max(mag, Y.shoot), clamp01(i.shoot));
+  mag = lerp(mag, Y.win, clamp01(i.win));
+  return i.facing * mag;
+}
+
+/** Moves a yaw toward its target at a steady rate: a sweep from -move to +move takes `sweepMs`. */
+export function yawStep(yaw: number, target: number, dtMs: number, sweepMs: number): number {
+  const step = ((2 * ROBOT.yaw.move) / Math.max(1, sweepMs)) * dtMs;
+  if (yaw < target) return Math.min(target, yaw + step);
+  return Math.max(target, yaw - step);
+}
+
+/** How the body is seen at a yaw: facing side (`dir`, kept from before at exactly 0), and the side/front mix. */
+export interface View {
+  dir: 1 | -1;
+  /** sin(|yaw| x 90 deg): 0 front view, 1 side view. */
+  side: number;
+  /** cos(|yaw| x 90 deg). */
+  front: number;
+}
+
+export function viewOf(yaw: number, prevDir: 1 | -1): View {
+  const dir = yaw > 0 ? 1 : yaw < 0 ? -1 : prevDir;
+  const phi = (Math.min(1, Math.abs(yaw)) * Math.PI) / 2;
+  return { dir, side: Math.sin(phi), front: Math.cos(phi) };
+}
+
+/**
+ * Which of the robot's own sides is nearer the player, so its limbs are drawn in front of the body: turned
+ * to the right (dir 1) its right side comes forward; turned left, its left side. The rig draws the clip's
+ * "N" limbs on the near side, so when this changes (only at yaw 0) the walk cycle shifts by one step to keep
+ * every limb where it was.
+ */
+export function nearSide(dir: 1 | -1): 'right' | 'left' {
+  return dir > 0 ? 'right' : 'left';
+}
+
+/** Moves a facing value (-1..1) toward the real one, passing through 0 (the Ball's face). */
 export function turnToward(current: number, facing: number, dtMs: number, turnMs: number): number {
   const step = (2 * dtMs) / Math.max(1, turnMs);
   if (current < facing) return Math.min(facing, current + step);

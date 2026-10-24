@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { parseLevel } from './format';
 import { DemoScript, demoOverrideFrom, shouldPlayDemo } from './demo';
 import { nextLevelId } from './progression';
-import { AIR_POSE_DELAY_MS, choosePose, flipSign } from './poses';
 
 const level = (demo: unknown) => ({
   version: 1,
@@ -122,24 +121,5 @@ describe('nextLevelId', () => {
     expect(nextLevelId(worlds, 'grass-2')).toBeNull();
     expect(nextLevelId(worlds, 'pipe-1')).toBeNull();
     expect(nextLevelId(worlds, 'nope')).toBeNull();
-  });
-});
-
-describe('poses', () => {
-  it('runs on the ground, jumps in the air, idles when still', () => {
-    expect(choosePose({ grounded: true, speedX: 200, airborneMs: 0, jumped: false })).toBe('run');
-    expect(choosePose({ grounded: true, speedX: 0, airborneMs: 0, jumped: false })).toBe('idle');
-    expect(choosePose({ grounded: false, speedX: 200, airborneMs: 0, jumped: true })).toBe('jump');
-  });
-  it('does not flicker to the jump pose for a one-frame bump', () => {
-    expect(choosePose({ grounded: false, speedX: 200, airborneMs: 16, jumped: false })).toBe('run');
-    expect(choosePose({ grounded: false, speedX: 200, airborneMs: AIR_POSE_DELAY_MS, jumped: false })).toBe('jump');
-  });
-  it('flips so the picture faces the direction of travel (no moonwalking)', () => {
-    expect(flipSign(1, 'right')).toBe(1);
-    expect(flipSign(-1, 'right')).toBe(-1);
-    expect(flipSign(1, 'left')).toBe(-1); // Luigi's run picture faces left: mirror it when running right
-    expect(flipSign(-1, 'left')).toBe(1);
-    expect(flipSign(1)).toBe(1);
   });
 });

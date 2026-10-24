@@ -11,31 +11,50 @@ import grass2 from './grass-2.json';
 import grass3 from './grass-3.json';
 
 describe('Mario level files', () => {
-  it('grass-1 keeps demo: false', () => {
+  /** Runs of missing ground in the row under the start. */
+  const gapsOf = (e: ReturnType<typeof extractEntities>) =>
+    e.solid[e.start.row + 1]
+      .map((s, c) => (s ? -1 : c))
+      .filter((c) => c >= 0)
+      .reduce<number[][]>((acc, c) => {
+        const last = acc[acc.length - 1];
+        if (last && last[last.length - 1] === c - 1) last.push(c);
+        else acc.push([c]);
+        return acc;
+      }, []);
+
+  it('grass-1 is short (D-037): about 85 tiles, 16 coins, one or two tiny gaps near the end, no demo', () => {
     const r = parseLevel(grass1);
-    expect(r.ok && r.level.controls.demo).toBe(false);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.level.controls.demo).toBe(false);
+    expect(r.level.stars).toEqual({ two: 7, three: 12 });
+    const e = extractEntities(r.level.grid);
+    expect(e.cols).toBe(85);
+    expect(e.coins.length).toBe(16); // same coin density as the old 140-tile level (26 coins)
+    const gaps = gapsOf(e);
+    expect(gaps.length).toBeGreaterThanOrEqual(1);
+    expect(gaps.length).toBeLessThanOrEqual(2);
+    for (const g of gaps) {
+      expect(g.length).toBe(1);
+      expect(g[0]).toBeGreaterThan(e.cols / 2);
+      expect(e.coins.some((c) => Math.abs(c.col - g[0]) <= 2)).toBe(true); // a coin arc over every gap
+    }
   });
 
-  it('grass-2 is a Jump-button level with a demo, about 30 coins and 3-4 gaps in the last two thirds', () => {
+  it('grass-2 is a Jump-button level with a demo, about 90 tiles, 18 coins and 3 gaps in the last two thirds', () => {
     const r = parseLevel(grass2);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const { controls, stars, grid } = r.level;
     expect(controls).toEqual({ enabled: ['jump'], autoRun: true, tapAnywhereJumps: false, demo: { tiles: 20, jumpsAtTiles: [8, 15] } });
-    expect(stars).toEqual({ two: 15, three: 25 });
+    expect(stars).toEqual({ two: 9, three: 15 });
     const e = extractEntities(grid);
-    expect(e.cols).toBe(150);
-    expect(e.coins.length).toBe(30);
-    const ground = e.solid[e.start.row + 1];
-    const gapCols = ground.map((s, c) => (s ? -1 : c)).filter((c) => c >= 0);
-    const gaps = gapCols.reduce<number[][]>((acc, c) => {
-      const last = acc[acc.length - 1];
-      if (last && last[last.length - 1] === c - 1) last.push(c);
-      else acc.push([c]);
-      return acc;
-    }, []);
-    expect(gaps.length).toBeGreaterThanOrEqual(3);
-    expect(gaps.length).toBeLessThanOrEqual(4);
+    expect(e.cols).toBe(90);
+    expect(e.coins.length).toBe(18); // same coin density as the old 150-tile level (30 coins)
+    const gaps = gapsOf(e);
+    expect(gaps.length).toBeGreaterThanOrEqual(2);
+    expect(gaps.length).toBeLessThanOrEqual(3);
     for (const g of gaps) {
       expect(g.length).toBeLessThanOrEqual(2);
       expect(g[0]).toBeGreaterThan(e.cols / 3);

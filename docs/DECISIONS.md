@@ -110,6 +110,7 @@ rate-limited (at most one per 1.5 s) so mashing is not annoying. `win` plays at 
 Proposed mapping (parent to confirm by ear, easy to swap in the manifest):
 Mario: pick = mario-yeah-ho, jump = mario-ha-ha, win = mario-yipee.
 Luigi: pick = luigi-oh-yeah, jump = luigi-haha, win = luigi-yeah-ha-ha.
+_Superseded in part by D-037 (Task 005c): the pose part (run/jump/idle pictures) was removed with the sprite look; the voice part stands._
 
 ## D-024 (2026-10-24) "Watch me" demo
 A level declares `controls.demo` as `false` or `{ "tiles": N, "jumpsAtTiles": [..] }`. A semi-transparent ghost of the chosen
@@ -124,12 +125,14 @@ Replay, Next (only if another level follows in the world; the biggest and pulsin
 Approved: pose objects `{ image, facing, displayHeight }`, smaller run-pose heights (86/90) to match body size, ghost without voice,
 `worlds.ts` data file. Luigi's mirrored cap "L" is accepted for now; a right-facing Luigi run image can replace it later (poses support facing).
 Voice mapping stays a guess until the parent has listened on the tablet.
+_Pose parts superseded by D-037 (Task 005c): poses were removed._
 
 ## D-027 (2026-10-24) Ripped game sprite sheets are not used
 Mario/Luigi (NSMB) and Bowser (Super Mario Maker) sheets are low-resolution, opaque-background rips in a different art style
 from the HD renders, so they would look soft and mismatched. Parked in `_sources/` (gitignored, not bundled).
 Run animation is made from the HD renders: procedural motion now (Task 004b), optional extra HD frames later via `poses.runFrames`.
 `src/universes/<id>/assets/` is for files the game uses only: every file there is bundled.
+_The `poses.runFrames` flipbook was removed in Task 005c (D-037); the rule about `_sources/` and bundled assets stands._
 
 ## D-028 (2026-10-24) Task 004b review outcomes
 Approved all three deviations (new dust replaces old landing dust; `hop(now)`; 70 ms take-off ease to avoid a 24% size jump).
@@ -159,6 +162,7 @@ The player can be drawn in several interchangeable looks behind one `AvatarLook`
 later). Physics, hit box and gameplay are identical for every look and every character. The picker (Task 007) still shows the real
 images and plays the real voices; the chosen character supplies colours, a small size factor and sounds to the avatar.
 Default stays `sprite` until the parent has compared the looks on the tablet with Athiran.
+_Superseded in part by D-037 (Task 005c): looks are now `robot` (default) and `ball`; `sprite` and `portrait` were removed._
 
 ## D-033 (2026-10-24) Original, code-built characters (no Nintendo designs on avatars)
 Avatar bodies are built from code-drawn parts (cached generated textures assembled in a container hierarchy), animated by pure,
@@ -169,5 +173,32 @@ friendly white/grey bot with cyan accents, a dark visor face and antennae. `_sou
 ## D-034 (2026-10-24) Task 005 review outcomes
 Approved: idle rule (c) with the run picture as fallback, demo waiting for the ghost to land, strict (unsorted-rejecting) script validation,
 `characters.ts` split. A real standing picture (`poses.idle`) would improve Mario/Luigi idle later; no code change needed.
+_The idle rule and `poses.idle` were removed in Task 005c (D-037)._
 The tablet test with Athiran is deliberately postponed until the avatar looks (Task 005b) exist, so all looks can be compared in one session.
 Grass 3 left-coin placement vs. buttons on 16:10 is fixed in 005b section 0.
+
+## D-035 (2026-10-24) Task 005b review outcomes
+Approved: shared motion driver, V-arms on jump/win, wiggle instead of antenna spin, un-mirrored portrait faces, raising all Grass 3 coins to head height.
+Architect review of the sheets: all four looks read well; the robot is a good first version and does not need a redesign.
+Follow-ups (done in Task 006 housekeeping): low contrast of green avatars (Luigi, Yoshi, Bowser limbs) on green hills needs a subtle light rim/outline;
+add a global visual size knob (`?size=1.2` for the tablet test) since 104 px may be small for a 3-year-old on a tablet.
+Portrait using real faces is accepted for the private build (D-005 applies); it must not ship in any commercial build (docs/IDEAS.md).
+Default look stays `sprite` until the tablet comparison.
+
+## D-036 (2026-10-24) World map, progress storage and unlocking
+Map is the default start screen. Level dots along a path, locked dots under clouds, 3 star slots per dot, the avatar on the current dot.
+Unlock rule: level i is open if i < clearedCount + openAtATime (default 2). Optional per-world `finalLevelStarsRequired`. Later worlds show as cloud-covered
+teasers (icons only). `?unlock=all` overrides for testing; the parent view (Task 008) gets the real switch.
+Storage: per-universe record `{ version: 1, chosenCharacterId, look, levels: { [id]: { stars, bestCoins } }, settings }` in IndexedDB with
+localStorage then in-memory fallback, no dependencies; failures never crash; unknown versions fall back to a fresh record without deleting the old one.
+In-level exit: a small home icon needing a 1-second hold (progress ring) so a 3-year-old cannot leave a level by accident.
+
+## D-037 (2026-10-24) First tablet session with Athiran
+Findings: of all looks he liked the robot best and loves its shooting. He is already bored by auto-run and tap-to-jump (Grass 1 and 2) and liked Grass 3 (walking).
+Parent feedback on the robot: while running it faces the player, so it looks like it is running backwards and unnatural; jumping looks great.
+Decisions:
+- Remove the `sprite` and `portrait` looks and all pose/run-frame/idle-pose machinery. Looks are `robot` (default) and `ball`. Real character images stay only for the future picker; voices stay.
+- Fix running view: the robot turns into a three-quarter (yaw) view in the direction of travel, front view when idle. Turning is a head-then-body yaw sweep, not a flat flip.
+- Re-pace: Grass 1 and 2 shortened to about 60%, `openAtATime` default 3 so he can reach Grass 3 immediately. Supersedes the default of 2 in D-036.
+- Content direction: he is ready for more. Because he loves shooting, the Power button comes next as gameplay ("Grass 4 Shoot": friendly bubbles/targets that pop into coins, no enemies, nothing harmful), then move-plus-jump gaps ("Grass 5").
+Updated order: 005c (this cleanup/fix/pacing), 006 map and progress, 007 Grass 4 Shoot (Power), 008 Grass 5 move+jump, 009 character picker, 010 parent view.

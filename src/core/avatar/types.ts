@@ -2,7 +2,6 @@
 // depend on the look. AvatarDriver (shared) works out the lively motion of Task 004b and feeds each look
 // the same state every frame.
 import type Phaser from 'phaser';
-import type { PoseName } from '../levels/poses';
 import type { Gait } from './clips';
 import type { LookName } from './config';
 
@@ -23,7 +22,6 @@ export interface AvatarState {
   /** Whole-body rotation (radians, Phaser clockwise): lean and rock, already signed for the facing. */
   rotation: number;
   facing: 1 | -1;
-  pose: PoseName;
   grounded: boolean;
   /** Ground speed (|vx|, px/s) and vertical velocity (px/s, down positive). */
   speed: number;

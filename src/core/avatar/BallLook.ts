@@ -1,13 +1,11 @@
-// The Ball and Portrait looks (D-032): a round body that rolls with the distance travelled while its face
-// stays upright and looks where it is going. Portrait puts the character's face (from its image) on the
-// ball as a round decal; without a usable image it keeps the drawn eyes. Numbers live in robotSpec.ts (BALL).
+// The Ball look (D-032): a round body that rolls with the distance travelled while its face stays upright
+// and looks where it is going. Numbers live in robotSpec.ts (BALL).
 import type Phaser from 'phaser';
 import type { CharacterDef } from '../types';
 import { widthFor } from '../levels/animation';
 import { BLINK_MS, blinkOpen, eyeLook, nextBlinkAt, rollAngle, turnToward } from './clips';
 import { resolveAvatar, type ResolvedAvatar } from './config';
 import { PART_RES, ballParts, partImage, type BallParts, type Part } from './parts';
-import { loadPortraitTexture } from './portrait';
 import { BALL } from './robotSpec';
 import type { AvatarEvent, AvatarLook, AvatarState, MotionWeights } from './types';
 
@@ -17,54 +15,39 @@ const NEVER = -1e9;
 const MAX_ROLL_DX = 40;
 
 export class BallLook implements AvatarLook {
-  readonly name: 'ball' | 'portrait';
+  readonly name = 'ball' as const;
   readonly root: Phaser.GameObjects.Container;
-  readonly ready: Promise<void>;
+  readonly ready = Promise.resolve();
   readonly shadowScale = BALL.shadow;
   readonly avatar: ResolvedAvatar;
   private readonly parts: BallParts;
   private readonly body: Img;
   private readonly shade: Img;
-  private readonly decal: Img;
   private readonly cheeks: Img;
   private readonly sclera: [Img, Img];
   private readonly pupils: [Img, Img];
   private readonly mouth: Img;
-  private hasDecal = false;
   private roll = 0;
   private lastX: number;
   private look = 1;
   private blinkAt: number;
   private shootAt = NEVER;
   private winning = false;
-  private winAt = NEVER;
   private muzzlePoint = { x: 0, y: 0 };
 
-  constructor(scene: Phaser.Scene, character: CharacterDef, x: number, feet: number, portrait: boolean) {
-    this.name = portrait ? 'portrait' : 'ball';
+  constructor(scene: Phaser.Scene, character: CharacterDef, x: number, feet: number) {
     this.avatar = resolveAvatar(character.avatar);
     this.parts = ballParts(scene, this.avatar.palette);
     const p = this.parts;
     this.body = partImage(scene, p.body);
     this.shade = partImage(scene, p.shade);
-    this.decal = scene.add.image(0, 0, '__DEFAULT').setVisible(false);
     this.cheeks = partImage(scene, p.cheeks);
     this.sclera = [partImage(scene, p.sclera), partImage(scene, p.sclera)];
     this.pupils = [partImage(scene, p.pupil), partImage(scene, p.pupil)];
     this.mouth = partImage(scene, p.smile);
-    this.root = scene.add.container(x, feet, [this.body, this.shade, this.decal, this.cheeks, ...this.sclera, ...this.pupils, this.mouth]);
+    this.root = scene.add.container(x, feet, [this.body, this.shade, this.cheeks, ...this.sclera, ...this.pupils, this.mouth]);
     this.lastX = x;
     this.blinkAt = nextBlinkAt(scene.time.now, Math.random());
-
-    const decalSize = BALL.size * BALL.decal;
-    this.ready = portrait
-      ? loadPortraitTexture(scene, character, decalSize).then((key) => {
-          if (!key || !this.root.active) return; // no usable image: stay a Ball with eyes
-          this.decal.setTexture(key).setScale(1 / PART_RES).setVisible(true);
-          this.hasDecal = true;
-          for (const o of [this.cheeks, ...this.sclera, ...this.pupils, this.mouth]) o.setVisible(false);
-        })
-      : Promise.resolve();
   }
 
   motion(): MotionWeights {
@@ -77,10 +60,7 @@ export class BallLook implements AvatarLook {
 
   trigger(event: AvatarEvent, now: number): void {
     if (event === 'shoot') this.shootAt = now;
-    else if (event === 'win') {
-      this.winning = true;
-      this.winAt = now;
-    }
+    else if (event === 'win') this.winning = true;
   }
 
   update(s: AvatarState): void {
@@ -103,13 +83,7 @@ export class BallLook implements AvatarLook {
     const open = this.winning ? 1 : blinkOpen(blinkT);
     const shooting = t - this.shootAt < BALL.shootMs;
 
-    if (this.hasDecal) {
-      // Portrait: a blink-like squash and a happy wiggle on win.
-      const wiggle = this.winning ? 0.06 * Math.sin(((t - this.winAt) / 450) * Math.PI * 2) : 0;
-      const sq = 1 - 0.1 * (1 - open);
-      const pop = shooting ? 1 + 0.08 * Math.sin((Math.PI * (t - this.shootAt)) / BALL.shootMs) : 1;
-      this.decal.setPosition(cx * 0.6, cy).setRotation(wiggle).setScale((pop * (1 + 0.04 * (1 - open))) / PART_RES, (pop * sq) / PART_RES);
-    } else {
+    {
       const E = BALL.eye;
       const happy = this.winning;
       const scl = happy ? this.parts.happy : this.parts.sclera;
@@ -157,7 +131,7 @@ export class BallLook implements AvatarLook {
 
   debug(): Record<string, number | string | boolean> {
     return {
-      texture: this.hasDecal ? 'portrait' : 'ball',
+      texture: 'ball',
       x: this.root.x,
       y: this.root.y,
       rot: this.body.rotation,
@@ -168,7 +142,6 @@ export class BallLook implements AvatarLook {
       depth: this.root.depth,
       visible: this.root.visible,
       objects: this.root.length,
-      decal: this.hasDecal,
       lookX: this.look,
       happy: this.winning,
       eyeOpen: this.sclera[0].scaleY * PART_RES,

@@ -1,7 +1,8 @@
-// The Robot look (D-032, D-033): an original friendly robot built from generated parts. One container
-// (root at the feet) holds about 20 flat images; joint positions are worked out each frame by simple
-// forward kinematics from a RobotPose (clips.ts), so nothing is redrawn per frame. Proportions, colours
-// and clip amplitudes live in robotSpec.ts.
+// The Robot look (D-032, D-033, D-037): an original friendly robot built from generated parts. One container
+// (root at the feet) holds about 25 flat images. Each frame the clips (clips.ts) give a RobotPose, the yaw
+// follows where the robot is going (front-on when still, three-quarter view when moving, head leading the
+// body in a turn), and the pure rig solver (robotRig.ts) works out every part's position, angle and width.
+// Nothing is redrawn per frame. Proportions, colours, view and clip numbers live in robotSpec.ts.
 import type Phaser from 'phaser';
 import type { CharacterDef } from '../types';
 import { widthFor } from '../levels/animation';
@@ -12,6 +13,7 @@ import {
   approachWeight,
   blendPose,
   blinkOpen,
+  clamp01,
   eyeLook,
   gaitClip,
   idleClip,
@@ -19,29 +21,35 @@ import {
   nextBlinkAt,
   shootClip,
   springStep,
-  turnToward,
+  viewOf,
   winClip,
   withShot,
+  yawStep,
+  yawTarget,
   type RobotPose,
 } from './clips';
 import { resolveAvatar, type ResolvedAvatar } from './config';
 import { PART_RES, partImage, robotParts, type Part, type RobotParts } from './parts';
+import { solveRig, type Xf } from './robotRig';
 import { ROBOT, ROBOT_CLIPS } from './robotSpec';
 import type { AvatarEvent, AvatarLook, AvatarState, MotionWeights } from './types';
 
 type Img = Phaser.GameObjects.Image;
-interface Vec {
-  x: number;
-  y: number;
+type Limb3 = [Img, Img, Img];
+
+const NEVER = -1e9;
+
+/** Mixes white toward the far-side tint by `k` (0..1), in 16 steps so the tint is only reset when it changes. */
+function farTint(k: number): number {
+  const q = Math.round(clamp01(k) * 16) / 16;
+  const t = ROBOT.view.farTint;
+  const ch = (shift: number) => Math.round(255 + (((t >> shift) & 255) - 255) * q);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }
 
-/** Rotates a point clockwise (Phaser, y down) by `a` around the origin. */
-const rot = (p: Vec, a: number): Vec => ({ x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) });
-/** Point `len` along a limb at absolute angle `a` (0 = down, positive = forward). */
-const along = (p: Vec, a: number, len: number): Vec => ({ x: p.x + Math.sin(a) * len, y: p.y + Math.cos(a) * len });
-
-const FAR_TINT = 0xd5dbe0;
-const NEVER = -1e9;
+function put(img: Img, f: Xf, syMul = 1): void {
+  img.setPosition(f.x, f.y).setRotation(f.rot).setScale(f.sx / PART_RES, (f.sy * syMul) / PART_RES);
+}
 
 export class RobotLook implements AvatarLook {
   readonly name = 'robot' as const;
@@ -51,19 +59,30 @@ export class RobotLook implements AvatarLook {
   readonly avatar: ResolvedAvatar;
   private readonly parts: RobotParts;
   private readonly img: {
-    armF: [Img, Img, Img];
-    legF: [Img, Img, Img];
+    armF: Limb3;
+    legF: Limb3;
     antennae: Img[];
     torso: Img;
+    chest: Img;
+    earF: Img;
+    earNBack: Img;
     head: Img;
+    earNFront: Img;
+    visor: Img;
     eyes: [Img, Img];
-    legN: [Img, Img, Img];
-    armN: [Img, Img, Img];
+    legN: Limb3;
+    armN: Limb3;
     flash: Img;
   };
 
-  private turn = 1;
   private facing: 1 | -1 = 1;
+  /** Yaw of the head and of the body (-1..1, sign = facing side, 0 = facing the player). */
+  private headYaw = 0;
+  private bodyYaw = 0;
+  private headDir: 1 | -1 = 1;
+  private bodyDir: 1 | -1 = 1;
+  /** Walk-cycle shift (0 or 1 step) that keeps the limbs in place when the near side changes at yaw 0. */
+  private phaseShift = 0;
   private airW = 0;
   private winW = 0;
   private winning = false;
@@ -72,39 +91,49 @@ export class RobotLook implements AvatarLook {
   private shootAt = NEVER;
   private winAt = NEVER;
   private blinkAt: number;
+  /** Antenna spring, in screen space (so it never jumps when the robot turns). */
   private antenna = { angle: 0, vel: 0 };
   private lastSpeed = 0;
-  private muzzlePoint: Vec = { x: 0, y: 0 };
+  private muzzlePoint = { x: 0, y: 0 };
   private lastPose: RobotPose | null = null;
+  private tint = -1;
+  private earFront = false;
 
   constructor(scene: Phaser.Scene, character: CharacterDef, x: number, feet: number) {
     this.avatar = resolveAvatar(character.avatar);
     this.parts = robotParts(scene, this.avatar.palette);
     const p = this.parts;
-    const mk = (part: Part, tint = false) => {
-      const i = partImage(scene, part);
-      if (tint) i.setTint(FAR_TINT);
-      return i;
-    };
-    const antennae = Array.from({ length: this.avatar.antennae }, () => mk(p.antenna));
+    const mk = (part: Part) => partImage(scene, part);
     this.img = {
-      armF: [mk(p.upperArm, true), mk(p.forearm, true), mk(p.hand, true)],
-      legF: [mk(p.thigh, true), mk(p.shin, true), mk(p.boot, true)],
-      antennae,
+      armF: [mk(p.upperArm), mk(p.forearm), mk(p.hand)],
+      legF: [mk(p.thigh), mk(p.shin), mk(p.boot)],
+      antennae: Array.from({ length: this.avatar.antennae }, () => mk(p.antenna)),
       torso: mk(p.torso),
+      chest: mk(p.chest),
+      earF: mk(p.ear),
+      earNBack: mk(p.ear),
       head: mk(p.head),
+      earNFront: mk(p.ear).setVisible(false),
+      visor: mk(p.visor),
       eyes: [mk(p.eye), mk(p.eye)],
       legN: [mk(p.thigh), mk(p.shin), mk(p.boot)],
       armN: [mk(p.upperArm), mk(p.forearm), mk(p.hand)],
       flash: mk(p.flash).setVisible(false),
     };
     const i = this.img;
+    // Draw order: far limbs behind the body, near limbs in front (the rig always puts the clip's N limbs on
+    // the side nearer the player, so this order never has to change).
     this.root = scene.add.container(x, feet, [
       ...i.armF,
       ...i.legF,
       ...i.antennae,
       i.torso,
+      i.chest,
+      i.earF,
+      i.earNBack,
       i.head,
+      i.earNFront,
+      i.visor,
       ...i.eyes,
       ...i.legN,
       ...i.armN,
@@ -134,116 +163,111 @@ export class RobotLook implements AvatarLook {
   update(s: AvatarState): void {
     const t = s.time;
     const dt = s.dtMs;
+    const C = ROBOT_CLIPS;
     this.facing = s.facing;
-    this.turn = turnToward(this.turn, s.facing, dt, ROBOT.turnMs);
+    this.airW = approachWeight(this.airW, !s.grounded && !s.riding, dt, C.blend.airIn, C.blend.airOut);
+    this.winW = approachWeight(this.winW, this.winning && s.grounded, dt, C.blend.winIn, C.blend.winIn);
+    const shot = shootClip(t - this.shootAt);
+
+    // ---- yaw: head leads, body follows, both sweep through front-on ----
+    const target = yawTarget({
+      facing: s.facing,
+      speed: s.riding ? 0 : s.speed,
+      refSpeed: s.refSpeed,
+      air: this.airW,
+      shoot: shot.weight > 0 ? 1 : 0,
+      win: this.winW,
+    });
+    this.headYaw = yawStep(this.headYaw, target, dt, ROBOT.yaw.headSweepMs);
+    this.bodyYaw = yawStep(this.bodyYaw, target, dt, ROBOT.yaw.bodySweepMs);
+    const head = viewOf(this.headYaw, this.headDir);
+    const body = viewOf(this.bodyYaw, this.bodyDir);
+    this.headDir = head.dir;
+    if (body.dir !== this.bodyDir) {
+      // The near side swapped (at yaw 0): shift the cycle one step so every limb stays where it was.
+      this.phaseShift = 1 - this.phaseShift;
+      this.bodyDir = body.dir;
+    }
 
     // ---- pose: ground (idle <-> gait), air, land, win, shoot ----
-    const C = ROBOT_CLIPS;
     const step = C.stepLength[s.gait] * this.avatar.scale;
-    const phase = (s.stridePhase * 56) / step; // the driver's stride counts 56 px steps
+    const phase = (s.stridePhase * 56) / step + this.phaseShift; // the driver's stride counts 56 px steps
     let pose = blendPose(idleClip(t), gaitClip(s.gait, phase), s.runBlend);
-    this.airW = approachWeight(this.airW, !s.grounded && !s.riding, dt, C.blend.airIn, C.blend.airOut);
     if (this.airW > 0) pose = blendPose(pose, airClip(t - this.jumpAt, s.vy, t), this.airW);
     const lw = landWeight(t - this.landAt);
     if (lw > 0 && s.grounded) pose = blendPose(pose, LAND_POSE, lw);
-    this.winW = approachWeight(this.winW, this.winning && s.grounded, dt, C.blend.winIn, C.blend.winIn);
     if (this.winW > 0) pose = blendPose(pose, winClip(t - this.winAt), this.winW);
-    const shot = shootClip(t - this.shootAt);
     pose = withShot(pose, shot);
     this.lastPose = pose;
 
-    // ---- legs, with the lower foot snapped to the ground while grounded ----
-    const P = ROBOT.parts;
-    const L = ROBOT.layout;
-    const legEnd = (hipX: number, a: number, b: number) => {
-      const hip = { x: hipX, y: L.hipY };
-      const knee = along(hip, a, P.thigh.len);
-      const ankle = along(knee, a - b, P.shin.len);
-      return { hip, knee, ankle };
-    };
-    const ln = legEnd(L.hipX.near, pose.legN.a, pose.legN.b);
-    const lf = legEnd(L.hipX.far, pose.legF.a, pose.legF.b);
-    const lowest = Math.max(ln.ankle.y, lf.ankle.y) + P.boot.ankle;
-    const drop = -lowest * (1 - this.airW); // >= 0 when knees bend: the body sinks so a foot stays planted
-    const dy = drop - pose.bob;
-    const place = (imgs: [Img, Img, Img], leg: ReturnType<typeof legEnd>, a: number, b: number, foot: number) => {
-      imgs[0].setPosition(leg.hip.x, leg.hip.y + dy).setRotation(-a);
-      imgs[1].setPosition(leg.knee.x, leg.knee.y + dy).setRotation(-(a - b));
-      imgs[2].setPosition(leg.ankle.x, leg.ankle.y + dy).setRotation(-foot);
-    };
-    place(this.img.legF, lf, pose.legF.a, pose.legF.b, pose.legF.foot);
-    place(this.img.legN, ln, pose.legN.a, pose.legN.b, pose.legN.foot);
-
-    // ---- upper body leans around the hip point ----
-    const hip = { x: 0, y: L.hipY + dy };
-    const lean = pose.lean;
-    const up = (p: Vec): Vec => {
-      const r = rot(p, lean);
-      return { x: hip.x + r.x, y: hip.y + r.y };
-    };
-    this.img.torso.setPosition(hip.x, hip.y).setRotation(lean);
-    const headC = up({ x: 0, y: -L.headY });
-    const headRot = lean + pose.head;
-    this.img.head.setPosition(headC.x, headC.y).setRotation(headRot);
-
-    // Eyes: look toward the facing direction (forward in the root's mirrored frame) and with vertical speed.
+    // ---- expressions: blink, happy eyes, eyes looking ahead (more the further the head is turned) ----
     const blinkT = t - this.blinkAt;
     if (blinkT >= BLINK_MS) this.blinkAt = nextBlinkAt(t, Math.random());
     const happy = this.winW > 0.5;
     const open = happy ? 1 : blinkOpen(blinkT);
-    const lk = eyeLook(Math.abs(this.turn) > 0.2 ? 1 : 0, s.vy, ROBOT.look.x, ROBOT.look.y, ROBOT.look.perVy);
-    const eyeKey = happy ? this.parts.eyeHappy.key : this.parts.eye.key;
-    this.img.eyes.forEach((e, i) => {
-      const side = i === 0 ? -1 : 1;
-      const p = rot({ x: side * P.eye.gap + lk.x, y: P.eye.y + lk.y }, headRot);
-      if (e.texture.key !== eyeKey) {
-        const part = happy ? this.parts.eyeHappy : this.parts.eye;
-        e.setTexture(part.key).setOrigin(part.ox, part.oy);
-      }
-      e.setPosition(headC.x + p.x, headC.y + p.y).setRotation(headRot);
-      e.setScale(1 / PART_RES, open / PART_RES);
-    });
+    const lk = eyeLook(clamp01(Math.abs(this.headYaw) / ROBOT.yaw.move), s.vy, ROBOT.look.x, ROBOT.look.y, ROBOT.look.perVy);
 
-    // Antennae on a spring: they lag behind speed changes and bounces; a big wiggle when winning.
+    // ---- antennae on a spring: they lag behind speed changes and bounces; a big wiggle when winning ----
     const spring = ROBOT.antennaSpring;
     const accel = (s.speed - this.lastSpeed) / Math.max(1, dt);
     this.lastSpeed = s.speed;
-    let target = -accel * spring.push * 1000 - s.vy * spring.vyPush + spring.sway * Math.sin((Math.PI * 2 * t) / 2100);
-    if (this.winW > 0) target += this.winW * 0.5 * Math.sin((Math.PI * 2 * t) / 300);
-    this.antenna = springStep(this.antenna.angle, this.antenna.vel, Math.max(-spring.max, Math.min(spring.max, target)), dt, spring.stiffness, spring.damping);
-    const A = P.antenna;
-    const n = this.img.antennae.length;
-    this.img.antennae.forEach((img, i) => {
-      const side = n === 1 ? 0 : i === 0 ? -1 : 1;
-      const base = rot({ x: side * A.spread, y: -P.head.h / 2 + 2 }, headRot);
-      img.setPosition(headC.x + base.x, headC.y + base.y).setRotation(headRot + side * A.splay + this.antenna.angle * (1 + 0.15 * side));
+    let target2 = s.facing * (-accel * spring.push * 1000 - s.vy * spring.vyPush) + spring.sway * Math.sin((Math.PI * 2 * t) / 2100);
+    if (this.winW > 0) target2 += this.winW * 0.5 * Math.sin((Math.PI * 2 * t) / 300);
+    target2 = Math.max(-spring.max, Math.min(spring.max, target2));
+    this.antenna = springStep(this.antenna.angle, this.antenna.vel, target2, dt, spring.stiffness, spring.damping);
+
+    // ---- solve and apply ----
+    const rig = solveRig({
+      pose,
+      air: this.airW,
+      body,
+      head,
+      look: lk,
+      antenna: this.antenna.angle,
+      antennae: this.avatar.antennae,
+      cannon: shot.cannon,
     });
+    const i = this.img;
+    const limb = (imgs: Limb3, f: [Xf, Xf, Xf]) => imgs.forEach((im, k) => put(im, f[k]));
+    limb(i.legF, rig.legF);
+    limb(i.legN, rig.legN);
+    limb(i.armF, rig.armF);
+    const handPart = shot.cannon ? this.parts.cannon : this.parts.hand;
+    if (i.armN[2].texture.key !== handPart.key) i.armN[2].setTexture(handPart.key).setOrigin(handPart.ox, handPart.oy);
+    limb(i.armN, rig.armN);
+    put(i.torso, rig.torso);
+    put(i.chest, rig.chest);
+    put(i.head, rig.head);
+    put(i.visor, rig.visor);
+    put(i.earF, rig.earF);
+    if (rig.earNFront !== this.earFront) {
+      this.earFront = rig.earNFront;
+      i.earNFront.setVisible(this.earFront);
+      i.earNBack.setVisible(!this.earFront);
+    }
+    put(this.earFront ? i.earNFront : i.earNBack, rig.earN);
+    const eyePart = happy ? this.parts.eyeHappy : this.parts.eye;
+    i.eyes.forEach((e, k) => {
+      if (e.texture.key !== eyePart.key) e.setTexture(eyePart.key).setOrigin(eyePart.ox, eyePart.oy);
+      put(e, rig.eyes[k], open);
+    });
+    i.antennae.forEach((a, k) => put(a, rig.antennae[k]));
+    i.flash.setVisible(shot.flash).setPosition(rig.tip.x, rig.tip.y);
+    if (shot.flash) i.flash.setScale((0.7 + 0.6 * ((t - this.shootAt) / ROBOT_CLIPS.shoot.flashMs)) / PART_RES);
 
-    // Arms hang from the shoulders, which lean with the body.
-    const arm = (imgs: [Img, Img, Img], shoulderX: number, a0: number, b: number, cannon: boolean) => {
-      const sh = up({ x: shoulderX, y: -L.shoulderY });
-      const a = a0 - lean; // a limb hanging in the body's frame tilts back as the body leans forward
-      const elbow = along(sh, a, P.upperArm.len);
-      const wrist = along(elbow, a + b, P.forearm.len);
-      imgs[0].setPosition(sh.x, sh.y).setRotation(-a);
-      imgs[1].setPosition(elbow.x, elbow.y).setRotation(-(a + b));
-      const handPart = cannon ? this.parts.cannon : this.parts.hand;
-      if (imgs[2].texture.key !== handPart.key) imgs[2].setTexture(handPart.key).setOrigin(handPart.ox, handPart.oy);
-      imgs[2].setPosition(wrist.x, wrist.y).setRotation(-(a + b));
-      return along(wrist, a + b, cannon ? P.cannon.len : P.hand.r * 2);
-    };
-    arm(this.img.armF, L.shoulderX.far, pose.armF.a, pose.armF.b, false);
-    const tip = arm(this.img.armN, L.shoulderX.near, pose.armN.a, pose.armN.b, shot.cannon);
-    this.img.flash.setVisible(shot.flash).setPosition(tip.x, tip.y);
-    if (shot.flash) this.img.flash.setScale((0.7 + 0.6 * ((t - this.shootAt) / ROBOT_CLIPS.shoot.flashMs)) / PART_RES);
+    // Far-side limbs a little darker in side views (white at the front view, so the mirror never shows).
+    const tint = farTint(rig.farShade);
+    if (tint !== this.tint) {
+      this.tint = tint;
+      for (const im of [...i.armF, ...i.legF, i.earF]) im.setTint(tint);
+    }
 
-    // ---- root: feet position, size factor, squash/stretch, paper turn, small lean ----
+    // ---- root: feet position, size factor, squash/stretch, small lean ----
     const S = this.avatar.scale;
     this.root.setPosition(s.x, s.y - s.lift);
-    this.root.setScale(S * widthFor(s.stretch) * this.turn, S * (1 + s.stretch));
+    this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
     this.root.setRotation(s.rotation);
-    const sx = S * this.turn;
-    this.muzzlePoint = { x: s.x + tip.x * sx, y: s.y - s.lift + tip.y * S };
+    this.muzzlePoint = { x: s.x + rig.tip.x * S, y: s.y - s.lift + rig.tip.y * S };
   }
 
   setAlpha(alpha: number): void {
@@ -267,6 +291,8 @@ export class RobotLook implements AvatarLook {
     return {
       texture: 'robot',
       facing: this.facing,
+      headYaw: this.headYaw,
+      bodyYaw: this.bodyYaw,
       x: this.root.x,
       y: this.root.y,
       rot: this.root.rotation,
@@ -285,6 +311,7 @@ export class RobotLook implements AvatarLook {
       flash: this.img.flash.visible,
       cannon: this.img.armN[2].texture.key === this.parts.cannon.key,
       eyeOpen: this.img.eyes[0].scaleY * PART_RES,
+      earFront: this.earFront,
     };
   }
 

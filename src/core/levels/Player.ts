@@ -1,10 +1,9 @@
-// One character on the level: an invisible physics box plus a look (D-032: picture, ball, portrait or robot)
+// One character on the level: an invisible physics box plus a look (D-032, D-037: robot or ball)
 // moved by the shared lively motion (core/avatar/AvatarDriver). Used for the real player and for the
 // "watch me" ghost (D-024), so the demo runs through exactly the same movement, jump and animation code as
 // real play (the ghost just gets no dust). Physics and the hit box never depend on the look.
 import type Phaser from 'phaser';
 import { PHYSICS } from './physics';
-import type { PoseName } from './poses';
 import { edgeLimit, nextFacing, rampSpeed, type FacingState } from './walk';
 import { AvatarDriver } from '../avatar/AvatarDriver';
 import type { Gait } from '../avatar/clips';
@@ -35,7 +34,7 @@ export interface PlayerOptions {
   depth: number;
   tile: number;
   alpha?: number;
-  /** The level's moving speed: run speed on auto-run levels, walk speed otherwise (also the flipbook reference). */
+  /** The level's moving speed: run speed on auto-run levels, walk speed otherwise. */
   speed: number;
   /** Walk mode (D-029): speed ramps up and down (PHYSICS.walkRamp*). Off = speed is set at once (auto-run). */
   ramp: boolean;
@@ -109,10 +108,6 @@ export class Player {
   /** The look (for depth, alpha tweens and debugging). */
   get look(): AvatarLook {
     return this.avatar.look;
-  }
-
-  get pose(): PoseName {
-    return this.avatar.pose;
   }
 
   /** Movement and jumping for one frame. */
@@ -196,8 +191,8 @@ export class Player {
     this.avatar.setVisible(present);
   }
 
-  /** The look for this frame: pose, motion, flip, shadow and dust. */
-  updateSprite(time: number, dt: number): void {
+  /** The look for this frame: motion, facing, shadow and dust. */
+  updateAvatar(time: number, dt: number): void {
     const body = this.body;
     this.avatar.update({
       time,

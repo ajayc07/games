@@ -74,12 +74,6 @@ export const ANIM = {
     /** Speed streaks behind the runner: one every this many ms while running on the ground. */
     streakEveryMs: 140,
   },
-  flipbook: {
-    /** Default frames per second of a run cycle at the level's normal run speed. */
-    fps: 10,
-    /** Procedural motion strength when a run flipbook plays (the frames carry most of the motion). */
-    motionScale: 0.45,
-  },
 } as const;
 
 const TAU = Math.PI * 2;
@@ -230,22 +224,4 @@ export function shadowScale(height: number): number {
 export function shadowAlpha(height: number): number {
   const t = clamp(height / ANIM.shadow.fadeHeight, 0, 1);
   return ANIM.shadow.alpha - (ANIM.shadow.alpha - ANIM.shadow.minAlpha) * t;
-}
-
-// ---------- run flipbook ----------
-
-/**
- * Advances a flipbook position (in frames) by `dtMs` at `fps`, scaled by how fast the character
- * moves compared with the normal run speed (faster = quicker frames, standing = frozen).
- */
-export function advanceFlipbook(pos: number, dtMs: number, fps: number, speed: number, refSpeed: number): number {
-  if (refSpeed <= 0) return pos;
-  return pos + (dtMs / 1000) * fps * (Math.abs(speed) / refSpeed);
-}
-
-/** Frame index for a flipbook position, or -1 when there is no cycle to play (fewer than 2 frames). */
-export function flipbookFrame(pos: number, frameCount: number): number {
-  if (frameCount < 2) return -1;
-  const i = Math.floor(pos) % frameCount;
-  return i < 0 ? i + frameCount : i;
 }

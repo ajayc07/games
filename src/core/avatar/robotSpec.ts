@@ -1,7 +1,9 @@
-// Robot and Ball tuning (Task 005b): every proportion, colour default and clip amplitude in one place,
-// so a review round only edits this file. Pure data, no Phaser. Units: logical px at avatar scale 1,
-// angles in radians. Limb angles: 0 = hanging straight down, positive = swung forward (the way the
-// character faces). Knee bends are positive backwards, elbow bends positive forwards.
+// Robot and Ball tuning (Task 005b, three-quarter view Task 005c): every proportion, colour default, view
+// and clip amplitude in one place, so a review round only edits this file. Pure data, no Phaser. Units:
+// logical px at avatar scale 1, angles in radians. Limb angles: 0 = hanging straight down, positive = swung
+// forward (the way the character faces). Knee bends are positive backwards, elbow bends positive forwards.
+// Arm spread: positive = out to the side (away from the body).
+// Body frame for the view (robotRig.ts): f = forward, l = sideways (negative = the near side), y = down.
 
 export const ROBOT = {
   /** Body parts (logical px). The feet are at y = 0; up is negative. */
@@ -21,16 +23,18 @@ export const ROBOT = {
     cannon: { w: 11, len: 13 },
     thigh: { w: 12, len: 14 },
     shin: { w: 12, len: 13 },
-    boot: { w: 20, h: 10, ankle: 7 },
+    /** heel = ankle distance from the back of the boot. */
+    boot: { w: 20, h: 10, ankle: 7, heel: 7 },
   },
   /** Joint layout relative to the feet when standing straight. */
   layout: {
     /** Hip height: thigh + shin + boot ankle height. */
     hipY: -34,
-    hipX: { near: 6, far: -6 },
+    /** Sideways distance of each hip from the middle (near side negative, far side positive). */
+    hipL: 6,
     /** Shoulders above the hips. */
     shoulderY: 21,
-    shoulderX: { near: 14, far: -14 },
+    shoulderL: 14,
     /** Head centre above the hips. */
     headY: 50,
     torsoY: 13,
@@ -39,24 +43,58 @@ export const ROBOT = {
   look: { x: 3, y: 2, perVy: 1 / 500 },
   /** Antenna spring: stiffness (1/s^2), damping (1/s), push per px/s of speed change, idle sway. */
   antennaSpring: { stiffness: 180, damping: 9, push: 0.00012, vyPush: 0.0005, sway: 0.06, max: 0.7 },
-  /** Facing turn: time to go from one side to the other (ms), squeezing through 0 like a paper turn. */
-  turnMs: 120,
+  /**
+   * Yaw (Task 005c, D-037): how far the robot turns toward the way it goes, -1..1 (sign = facing, 0 = facing
+   * the player, 1 = full side view). Idle and win face the player; walking/running turn to `move` (scaled by
+   * speed, full at `fullAtSpeed` x the level speed); in the air `air` keeps the face readable; shooting turns
+   * to `shoot` so the cannon arm reads clearly. A turn sweeps through 0: the head goes from -move to +move in
+   * `headSweepMs`, the body in `bodySweepMs` (head leads, body follows).
+   */
+  yaw: { idle: 0, move: 0.75, air: 0.45, shoot: 0.8, win: 0, fullAtSpeed: 0.5, headSweepMs: 100, bodySweepMs: 160 },
+  /** How the parts change with yaw (0 = front view, values at full side view, lerped by sin(yaw * 90 deg)). */
+  view: {
+    /** Head shell width at side view; the face (visor, eyes) sits this far forward (px). */
+    headWidth: 0.86,
+    faceF: 8,
+    visorWidth: 0.72,
+    /** Far eye width at side view (the near eye keeps its size). */
+    eyeFar: 0.5,
+    /** Near ear moves this far back (px); it goes in front of the head shell once the view passes earFrontAt. */
+    earBack: 4,
+    earFrontAt: 0.35,
+    /** Far ear peeks out behind the face side (px forward at side view) and narrows. */
+    earFarPeek: 11,
+    earFarWidth: 0.55,
+    /** Antennae move forward (px) and closer together. */
+    antennaF: 3,
+    antennaSpread: 0.6,
+    /** Torso width = front + depth x side; the chest panel sits this far forward (px) and narrows. */
+    torsoDepth: 0.55,
+    chestF: 8,
+    chestWidth: 0.55,
+    /** Boot width seen from the front (toe toward the viewer). */
+    bootFront: 0.6,
+    /** A limb seen end-on is never drawn shorter than this (fraction of its length). */
+    minLength: 0.3,
+    /** Tint of the far-side limbs at side view (white at front view). */
+    farTint: 0xd5dbe0,
+  },
 } as const;
 
 /** Clip amplitudes for the robot (and the walk/run timing). */
 export const ROBOT_CLIPS = {
   /** Ground distance per step at scale 1 (px): the legs reach about this far, so feet do not skate. */
   stepLength: { walk: 46, run: 56 },
-  idle: { breathMs: 1800, bob: 1.2, armOut: 0.12, legOut: 0.06, headMs: 2400, head: 0.04 },
-  walk: { leg: 0.62, knee: 0.15, kneeLift: 0.6, arm: 0.42, elbow: 0.35, bob: 2.5, lean: 0.05, head: 0.03 },
-  run: { leg: 0.78, knee: 0.3, kneeLift: 1.15, arm: 0.75, elbow: 1.45, bob: 3.5, lean: 0.16, head: 0.05 },
+  idle: { breathMs: 1800, bob: 1.2, armOut: 0.12, spread: 0.14, legOut: 0.06, headMs: 2400, head: 0.04 },
+  walk: { leg: 0.62, knee: 0.15, kneeLift: 0.6, arm: 0.42, elbow: 0.35, spread: 0.08, bob: 2.5, lean: 0.05, head: 0.03 },
+  run: { leg: 0.78, knee: 0.3, kneeLift: 1.15, arm: 0.75, elbow: 1.45, spread: 0.08, bob: 3.5, lean: 0.16, head: 0.05 },
   /** Jump: crouch at take-off, then arms up and legs tucked while rising (ms to reach the rise pose). */
   jump: { riseMs: 140 },
   /** Fall: arms out, legs dangle, a little flail. vy where the fall pose is fully in (px/s). */
   fall: { fullAtVy: 300, startAtVy: -150, flail: 0.12, flailHz: 2.2 },
   /** Land: crouch overlay, in quickly then out (ms). */
   land: { inMs: 40, outMs: 200 },
-  win: { periodMs: 450, wave: 0.3, bob: 3, head: 0.12 },
+  win: { periodMs: 450, spread: 0.6, wave: 0.18, bob: 3, head: 0.12 },
   /** Shoot: arm forward, recoil kick, cannon visible for cannonMs, muzzle flash for flashMs. */
   shoot: { inMs: 60, holdMs: 300, outMs: 120, recoil: 0.3, recoilMs: 130, cannonMs: 380, flashMs: 100 },
   /** Blend times (ms): into the air pose / back to the ground pose, into the win pose. */
@@ -72,8 +110,6 @@ export const BALL = {
   mouthY: 13,
   /** Face shift toward the facing direction (px) and with vertical speed. */
   look: { x: 7, y: 3, perVy: 1 / 400, pupil: 3.2 },
-  /** Portrait decal diameter as a fraction of the ball. */
-  decal: 0.8,
   /** Mouth open time for "shoot" (ms). */
   shootMs: 260,
   /** Shared procedural motion on the ball: a little bounce, no lean (the ball rolls instead). */

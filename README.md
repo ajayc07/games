@@ -20,6 +20,8 @@ npm run icons      # regenerates placeholder icons in public/icons/
 ## Playing
 Opening the site starts Grass 1 ("Tap to hop"): the character runs by itself; any tap, click or key hops.
 - `?level=<id>` opens any level, `?char=<id>` picks a character (mario, luigi, peach, toad, bowser, yoshi, donkeykong).
+- The player is a friendly code-built robot (default) in the chosen character's colours; `?look=ball` shows a rolling ball
+  instead. (The old `sprite` and `portrait` looks were removed; those values fall back to the robot.)
 - `?debug=1` exposes `window.__level` for automated tests.
 
 ## Input Lab
@@ -27,6 +29,7 @@ Open with `?lab=1` (or the Home button after a level): try the controls and soun
 - Mode icons (top right) or keys `1`-`4`: (1) tap anywhere = jump, (2) Jump only, (3) Left + Right + Jump, (4) all four.
 - Lights at the top show which actions are held; the small light turns green once audio is unlocked.
 - Keys: arrows/WASD move, Space/Up/W jump, X/Z/Shift power. Gamepads: d-pad/stick, A jump, X/B power.
+- In mode 4 the Power button makes the robot shoot a harmless energy ball (`&look=ball` and `&char=` work here too).
 - Button size: add `?buttonScale=1.3` (or `0.8`) to the URL, range 0.6 to 1.6.
 - `?debug=1` exposes `window.__lab` for automated tests.
 

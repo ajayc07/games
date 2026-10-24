@@ -101,6 +101,9 @@ const pkey = (p: AvatarPalette) => `${p.body.toString(16)}-${p.joint.toString(16
 
 export interface RobotParts {
   head: Part;
+  visor: Part;
+  ear: Part;
+  chest: Part;
   eye: Part;
   eyeHappy: Part;
   antenna: Part;
@@ -119,37 +122,36 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
   const P = ROBOT.parts;
   const k = (name: string) => `av-robot-${name}-${pkey(pal)}`;
 
-  // Head with ear discs and the dark visor baked in. Origin = head centre.
-  const earOut = P.ear.r - 2;
-  const hw = P.head.w + earOut * 2;
-  const head = canvasPart(scene, k('head'), hw, P.head.h, hw / 2, P.head.h / 2, (ctx) => {
-    for (const side of [-1, 1]) {
-      const cx = hw / 2 + side * (P.head.w / 2 + 1);
-      const cy = P.head.h / 2 + 2;
-      ctx.beginPath();
-      ctx.arc(cx, cy, P.ear.r, 0, Math.PI * 2);
-      fillStroke(ctx, hex(pal.joint));
-      ctx.beginPath();
-      ctx.arc(cx, cy, P.ear.r - P.ear.ring / 2 - 1, 0, Math.PI * 2);
-      ctx.strokeStyle = hex(pal.accent);
-      ctx.lineWidth = P.ear.ring;
-      ctx.stroke();
-    }
-    roundRect(ctx, earOut, 0, P.head.w, P.head.h, P.head.radius);
+  // Head shell, visor and ear discs are separate so the three-quarter view can move them (Task 005c).
+  // Origins at their centres.
+  const head = canvasPart(scene, k('head'), P.head.w, P.head.h, P.head.w / 2, P.head.h / 2, (ctx) => {
+    roundRect(ctx, 0, 0, P.head.w, P.head.h, P.head.radius);
     fillStroke(ctx, shaded(ctx, pal.body, 0, P.head.h), 1.8);
-    const vx = hw / 2 - P.visor.w / 2;
-    const vy = P.head.h / 2 - P.visor.h / 2 + P.visor.y;
-    roundRect(ctx, vx, vy, P.visor.w, P.visor.h, P.visor.radius);
-    const vg = ctx.createLinearGradient(0, vy, 0, vy + P.visor.h);
+  });
+  const Vz = P.visor;
+  const visor = canvasPart(scene, k('visor'), Vz.w, Vz.h, Vz.w / 2, Vz.h / 2, (ctx) => {
+    roundRect(ctx, 0, 0, Vz.w, Vz.h, Vz.radius);
+    const vg = ctx.createLinearGradient(0, 0, 0, Vz.h);
     vg.addColorStop(0, hex(tone(pal.visor, 0.18)));
     vg.addColorStop(1, hex(pal.visor));
     ctx.fillStyle = vg;
     ctx.fill();
-    // glossy highlight
+    // glossy highlight, centred so the visor looks the same mirrored
     ctx.beginPath();
-    ctx.ellipse(vx + P.visor.w * 0.3, vy + 4, P.visor.w * 0.22, 2.2, -0.12, 0, Math.PI * 2);
+    ctx.ellipse(Vz.w / 2, 4, Vz.w * 0.26, 2.2, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.16)';
     ctx.fill();
+  });
+  const E = P.ear;
+  const ear = canvasPart(scene, k('ear'), E.r * 2, E.r * 2, E.r, E.r, (ctx) => {
+    ctx.beginPath();
+    ctx.arc(E.r, E.r, E.r, 0, Math.PI * 2);
+    fillStroke(ctx, hex(pal.joint));
+    ctx.beginPath();
+    ctx.arc(E.r, E.r, E.r - E.ring / 2 - 1, 0, Math.PI * 2);
+    ctx.strokeStyle = hex(pal.accent);
+    ctx.lineWidth = E.ring;
+    ctx.stroke();
   });
 
   const glow = (ctx: CanvasRenderingContext2D) => {
@@ -195,7 +197,7 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     ctx.fill();
   });
 
-  // Torso with neck on top, chest panel and hips band. Origin = middle of the hips band (the hip joint).
+  // Torso with neck on top and hips band. Origin = middle of the hips band (the hip joint).
   const T = P.torso;
   const tw = Math.max(T.w, P.hips.w);
   const th = P.neck.h + T.h + P.hips.h - 2;
@@ -207,9 +209,13 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     fillStroke(ctx, hex(pal.joint), 1.2);
     roundRect(ctx, tw / 2 - T.w / 2, P.neck.h, T.w, T.h, T.radius);
     fillStroke(ctx, shaded(ctx, pal.body, P.neck.h, P.neck.h + T.h), 1.8);
-    // hexagonal chest panel
-    const cx = tw / 2;
-    const cy = P.neck.h + T.h * 0.47;
+  });
+  // Hexagonal chest panel, separate so it can slide toward the facing side. Origin = its centre.
+  const cr = P.chest.r;
+  const cw = cr * 2.4;
+  const chest = canvasPart(scene, k('chest'), cw, cr * 2, cw / 2, cr, (ctx) => {
+    const cx = cw / 2;
+    const cy = cr;
     const hexPath = (r: number) => {
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
@@ -223,11 +229,11 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     };
     ctx.shadowColor = hex(pal.accent);
     ctx.shadowBlur = 3;
-    hexPath(P.chest.r);
+    hexPath(cr);
     ctx.fillStyle = hex(pal.accent);
     ctx.fill();
     ctx.shadowBlur = 0;
-    hexPath(P.chest.r * 0.5);
+    hexPath(cr * 0.5);
     ctx.fillStyle = hex(tone(pal.accent, 0.45));
     ctx.fill();
   });
@@ -300,8 +306,7 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     fillStroke(ctx, hex(pal.joint), 1.1);
   });
   const B = P.boot;
-  const heel = 7; // ankle distance from the heel
-  const boot = canvasPart(scene, k('boot'), B.w, B.h, heel, B.h - B.ankle, (ctx) => {
+  const boot = canvasPart(scene, k('boot'), B.w, B.h, B.heel, B.h - B.ankle, (ctx) => {
     ctx.beginPath();
     ctx.moveTo(2, 0);
     ctx.lineTo(B.w - 7, 0);
@@ -323,7 +328,7 @@ export function robotParts(scene: Phaser.Scene, pal: AvatarPalette): RobotParts 
     ctx.fill();
   });
 
-  return { head, eye, eyeHappy, antenna, torso, upperArm, forearm, hand, cannon, flash, thigh, shin, boot };
+  return { head, visor, ear, chest, eye, eyeHappy, antenna, torso, upperArm, forearm, hand, cannon, flash, thigh, shin, boot };
 }
 
 // ---------- ball ----------

@@ -11,7 +11,6 @@ import { extractEntities, findRespawn, mergeSolids, starsFor, type Cell, type Gr
 import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
 import { makeEffectTextures, makeThemeTextures, themeKey } from './placeholders';
-import { CharacterLook } from './characterLook';
 import { createLook, lookFromUrl } from '../avatar/createLook';
 import { gaitFor } from '../avatar/clips';
 import type { LookName } from '../avatar/config';
@@ -79,10 +78,8 @@ export class LevelScene extends Phaser.Scene {
   private input2!: InputManager;
   private touch!: TouchControls;
   private bg!: ParallaxBackground;
-  /** The character's pictures, shared by the player and the ghost (sprite look only). */
-  private pictures: CharacterLook | undefined;
   /** How characters are drawn (`?look=`, D-032). */
-  private lookName: LookName = 'sprite';
+  private lookName: LookName = 'robot';
   private player!: Player;
   private ghost: Player | null = null;
   private demo: DemoRunner | null = null;
@@ -169,7 +166,6 @@ export class LevelScene extends Phaser.Scene {
     this.buildCoins();
     this.buildFlag();
     this.lookName = lookFromUrl();
-    this.pictures = this.lookName === 'sprite' ? new CharacterLook(this, character) : undefined;
     this.motionFx = new MotionFx(this, DEPTH.player - 1);
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
@@ -198,8 +194,8 @@ export class LevelScene extends Phaser.Scene {
     if (this.mode === 'demo') this.updateDemo(time, dt * 1000);
     else if (this.mode === 'play') this.updatePlay(time, dt * 1000);
     else if (this.mode === 'finish') this.updateFinish();
-    this.player.updateSprite(time, dt);
-    this.ghost?.updateSprite(time, dt);
+    this.player.updateAvatar(time, dt);
+    this.ghost?.updateAvatar(time, dt);
     this.demoCues?.update();
     this.updateCamera(dt);
     this.bg.update(this.camX, dt);
@@ -288,7 +284,7 @@ export class LevelScene extends Phaser.Scene {
     return new Player(this, {
       x,
       feet,
-      look: createLook(this, this.lookName, this.data0.character, x, feet, this.pictures),
+      look: createLook(this, this.lookName, this.data0.character, x, feet),
       gait: gaitFor(this.level.controls.autoRun),
       colliders: this.groundBodies,
       depth,
@@ -693,8 +689,6 @@ export class LevelScene extends Phaser.Scene {
         pressedOnce: [...this.pressedOnce],
         lookDir: this.lookDir,
         playerVisible: this.player.look.root.visible,
-        pose: this.player.pose,
-        flipX: Math.sign(this.player.look.root.scaleX),
         facing: this.player.facing,
         invite: this.invite !== null,
         hasNext: !!this.data0.onNext,
@@ -705,7 +699,7 @@ export class LevelScene extends Phaser.Scene {
         fps: this.game.loop.actualFps,
         look: this.lookName,
         texture: this.player.look.debug().texture,
-        spriteHeight: this.player.look.debug().displayHeight,
+        avatarHeight: this.player.look.debug().displayHeight,
         ghostTexture: this.ghost?.look.debug().texture ?? null,
       }),
       anim: () => this.player.animState(),

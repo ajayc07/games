@@ -144,7 +144,7 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
   });
 }
 
-/** A friendly capsule with eyes: the character when there is no picture. */
+/** A friendly capsule with eyes: a character with no picture (kept for the character picker, D-037). */
 export function makeCapsuleTexture(scene: Phaser.Scene, color: number): string {
   const key = `char-capsule-${color.toString(16)}`;
   if (scene.textures.exists(key)) return key;

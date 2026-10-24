@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ANIM,
-  advanceFlipbook,
   advanceStride,
   airLean,
   breath,
@@ -9,7 +8,6 @@ import {
   celebrateLift,
   celebrateStretch,
   crossedFootfall,
-  flipbookFrame,
   kickPulse,
   pulseValue,
   runLean,
@@ -22,7 +20,6 @@ import {
   strideStretch,
   widthFor,
 } from './animation';
-import { flipSign } from './poses';
 
 const L = ANIM.run.stepLength;
 
@@ -70,8 +67,8 @@ describe('stride shape', () => {
     expect(strideRock(1)).toBeCloseTo(0);
   });
 
-  it('scales with amplitude (reduced when a flipbook plays)', () => {
-    const a = ANIM.flipbook.motionScale;
+  it('scales with amplitude (looks use less of it)', () => {
+    const a = 0.45;
     expect(strideBounce(0.5, a)).toBeCloseTo(ANIM.run.bounce * a);
     expect(strideStretch(0, a)).toBeCloseTo(ANIM.run.strikeSquash * a);
     expect(runLean(1, a)).toBeCloseTo(ANIM.run.lean * a);
@@ -201,32 +198,5 @@ describe('shadow', () => {
     expect(shadowAlpha(0)).toBeCloseTo(ANIM.shadow.alpha);
     expect(shadowAlpha(10_000)).toBeCloseTo(ANIM.shadow.minAlpha);
     expect(shadowAlpha(50)).toBeLessThan(shadowAlpha(10));
-  });
-});
-
-describe('run flipbook', () => {
-  it('has no cycle with 0 or 1 frames', () => {
-    expect(flipbookFrame(3.2, 0)).toBe(-1);
-    expect(flipbookFrame(3.2, 1)).toBe(-1);
-  });
-
-  it('cycles through 2+ frames in order', () => {
-    expect([0, 0.9, 1, 1.5, 2, 2.1].map((p) => flipbookFrame(p, 2))).toEqual([0, 0, 1, 1, 0, 0]);
-    expect([0, 1, 2, 3, 4].map((p) => flipbookFrame(p, 4))).toEqual([0, 1, 2, 3, 0]);
-  });
-
-  it('plays at fps at normal speed, faster when faster, frozen when standing', () => {
-    expect(advanceFlipbook(0, 1000, 10, 200, 200)).toBeCloseTo(10);
-    expect(advanceFlipbook(0, 1000, 10, 400, 200)).toBeCloseTo(20);
-    expect(advanceFlipbook(0, 1000, 10, -200, 200)).toBeCloseTo(10); // running left
-    expect(advanceFlipbook(2.5, 1000, 10, 0, 200)).toBe(2.5);
-    expect(advanceFlipbook(1, 1000, 10, 200, 0)).toBe(1);
-  });
-
-  it('mirrors each frame by its own facing', () => {
-    const frames: Array<'right' | 'left'> = ['right', 'left'];
-    const signs = frames.map((f) => flipSign(1, f));
-    expect(signs).toEqual([1, -1]);
-    expect(frames.map((f) => flipSign(-1, f))).toEqual([-1, 1]);
   });
 });
