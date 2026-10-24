@@ -23,6 +23,10 @@ import { MotionFx } from './motionFx';
 import { DEMO_SKIP_AFTER_MS, createDemo, demoOverrideFrom, shouldPlayDemo, type DemoRunner } from './demo';
 import { walkDirection } from './walk';
 import { DemoCues, drawFinger } from './demoFx';
+import { Blaster, type Shooter } from './Blaster';
+import { BubbleField } from './BubbleField';
+import { SHOT } from './shots';
+import { resolveAvatar } from '../avatar/config';
 
 export interface LevelSceneData {
   level: LevelData;
@@ -57,7 +61,7 @@ const COIN_SIZE = 40;
 const COIN_HIT_R = 18;
 /** Where the player sits on screen, as a fraction across the safe area (rest is look-ahead). */
 const CAMERA_ANCHOR = 0.36;
-const DEPTH = { ground: 0, coins: 10, flag: 5, ghost: 19, player: 20, fx: 30, hint: 40, hud: 900, exit: 950 };
+const DEPTH = { ground: 0, coins: 10, flag: 5, bubbles: 12, ghost: 19, player: 20, shots: 22, popCoins: 26, fx: 30, hint: 40, hud: 900, exit: 950 };
 const GHOST_ALPHA = 0.55;
 /** Each button gives a gentle "press me" pulse this often until its first press (ms); Left and Right take turns. */
 const INVITE_EVERY_MS = 2600;
@@ -111,6 +115,12 @@ export class LevelScene extends Phaser.Scene {
   private size = 1;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private confetti!: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Shooting (Task 007): the player's and the demo ghost's. Only on levels that enable Power. */
+  private blaster: Blaster | null = null;
+  private ghostBlaster: Blaster | null = null;
+  /** The demo ghost's Power press this frame. */
+  private ghostPower = false;
+  private bubbles!: BubbleField;
 
   private mode: Mode = 'play';
   private coinCount = 0;
@@ -154,6 +164,9 @@ export class LevelScene extends Phaser.Scene {
     this.result = null;
     this.hint = null;
     this.coins = [];
+    this.blaster = null;
+    this.ghostBlaster = null;
+    this.ghostPower = false;
   }
 
   preload(): void {
@@ -182,6 +195,16 @@ export class LevelScene extends Phaser.Scene {
     this.motionFx = new MotionFx(this, DEPTH.player - 1, this.size);
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
+    this.bubbles = new BubbleField(this, {
+      cells: this.grid.bubbles,
+      solid: this.grid.solid,
+      tile: this.tile,
+      gridTop: this.gridTop,
+      coinTexture: themeKey(theme, 'coin'),
+      depth: { bubbles: DEPTH.bubbles, coins: DEPTH.popCoins },
+      sparkle: this.sparkle,
+    });
+    if (this.level.controls.enabled.includes('power')) this.blaster = this.makeBlaster();
     this.buildHud();
     // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
     this.exitBtn = new HoldButton(this, () => this.afterStep(this.data0.onHome), DEPTH.exit);
@@ -213,6 +236,7 @@ export class LevelScene extends Phaser.Scene {
     else if (this.mode === 'finish') this.updateFinish();
     this.player.updateAvatar(time, dt);
     this.ghost?.updateAvatar(time, dt);
+    this.updateShots(time, dt * 1000);
     this.exitBtn.update(time);
     this.demoCues?.update();
     this.updateCamera(dt);
@@ -318,6 +342,25 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
+  private makeBlaster(): Blaster {
+    return new Blaster(this, resolveAvatar(this.data0.option).palette, DEPTH.shots);
+  }
+
+  /** A Player as a Shooter for its Blaster. */
+  private shooterOf(p: Player): Shooter {
+    return {
+      facing: p.facing,
+      muzzle: () => p.look.muzzle(),
+      shoot: (now) => p.avatar.shoot(now),
+    };
+  }
+
+  /** Soft walls from big bubbles for an actor this frame (Task 007). */
+  private bubbleWalls(p: Player): { minX: number; maxX: number } {
+    const b = p.body;
+    return this.bubbles.walls({ x: b.center.x, top: b.top, bottom: b.bottom, halfWidth: PHYSICS.body.width / 2 });
+  }
+
   /** World y of the top of the ground under x, at or below `feet`; null over a gap (shadow). */
   private readonly groundAt = (x: number, feet: number): number | null => {
     const T = this.tile;
@@ -391,6 +434,7 @@ export class LevelScene extends Phaser.Scene {
     this.player.setPresent(false);
     this.ghost = this.makePlayer(DEPTH.ghost, GHOST_ALPHA, false);
     this.demo = createDemo(config, this.tile);
+    if (this.blaster) this.ghostBlaster = this.makeBlaster();
     this.demoCues = new DemoCues(this, this.touch, this.demo.firstAction);
     this.demoCues.showFinger();
     this.demoStartedAt = this.time.now;
@@ -404,7 +448,8 @@ export class LevelScene extends Phaser.Scene {
     const demo = this.demo!;
     const f = demo.step(now - this.demoStartedAt, ghost.body.center.x);
     // The ghost moves through the same movement and jump code as the player.
-    const r = ghost.step(now, { move: f.move, jumpPressed: f.jump }, dtMs);
+    const r = ghost.step(now, { move: f.move, jumpPressed: f.jump, walls: this.bubbleWalls(ghost) }, dtMs);
+    this.ghostPower = f.power;
     const cues = this.demoCues!;
     for (const p of f.presses) {
       this.touch.animatePress(p.action, p.holdMs);
@@ -433,6 +478,11 @@ export class LevelScene extends Phaser.Scene {
     ghost.body.enable = false;
     this.tweens.add({ targets: [ghost.look.root, ghost.avatar.shadow], alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
     this.ghost = null;
+    // The demo's shots vanish and the bubbles it popped grow back (its coins never counted).
+    this.ghostBlaster?.destroy();
+    this.ghostBlaster = null;
+    this.ghostPower = false;
+    this.bubbles.restore();
     this.demoCues!.hideFinger();
     this.demoCues!.aim(this.demo!.firstAction); // "your turn" pulses the first button the demo pressed
     this.player.setPresent(true);
@@ -461,13 +511,13 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** Movement and jump buttons this level shows (power comes later). */
+  /** The buttons this level shows. */
   private buttonActions(): Action[] {
     const c = this.level.controls;
-    return c.tapAnywhereJumps ? [] : c.enabled.filter((a) => a === 'left' || a === 'right' || a === 'jump');
+    return c.tapAnywhereJumps ? [] : [...c.enabled];
   }
 
-  /** "Press me" pulses for buttons not yet pressed: Jump each time, Left and Right taking turns. */
+  /** "Press me" pulses for buttons not yet pressed: Jump and Power each time, Left and Right taking turns. */
   private inviteButtons(): void {
     const waiting = this.buttonActions().filter((a) => !this.pressedOnce.has(a));
     if (waiting.length === 0) {
@@ -475,9 +525,10 @@ export class LevelScene extends Phaser.Scene {
       this.invite = null;
       return;
     }
-    const moves = waiting.filter((a) => a !== 'jump');
+    const moves = waiting.filter((a) => a === 'left' || a === 'right');
     if (moves.length > 0) this.touch.pulse(moves[this.inviteTick++ % moves.length], 'invite');
     if (waiting.includes('jump')) this.touch.pulse('jump', 'invite');
+    if (waiting.includes('power')) this.touch.pulse('power', 'invite');
   }
 
   /** A tap that hit no button: the nearest button gives one friendly pulse ("press me"). Never a move or jump. */
@@ -494,9 +545,9 @@ export class LevelScene extends Phaser.Scene {
     const controls = this.level.controls;
     // Hold = move, release = stop; both held = stand (D-029).
     const move = controls.autoRun ? 1 : walkDirection(input.isDown('left'), input.isDown('right'));
-    for (const a of ['left', 'right', 'jump'] as const) if (input.justPressed(a)) this.pressedOnce.add(a);
+    for (const a of ['left', 'right', 'jump', 'power'] as const) if (input.justPressed(a)) this.pressedOnce.add(a);
     const pressed = input.justPressed('jump');
-    const r = this.player.step(now, { move, jumpPressed: pressed }, dtMs);
+    const r = this.player.step(now, { move, jumpPressed: pressed, walls: this.bubbleWalls(this.player) }, dtMs);
     if (r.jumped) this.onJump();
 
     this.collectCoins();
@@ -525,8 +576,8 @@ export class LevelScene extends Phaser.Scene {
       const ny = Phaser.Math.Clamp(coin.y, b.top, b.bottom);
       if ((coin.x - nx) ** 2 + (coin.y - ny) ** 2 > COIN_HIT_R * COIN_HIT_R) continue;
       coin.taken = true;
-      this.coinCount++;
       audio.play('coin');
+      this.addCoins(1);
       this.sparkle.explode(8, coin.x, coin.y);
       this.tweens.killTweensOf(coin.img);
       this.tweens.add({
@@ -538,11 +589,41 @@ export class LevelScene extends Phaser.Scene {
         ease: 'Quad.easeOut',
         onComplete: () => coin.img.setVisible(false),
       });
-      this.hud.count.setText(String(this.coinCount));
-      this.tweens.killTweensOf(this.hud.count);
-      this.hud.count.setScale(1);
-      this.tweens.add({ targets: this.hud.count, scale: 1.3, duration: 110, yoyo: true });
     }
+  }
+
+  /** Counts coins (walked over, or flown in from a popped bubble) and bumps the HUD counter. */
+  private addCoins(n: number): void {
+    if (n <= 0) return;
+    this.coinCount += n;
+    this.hud.count.setText(String(this.coinCount));
+    this.tweens.killTweensOf(this.hud.count);
+    this.hud.count.setScale(1);
+    this.tweens.add({ targets: this.hud.count, scale: 1.3, duration: 110, yoyo: true });
+  }
+
+  /**
+   * Shots and bubbles (Task 007), every frame in every mode, so shots in flight finish their path. Power is read
+   * only in play; the ghost shoots from its script. Pops count only for the real player (in play or during the
+   * cloud ride); the demo's pops are shown but never counted.
+   */
+  private updateShots(now: number, dtMs: number): void {
+    const chest = (p: Player) => ({ x: p.body.center.x, y: p.body.center.y - 6 });
+    if (this.blaster) {
+      const input =
+        this.mode === 'play' ? { pressed: this.input2.justPressed('power'), held: this.input2.isDown('power') } : { pressed: false, held: false };
+      this.blaster.update(now, dtMs, input, this.shooterOf(this.player));
+      if (this.mode === 'play' || this.mode === 'respawn') {
+        for (const s of this.blaster.flying()) if (this.bubbles.tryHit(s.x, s.y, SHOT.radius, now, true) >= 0) this.blaster.hit(s);
+      }
+    }
+    if (this.ghostBlaster && this.ghost) {
+      this.ghostBlaster.update(now, dtMs, { pressed: this.ghostPower, held: false }, this.shooterOf(this.ghost));
+      for (const s of this.ghostBlaster.flying()) if (this.bubbles.tryHit(s.x, s.y, SHOT.radius, now, false) >= 0) this.ghostBlaster.hit(s);
+      this.ghostPower = false;
+    }
+    this.bubbles.update(now, chest(this.ghost ?? this.player));
+    this.addCoins(this.bubbles.collect(now).counted);
   }
 
   private updateCamera(dt: number): void {
@@ -629,6 +710,8 @@ export class LevelScene extends Phaser.Scene {
     this.invite?.remove();
     this.invite = null;
     this.input2.configure({ enabled: [], tapAnywhereJumps: false });
+    // Coins still flying from popped bubbles land now, so they count for the stars.
+    this.addCoins(this.bubbles.flushCoins());
     if (this.hint) {
       this.hint.destroy();
       this.hint = null;
@@ -702,7 +785,19 @@ export class LevelScene extends Phaser.Scene {
         bottom: this.player.body.bottom,
         grounded: this.player.grounded,
         coins: this.coinCount,
-        totalCoins: this.coins.length,
+        totalCoins: this.coins.length + this.bubbles.totalCoins,
+        gridCoins: this.coins.length,
+        shots: this.blaster && {
+          inFlight: this.blaster.cannon.inFlight,
+          fired: this.blaster.cannon.fired,
+          visible: this.blaster.visibleCount,
+          flying: this.blaster.flying().map((s) => ({ x: s.x, y: s.y, dir: s.dir, travelled: s.travelled })),
+        },
+        ghostShots: this.ghostBlaster && { inFlight: this.ghostBlaster.cannon.inFlight, fired: this.ghostBlaster.cannon.fired },
+        bubbles: this.bubbles.state(),
+        pops: this.bubbles.pops,
+        coinsFlying: this.bubbles.flow.coins.length,
+        muzzle: this.player.look.muzzle(),
         jumps: this.player.jumps,
         respawns: this.respawns,
         ghost: this.ghost && { x: this.ghost.body.center.x, jumps: this.ghost.jumps, alpha: this.ghost.look.root.alpha },

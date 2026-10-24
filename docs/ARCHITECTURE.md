@@ -142,8 +142,8 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
 - **Option attributes** (the `AvatarDef` part of each option, `resolveAvatar`): palette (body, joint, accent, visor, eye; defaults
   white / dark grey / cyan / dark visor / cyan eyes), scale clamped to 0.9-1.15, antennae 0-2 (default 2). Colour only, no emblems.
   Looks take an `AvatarDef` (`createLook(scene, name, avatar, x, feet)`). Event `rest` ends a `win` (the picker's one-off wave).
-- **Shooting** exists only in the Input Lab for now: Power plays `shoot` and fires a harmless energy ball (accent colour) from
-  `muzzle()`. Power becomes gameplay in Grass 4 (D-037).
+- **Shooting** (Task 007): Power plays `shoot` and fires a soft orb in the accent colour from `muzzle()`; see "Shooting and
+  bubbles" below. The Input Lab and the levels share the same code (`Blaster`) and numbers (`SHOT`).
 - **Adding a body:** implement `AvatarLook` (use `AvatarState`, return your `motion()` weights), add the name to `LOOK_NAMES`
   in `config.ts` and a case in `createLook.ts`. Put tuning numbers in a spec file like `robotSpec.ts`.
 - `?debug=1`: `__level.anim()` / `ghostAnim()` include `look` and the look's own numbers (robot: head/body yaw, weights, limb
@@ -184,10 +184,11 @@ How a character is drawn is separate from physics. `core/avatar/` holds:
   and only with `?debug=1` an `?open=N` override of `openAtATime` (to see the unlock animation with Grass 1-3).
 - **MapScene** (`core/map/`, generic; data `{ theme, dots, teasers, option, look, arrival?, onPlay, onPicker }`): one world as a
   horizontal map (`mapLayout.ts`, pure, tested): dots 300 px apart on a wavy line (y 320-440), three teaser signposts after the
-  last dot, map about 1885 px wide. A map narrower than the screen is centred; a wider one scrolls (drag with a finger, 14 px
+  last dot; with four Grass levels the map is 2185 px wide (scrolls on every screen, the avatar's dot stays in view). A map narrower than the screen is centred; a wider one scrolls (drag with a finger, 14 px
   threshold so taps stay taps) and eases to keep the avatar at 42% of the screen. Sky, clouds and hills reuse
   `ParallaxBackground` and the theme textures; the path is a sandy spline, then stepping stones toward the teasers. Each dot is
-  a round pad (orange open, green cleared, grey locked) with 3 star slots; a locked pad is under a theme cloud. Tap targets:
+  a round pad (orange open, green cleared, grey locked) with 3 star slots; a locked pad is under a theme cloud. Teaser clouds are fully opaque (Task 007), so the
+  stepping stones and posts no longer show through. Tap targets:
   dots 150 px, teasers 170 px, palette button r 56 (hit 123 px, top-right). The avatar (`AvatarDriver` + `createLook` with the
   chosen option, look and `?size=`) stands on the current dot; hops are 420 ms arcs (70 px) using the driver's take-off/land.
   Tap an open dot (or Enter/Space): hop there, a green play icon pops, `pick`, then `onPlay(levelId)`. Tap a locked dot or a
@@ -223,7 +224,7 @@ look-ahead only turns round after moving the other way for 350 ms, and the ancho
 the view. A hard clamp keeps the player between 15% and 85% of the safe area.
 
 **Buttons:** Left and Right bottom-left (shared band split at the midpoint), Jump bottom-right. Until a button's first press it gets a
-gentle `invite` pulse every 2.6 s (Jump each time, Left and Right taking turns). A tap on no button gives a `nudge` pulse to the
+gentle `invite` pulse every 2.6 s (Jump and Power each time, Left and Right taking turns). A tap on no button gives a `nudge` pulse to the
 nearest visible button (`TouchControls.nearest`); it never moves or jumps.
 
 ## Levels (data-driven)
@@ -244,7 +245,8 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 }
 ```
 - `grid`: equal-length rows, top row first. Legend: `#` ground, `.` empty, `c` coin, `S` start, `F` flag (pole stands in
-  that cell). Gaps are missing ground. New tile kinds get new legend entries in `core/levels/format.ts`.
+  that cell), `o` small bubble, `O` big bubble (a whole 2x2 block of `O`; a broken block is an error naming its first cell).
+  Gaps are missing ground. Bubbles are not ground. New tile kinds get new legend entries in `core/levels/format.ts`.
 - **Vertical placement:** the grid's bottom row sits on the bottom of the 720-high screen; rows above the top of the grid
   are sky. Grass 1 uses 11 rows of 64 (704 px), so the top 16 px are sky. Grids taller than 720 extend above the screen.
 - `controls` is the **control ladder**: `InputManager.configure` follows it, and TouchControls only shows enabled
@@ -256,16 +258,18 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
     `jumpsAtTiles` column. Validation: tiles after the start column and inside the grid; every jump column after the start
     and before `tiles`; unknown fields rejected; jump columns are sorted and deduplicated.
   - Script form `{ "script": [{ "t": 300, "action": "right", "hold": 1500 }, { "t": 3300, "action": "jump" }] }`:
-    `t` = ms after the demo starts, `action` = left / right / jump, `hold` = ms for Left/Right only (default 600).
+    `t` = ms after the demo starts, `action` = left / right / jump / power, `hold` = ms for Left/Right only (default 600).
     Validation (readable errors with the step number): non-empty array, `t` 0 or more and in time order (equal times allowed),
-    known actions that the level enables, `hold` positive and never on jump, unknown fields rejected.
+    known actions that the level enables, `hold` positive and never on jump or power (single presses), unknown fields rejected.
 
 ### "Watch me" demo (D-024)
 `core/levels/demo.ts` (pure, tested): `createDemo(config, tile)` returns a `DemoRunner` for either form; `step(elapsedMs, x)`
-gives `{ move, jump, presses, aim, done }`. `DemoScript` = tile form (always moves right). `TimedDemo` = script form: each step fires
-once (even if a long frame skips past it), Left/Right stay held for `hold` (both held = stand), the finger `aim`s at the held button,
-else the next one; the demo is done 600 ms after the last step finishes, and the scene also waits for the ghost to land, so it never
+gives `{ move, jump, power, presses, aim, done }`. `DemoScript` = tile form (always moves right). `TimedDemo` = script form: each step
+fires once (even if a long frame skips past it), Left/Right stay held for `hold` (both held = stand), the finger `aim`s at the held
+button, else the next one, but stays on a just-tapped Jump/Power button for `TAP_LINGER_MS` (350 ms, Task 007); the demo is done 600 ms after the last step finishes, and the scene also waits for the ghost to land, so it never
 fades out mid-jump. Also `shouldPlayDemo`, `demoOverrideFrom`.
+A `power` step makes the ghost shoot through its own `Blaster`; its pops are shown (coins fly to the ghost) but never counted, and
+when the demo ends its shots vanish and every popped bubble grows back (`BubbleField.restore`).
 LevelScene modes: `demo` -> `turn` -> `play` (-> `respawn` / `finish` / `result`). In `demo` the real player is hidden
 and frozen, a ghost `Player` (alpha 0.55, same `Player` class, physics and walk ramp as real play, collects no coins) moves
 as scripted. Each press animates the on-screen button for its hold time (`TouchControls.animatePress(action, ms)`) and a finger
@@ -278,7 +282,7 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 `core/levels/` (all universe-agnostic):
 - `format.ts`: types, `parseLevel` (readable errors: row lengths, unknown characters with position, exactly one S/F,
   valid actions, star thresholds), `parseLevelOrThrow`.
-- `grid.ts`: `extractEntities` (solid map, coins, start, flag), `mergeSolids` (few collision rectangles, no seams),
+- `grid.ts`: `extractEntities` (solid map, coins, bubbles, start, flag), `mergeSolids` (few collision rectangles, no seams),
   `surfaceRow`, `findRespawn` (D-019: nearest standable column at least 3 behind the last grounded column, preferring
   ground on both sides), `starsFor`. Pure and unit-tested (`levels.test.ts`).
 - `physics.ts`: the one shared tuning file (D-021): run speed 200, walk speed 220 (ramp 60 ms up / 80 ms down), gravity 1800, jump velocity 760 (peak 160 px = 2.5
@@ -305,10 +309,44 @@ and the real run starts. Plays once per session per level (static set in LevelSc
   Keys: Space/Right = Next (Replay if there is no Next), R = Replay, Escape/Enter = Home, C = picker.
 - `progression.ts`: `nextLevelId(worlds, id)` = the next level in the same world or null (tested). The universe passes
   `onNext` from it; Next keeps the chosen option.
+- `shots.ts`, `Blaster.ts`, `bubbles.ts`, `BubbleField.ts`: shooting and bubbles (Task 007), see below.
+
+### Shooting and bubbles (D-041, Task 007)
+- **`shots.ts`** (pure, tested): all numbers in `SHOT` (cooldown 300 ms, at most 3 in flight, 700 px/s, range 640 px, spawn delay
+  40 ms so the ball leaves once the arm points forward, hit radius 14, press buffer 300 ms). `ShotCannon.update(now, dt, { pressed,
+  held }, facing, muzzle)`: a press fires at once if the cooldown is over and fewer than 3 are on their way; holding repeats at the
+  cooldown; a press during the cooldown (or at the cap) is kept for 300 ms, so mashing fires steadily and never loses a shot it could
+  fire. The direction is the facing at the press; the ball starts at `muzzle()` and flies straight. Events: `fired` (play `shoot` +
+  the `power` sound), `launched`, `expired` (end of range: fade). `consume(shot)` = it hit something. With the cap, holding fires 3
+  shots 300 ms apart and the 4th about 70 ms later (when the first ends).
+- **`Blaster.ts`** (Phaser): one per shooter. Draws each shot as `shotOrb` (`avatar/parts.ts`: 40 px with its halo, solid core 20 px,
+  accent colour; a light rim for green accents, like the robot's) with a 3-copy fading trail that never reaches back past the muzzle;
+  a shot that hits nothing fades out at the end of its range (180 ms), one that pops something puffs out. `Shooter` = `{ facing,
+  muzzle(), shoot(now) }`, so levels (a `Player`) and the Input Lab (its hero) use it the same way.
+- **`bubbles.ts`** (pure, tested): `BUBBLE` (picture radius 0.47 tile small / 1 tile big, 3 / 6 coins, hit circle x1.3, bob 4 px /
+  2 px over 2.2 s with golden-ratio phases, pop 220 ms). `bubbleSpecs`: a big bubble is centred in its 2x2 block (bottom on the
+  ground); a small one floats `smallDrop` (half a tile) below its cell centre but rests on the ground at the lowest, so the row on the
+  ground gives a centre 30 px up and the row above 64 px up. Why: the shot leaves 26-78 px above the feet (both looks, every option,
+  `?size=` 0.8-1.6); a bubble centred in the second row (96 px) would be out of reach for the ball and the small robots.
+  `shotHitsBubble` (circle vs circle), `blockerWalls` (a big bubble's soft wall on the side the body comes from, only while they
+  overlap vertically), `coinArc`, `CoinFlow` (coins appear in an arc, wait 400 ms, leave 70 ms apart, fly 380 ms to the player's
+  chest, count on arrival; the coin sound at most every 140 ms; `flushAll` at the flag; demo coins `counted: false`), `PopPitch`
+  (each pop within 1 s goes one step up `POP_STEPS` (pentatonic), capped at the top, then starts again).
+- **`BubbleField.ts`** (Phaser): bubbles drawn once per size with Canvas 2D (translucent soft blue/white, white rim, a pink soap-film
+  sheen, highlight streak and dot, no faces), behind the player. `tryHit` pops the first unpopped bubble a shot touches (scale-up and
+  fade, a white ring, sparkles, `pop-<step>` sound), then its coins. `walls(body)` gives the player's extra soft walls.
+- **LevelScene**: `Player.step` takes `walls` (the big bubble's soft wall, same `edgeLimit` stop as the level ends). `updateShots`
+  runs every frame in every mode, so shots in flight finish their path; Power is read only in play; pops count in play and during
+  the cloud ride. At the flag every coin still flying lands (`flushCoins`) before the stars are worked out. Coins from bubbles count
+  for stars and `bestCoins` like grid coins (`totalCoins` = grid coins + bubble coins).
+- **Power button**: `TouchControls` shows Power only when enabled. Without Jump it takes Jump's bottom-right slot at the solo size
+  (0.28 of the screen height), purple with a yellow star; with Jump it sits above it as before (Input Lab mode 4).
+- `?debug=1`: `__level.state()` adds `shots` (`inFlight`, `fired`, `visible`, `flying`), `ghostShots`, `bubbles` (kind, x, y, r,
+  popped, coins), `pops`, `coinsFlying`, `gridCoins`, `muzzle`; `__lab.shots()`.
 
 Robo World routing: see "Map and flow"; test params `?level=<id>`, `?color=<id>`, `?look=`, `?size=`, `?picker=1`,
-`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1, grass-2, grass-3; then Cave, Sky, Castle,
-empty), and so are the options (`universes/robo/options.ts`), so tests can read both without Phaser.
+`?unlock=all`, `?demo=0|1`, `?lab=1`, `?debug=1` (plus `?open=N`). The world list is plain data in `universes/robo/worlds.ts` (Grass: grass-1, grass-2, grass-3, grass-4; then Cave, Sky,
+Castle, empty), and so are the options (`universes/robo/options.ts`), so tests can read both without Phaser.
 
 Grass levels (re-paced in Task 005c, D-037: about 60% of their old length, same coin density):
 Grass 1 "Tap to hop": 85 tiles, tap anywhere, no demo, 16 coins (3 at head height, two five-coin arcs, one five-coin arc over the
@@ -320,6 +358,11 @@ Left/Right/Jump buttons, start at column 6, 22 coins (4 to the LEFT of the start
 head height: collected by walking and always above the buttons, Task 005b; 4 lone coins 2.5 tiles up that need a standing jump),
 flag at column 64, stars 10/16 (16 needs some left or overhead coins), demo script:
 right 1.5 s, left 0.9 s, one jump.
+Grass 4 "Shoot" (Task 007): 80 tiles, flat, no gaps, Left/Right/Power (no Jump), start at column 6, no grid coins. 11 small bubbles
+(1 behind the start, 2 just ahead, 5 about 6 tiles apart, 3 after the big one; low ones resting on the ground, high ones 1 tile up)
+and one big bubble at columns 48-49 (60%), flag at column 74: 39 coins, stars 22/34 (3 stars need 10 of the 11 small bubbles and the
+big one; the big one alone gives 1 star). Demo script (about 7 s): right 0.5 s, Power, right 0.9 s, Power, left 0.9 s, Power (the
+bubble behind the start), right 0.3 s.
 
 ## Screen layout (D-013)
 `core/ui/layout.ts`: logical height is always 720, logical width follows the screen (960..1920, D-017). `getLayout()` gives
@@ -348,7 +391,8 @@ Size comes from the short edge times `buttonScale` (`?buttonScale=` for now). Bl
 
 ## Audio
 `core/audio/AudioManager` (`audio` singleton) unlocks Web Audio on the first touch/click/key. `register(id, { file?, synth?, volume? })`,
-`play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, whoosh, yourTurn, pick, power;
+`play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, whoosh, yourTurn, pick, power, bump, unlock, hop, and `pop-0`..`pop-5`
+(`popRecipe(step)`, Task 007);
 plus the per-option chimes, see "Avatar options and picker").
 Never throws; a failed file logs one warning. A play request made while audio is still unlocking (the first tap both
 unlocks and jumps) is queued (`pendingQueue.ts`, tested: one per id, at most 4) and played once the context runs if it is

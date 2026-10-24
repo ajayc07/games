@@ -17,6 +17,8 @@ export interface PlayerIntent {
   move: -1 | 0 | 1;
   /** Jump was pressed this frame (buffered and coyote-timed, D-021). */
   jumpPressed: boolean;
+  /** Extra soft walls this frame (a big bubble, Task 007), on top of the level ends. Same soft stop. */
+  walls?: { minX: number; maxX: number };
 }
 
 export interface StepResult {
@@ -132,7 +134,9 @@ export class Player {
     // Walk mode ramps (D-029: about 60 ms up, 80 ms down, no sliding); auto-run sets the speed at once.
     const target = intent.move * this.speed;
     this.walkV = this.ramp ? rampSpeed(this.walkV, target, dtMs, this.speed, PHYSICS.walkRampUpMs, PHYSICS.walkRampDownMs) : target;
-    body.setVelocityX(edgeLimit(body.center.x, this.walkV, this.minX, this.maxX));
+    const minX = Math.max(this.minX, intent.walls?.minX ?? -Infinity);
+    const maxX = Math.min(this.maxX, intent.walls?.maxX ?? Infinity);
+    body.setVelocityX(edgeLimit(body.center.x, this.walkV, minX, maxX));
     // Facing follows the pressed direction at once, at most one change per FACING_HOLD_MS (no flicker).
     const f = nextFacing({ facing: this.facing, changedAt: this.facingChangedAt } satisfies FacingState, intent.move, now);
     this.facing = f.facing;

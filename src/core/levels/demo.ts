@@ -14,6 +14,8 @@ export interface DemoFrame {
   move: -1 | 0 | 1;
   /** Press Jump this frame. */
   jump: boolean;
+  /** Press Power this frame (one shot). */
+  power: boolean;
   /** Presses that start this frame (empty most frames). */
   presses: DemoPress[];
   /** The button the finger should be at: the one being pressed, else the next one. */
@@ -37,7 +39,7 @@ export function createDemo(config: DemoConfig, tileSize: number): DemoRunner {
   return isScriptDemo(config) ? new TimedDemo(config) : new DemoScript(config, tileSize);
 }
 
-/** Short press shown on the button for a Jump (ms). */
+/** Short press shown on the button for a Jump or Power (ms). */
 export const JUMP_PRESS_MS = 220;
 
 /**
@@ -63,13 +65,16 @@ export class DemoScript implements DemoRunner {
       jump = true;
       this.next++;
     }
-    return { move: 1, jump, presses: jump ? [{ action: 'jump', holdMs: JUMP_PRESS_MS }] : [], aim: 'jump', done: x >= this.endX };
+    return { move: 1, jump, power: false, presses: jump ? [{ action: 'jump', holdMs: JUMP_PRESS_MS }] : [], aim: 'jump', done: x >= this.endX };
   }
 
   get pressed(): number {
     return this.next;
   }
 }
+
+/** After a Jump or Power press the finger stays on that button this long (ms) before gliding on. */
+export const TAP_LINGER_MS = 350;
 
 /** The demo ends this long after the last scripted step finishes (ms). */
 export const DEMO_TAIL_MS = 600;
@@ -85,9 +90,10 @@ export class TimedDemo implements DemoRunner {
   readonly endMs: number;
   private readonly steps: Required<DemoStepDef>[];
   private next = 0;
+  private lastTap: { action: DemoAction; t: number } | null = null;
 
   constructor(config: DemoScriptConfig) {
-    this.steps = config.script.map((s) => ({ t: s.t, action: s.action, hold: s.action === 'jump' ? 0 : (s.hold ?? 0) }));
+    this.steps = config.script.map((s) => ({ t: s.t, action: s.action, hold: isTap(s.action) ? 0 : (s.hold ?? 0) }));
     this.firstAction = this.steps[0]?.action ?? 'jump';
     this.endMs = Math.max(0, ...this.steps.map((s) => s.t + s.hold)) + DEMO_TAIL_MS;
   }
@@ -95,17 +101,20 @@ export class TimedDemo implements DemoRunner {
   step(elapsedMs: number): DemoFrame {
     const presses: DemoPress[] = [];
     let jump = false;
+    let power = false;
     while (this.next < this.steps.length && elapsedMs >= this.steps[this.next].t) {
       const s = this.steps[this.next++];
       if (s.action === 'jump') jump = true;
-      presses.push({ action: s.action, holdMs: s.action === 'jump' ? JUMP_PRESS_MS : s.hold });
+      if (s.action === 'power') power = true;
+      if (isTap(s.action)) this.lastTap = { action: s.action, t: s.t };
+      presses.push({ action: s.action, holdMs: isTap(s.action) ? JUMP_PRESS_MS : s.hold });
     }
     let left = false;
     let right = false;
     let held: DemoAction | null = null;
     for (let i = 0; i < this.next; i++) {
       const s = this.steps[i];
-      if (s.action === 'jump' || elapsedMs >= s.t + s.hold) continue;
+      if (isTap(s.action) || elapsedMs >= s.t + s.hold) continue;
       if (s.action === 'left') left = true;
       else right = true;
       held = s.action;
@@ -113,14 +122,18 @@ export class TimedDemo implements DemoRunner {
     const move = left === right ? 0 : left ? -1 : 1;
     const upcoming = this.steps[this.next]?.action;
     const lastPressed = this.next > 0 ? this.steps[this.next - 1].action : this.firstAction;
-    const aim = jump ? 'jump' : (held ?? upcoming ?? lastPressed);
-    return { move, jump, presses, aim, done: elapsedMs >= this.endMs };
+    const lingering = this.lastTap && elapsedMs - this.lastTap.t < TAP_LINGER_MS ? this.lastTap.action : undefined;
+    const aim = lingering ?? held ?? upcoming ?? lastPressed;
+    return { move, jump, power, presses, aim, done: elapsedMs >= this.endMs };
   }
 
   get pressed(): number {
     return this.next;
   }
 }
+
+/** Jump and Power are single presses (no hold). */
+const isTap = (a: DemoAction) => a === 'jump' || a === 'power';
 
 /** Value of the `?demo=` URL parameter: '1' forces the demo, '0' skips it, anything else = normal rules. */
 export type DemoOverride = 'force' | 'skip' | null;

@@ -220,3 +220,17 @@ Architect review of the sheets: all eight options read clearly on the cards, in 
 Flow once the map exists (Task 006): no saved choice -> picker, then Play opens the map; the map has a palette button that opens the picker and returns to the map; `?color=` is per visit and not saved; `chosenCharacterId` in the progress record holds a colour id and absorbs the 005d `athi.robo.choice` key (old key left in place).
 CLAUDE.md updated to describe Robo World instead of the Mario universe. Picker gamepad support: not needed for now (parked). Git-history rewrite stays a parent action after 005d is pushed (docs/IDEAS.md); the architect will give exact steps on request.
 Order unchanged: 006 map and progress, 007 Grass 4 Shoot, 008 Grass 5 move+jump, 009 parent view.
+
+## D-040 (2026-10-24) Task 006 review outcomes
+Approved all deviations: the avatar stands on the first open level not yet cleared (not the furthest open one, which would start a fresh game on Grass 3); signposts cave/sky/castle; `?color=` without a saved choice goes to the map; Escape held 1 s exits on desktop and the exit icon is also hidden during the "your turn" cue; the Input Lab takes colour and look from the manifest.
+Architect review of the sheets (fresh, mid, cleared, arrival): the path, pads, 3 star slots, clouds and the palette button read clearly with no text; layouts hold at 844x390 and 1280x800. Known cosmetic flaw: the stepping stones and signpost posts show faintly through the clouds (fixed as housekeeping in Task 007).
+Still to judge on the tablet: the 1 s hold-to-exit, whether he drags the map away by accident, and whether the cloud-clearing delights him.
+
+## D-041 (2026-10-24) Grass 4 "Shoot": Power button gameplay
+- Controls: `left`, `right`, `power` only (no Jump in this level: one new control per level, D-001). Walking as in Grass 3. The Power button takes Jump's slot (bottom-right) in its own colour and gets the usual `invite` pulse until first pressed.
+- Shot: a soft energy ball in the robot's accent colour, fired horizontally from the muzzle in the facing direction. Pressing fires; holding repeats at the cooldown rate. Cooldown about 300 ms, at most 3 shots in flight, range about 640 px, speed about 700 px/s. Mashing is harmless. Shots pass through coins and never hurt anything.
+- Targets: friendly bubbles, no enemies, nothing harmful, no faces. A hit pops the bubble (soft pop sound, sparkle) and it turns into coins that are collected automatically (no need to walk to them). Small bubble `o` = 1 hit, 3 coins. Big bubble `O` = a 2-tile-high soft blocker on the path, 1 hit, 6 coins; it stays solid until popped. Hit areas are generous (about 1.3x the picture).
+- No failure: bubbles never move toward the player; the flag always ends the level. The only gate is the big bubble, which is why the Power button pulses and the "watch me" demo shows a shot.
+- Stars: 1 for finishing; coin thresholds as declared per level.
+- New level legend entries `o` and `O`; the demo script format gains the action `power` (validated against `controls.enabled` like the others).
+- Order unchanged after this: 008 Grass 5 move+jump, 009 parent view.

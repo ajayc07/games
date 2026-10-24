@@ -50,7 +50,7 @@ describe('controls.demo script form: parsing', () => {
   });
 
   it('rejects bad actions, negative or missing times, unsorted times and hold on jump', () => {
-    expect(errorsOf({ script: [{ t: 0, action: 'power' }] })[0]).toMatch(/step 1: "action" must be "left", "right" or "jump" \(got "power"\)/);
+    expect(errorsOf({ script: [{ t: 0, action: 'fly' }] })[0]).toMatch(/step 1: "action" must be "left", "right", "jump" or "power" \(got "fly"\)/);
     expect(errorsOf({ script: [{ t: -5, action: 'jump' }] })[0]).toMatch(/step 1: "t" must be a time in ms, 0 or more \(got -5\)/);
     expect(errorsOf({ script: [{ action: 'jump' }] })[0]).toMatch(/"t" must be a time/);
     expect(errorsOf({ script: [{ t: 500, action: 'right' }, { t: 200, action: 'left' }] })[0]).toMatch(
@@ -58,6 +58,29 @@ describe('controls.demo script form: parsing', () => {
     );
     expect(errorsOf({ script: [{ t: 0, action: 'jump', hold: 300 }] })[0]).toMatch(/"hold" is only for "left" and "right"/);
     expect(errorsOf({ script: [{ t: 0, action: 'left', hold: 0 }] })[0]).toMatch(/"hold" must be a positive time/);
+  });
+
+  it('accepts Power (Task 007) as a single press when the level enables it, never with a hold', () => {
+    const enabled = ['left', 'right', 'power'];
+    const r = parseLevel(level({ script: [{ t: 0, action: 'right', hold: 300 }, { t: 400, action: 'power' }] }, enabled));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.level.controls.demo).toEqual({ script: [{ t: 0, action: 'right', hold: 300 }, { t: 400, action: 'power' }] });
+    expect(errorsOf({ script: [{ t: 0, action: 'power', hold: 300 }] }, enabled)[0]).toMatch(/"hold" is only for "left" and "right" \(Power is a single press\)/);
+    expect(errorsOf({ script: [{ t: 0, action: 'power' }] })[0]).toMatch(/presses "power", which is not in "controls.enabled"/);
+  });
+
+  it('a Power step presses once, shows a short press, and the finger lingers on Power a moment', () => {
+    const d = new TimedDemo({ script: [{ t: 0, action: 'right', hold: 300 }, { t: 400, action: 'power' }, { t: 1200, action: 'left', hold: 200 }] });
+    expect(d.step(0).move).toBe(1);
+    const f = d.step(400);
+    expect(f.power).toBe(true);
+    expect(f.jump).toBe(false);
+    expect(f.presses).toEqual([{ action: 'power', holdMs: JUMP_PRESS_MS }]);
+    expect(f.aim).toBe('power');
+    expect(d.step(450).power).toBe(false); // once only
+    expect(d.step(500).aim).toBe('power'); // lingers
+    expect(d.step(900).aim).toBe('left'); // then glides to the next button
+    expect(d.endMs).toBe(1200 + 200 + DEMO_TAIL_MS);
   });
 
   it('rejects a step whose button the level does not enable', () => {

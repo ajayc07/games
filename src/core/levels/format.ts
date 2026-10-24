@@ -9,6 +9,10 @@ export const LEGEND = {
   c: 'coin',
   S: 'start',
   F: 'flag',
+  /** Small bubble (Task 007, D-041): one cell, popped by a shot into 3 coins. Not solid. */
+  o: 'bubble',
+  /** Big bubble: a 2x2 block of `O` cells, a soft blocker until popped (6 coins). */
+  O: 'big bubble',
 } as const;
 
 export type LegendChar = keyof typeof LEGEND;
@@ -38,13 +42,13 @@ export interface DemoTilesConfig {
   jumpsAtTiles: number[];
 }
 
-export type DemoAction = 'left' | 'right' | 'jump';
+export type DemoAction = 'left' | 'right' | 'jump' | 'power';
 
 export interface DemoStepDef {
   /** Time of the press after the demo starts (ms). */
   t: number;
   action: DemoAction;
-  /** How long Left/Right is held (ms). Always set after parsing (default DEFAULT_DEMO_HOLD_MS); jump has none. */
+  /** How long Left/Right is held (ms). Always set after parsing (default DEFAULT_DEMO_HOLD_MS); jump and power have none. */
   hold?: number;
 }
 
@@ -152,6 +156,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
         if (ch === 'F') flags++;
       }
     });
+    for (const msg of bigBubbleErrors(rows)) err(msg);
     if (starts !== 1) err(`grid needs exactly one "S" (player start), found ${starts}`);
     if (flags !== 1) err(`grid needs exactly one "F" (flag), found ${flags}`);
     if (demo && !isScriptDemo(demo) && starts === 1) {
@@ -192,8 +197,33 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
 }
 
 const DEMO_SHAPE =
-  'false, { "tiles": <column>, "jumpsAtTiles": [<column>, ...] } or { "script": [{ "t": <ms>, "action": "left"|"right"|"jump", "hold": <ms> }, ...] }';
-const DEMO_ACTIONS: readonly string[] = ['left', 'right', 'jump'];
+  'false, { "tiles": <column>, "jumpsAtTiles": [<column>, ...] } or { "script": [{ "t": <ms>, "action": "left"|"right"|"jump"|"power", "hold": <ms> }, ...] }';
+const DEMO_ACTIONS: readonly string[] = ['left', 'right', 'jump', 'power'];
+/** Single presses: no `hold`. */
+const isSinglePress = (a: unknown) => a === 'jump' || a === 'power';
+
+/**
+ * Big bubbles (`O`) must be whole 2x2 blocks: every `O` belongs to exactly one block, read left to right and
+ * top to bottom. Errors name the first cell of a broken block (1-based row and column, like the other grid errors).
+ */
+function bigBubbleErrors(rows: readonly string[]): string[] {
+  const errors: string[] = [];
+  const used = new Set<string>();
+  const at = (r: number, c: number) => rows[r]?.[c] === 'O';
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      if (!at(r, c) || used.has(`${r}:${c}`)) continue;
+      const block = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]];
+      if (block.every(([br, bc]) => at(br, bc) && !used.has(`${br}:${bc}`))) {
+        for (const [br, bc] of block) used.add(`${br}:${bc}`);
+      } else {
+        errors.push(`grid row ${r + 1}, column ${c + 1}: a big bubble "O" must be a 2x2 block of "O" (2 wide, 2 tall)`);
+        used.add(`${r}:${c}`);
+      }
+    }
+  }
+  return errors;
+}
 
 /** `controls.demo`: missing or false = no demo; otherwise one of the two object forms, checked field by field. */
 function parseDemo(v: unknown, err: (msg: string) => void): DemoConfig | false {
@@ -261,15 +291,15 @@ function parseDemoScript(v: Record<string, unknown>, err: (msg: string) => void)
     else if (t < lastT) fail(`${at}: "t" (${t}) is earlier than the step before (${lastT}); list steps in time order`);
     else lastT = t;
     if (typeof action !== 'string' || !DEMO_ACTIONS.includes(action)) {
-      fail(`${at}: "action" must be "left", "right" or "jump" (got ${JSON.stringify(action)})`);
+      fail(`${at}: "action" must be "left", "right", "jump" or "power" (got ${JSON.stringify(action)})`);
     }
     if (hold !== undefined) {
-      if (action === 'jump') fail(`${at}: "hold" is only for "left" and "right" (Jump is a single press)`);
+      if (isSinglePress(action)) fail(`${at}: "hold" is only for "left" and "right" (${action === 'jump' ? 'Jump' : 'Power'} is a single press)`);
       else if (!isPositive(hold)) fail(`${at}: "hold" must be a positive time in ms (got ${JSON.stringify(hold)})`);
     }
     if (ok) {
       const step: DemoStepDef = { t: t as number, action: action as DemoAction };
-      if (action !== 'jump') step.hold = (hold as number | undefined) ?? DEFAULT_DEMO_HOLD_MS;
+      if (!isSinglePress(action)) step.hold = (hold as number | undefined) ?? DEFAULT_DEMO_HOLD_MS;
       script.push(step);
     }
   });

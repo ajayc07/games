@@ -94,3 +94,26 @@ export const DEFAULT_RECIPES = {
 } satisfies Record<string, SynthRecipe>;
 
 export type DefaultSoundId = keyof typeof DEFAULT_RECIPES;
+
+/** Pentatonic steps (semitones) for a run of pops, so quick pops sound like a little tune (Task 007). */
+export const POP_STEPS = [0, 2, 4, 7, 9, 12] as const;
+
+/** Sound id of the pop at pitch step `step` (clamped to POP_STEPS). */
+export function popSoundId(step: number): string {
+  return `pop-${Math.max(0, Math.min(POP_STEPS.length - 1, Math.round(step)))}`;
+}
+
+/**
+ * A soft bubble "plip": a quick upward sine glide with a quiet overtone, under 0.2 s. `step` raises the pitch
+ * along POP_STEPS (capped at the top step).
+ */
+export function popRecipe(step: number): SynthRecipe {
+  const i = Math.max(0, Math.min(POP_STEPS.length - 1, Math.round(step)));
+  const f = 520 * 2 ** (POP_STEPS[i] / 12);
+  return {
+    tones: [
+      { freq: f * 0.75, to: f * 1.5, dur: 0.09, type: 'sine', gain: 0.55 },
+      { freq: f * 1.5, to: f * 2, at: 0.05, dur: 0.11, type: 'sine', gain: 0.22 },
+    ],
+  };
+}

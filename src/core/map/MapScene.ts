@@ -279,7 +279,8 @@ export class MapScene extends Phaser.Scene {
     g.fillStyle(0xa1887f, 1).fillRoundedRect(-62, -118, 124, 86, 16);
     g.lineStyle(5, 0x6d4c41, 1).strokeRoundedRect(-62, -118, 124, 86, 16);
     drawTeaserIcon(g, icon, 0, -75);
-    const cloud = this.add.image(0, 40, themeKey(this.data0.theme, 'cloud')).setDisplaySize(190, 100).setAlpha(0.97);
+    // Fully opaque, so the stepping stones and the post never show through (D-040 housekeeping).
+    const cloud = this.add.image(0, 40, themeKey(this.data0.theme, 'cloud')).setDisplaySize(190, 100);
     const veil = this.add.image(0, -78, themeKey(this.data0.theme, 'cloud')).setDisplaySize(170, 96).setAlpha(0.55);
     const c = this.add.container(p.x, p.y, [g, veil, cloud]).setDepth(DEPTH.cloud);
     this.world.add(c);

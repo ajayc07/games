@@ -12,12 +12,19 @@ export interface SolidRect extends Cell {
   height: number;
 }
 
+/** A bubble in the grid (Task 007). Small: one cell. Big: a 2x2 block whose top-left cell is (col, row). */
+export interface BubbleCell extends Cell {
+  kind: 'small' | 'big';
+}
+
 export interface GridEntities {
   cols: number;
   rows: number;
   /** solid[row][col] */
   solid: boolean[][];
   coins: Cell[];
+  /** In grid order (top to bottom, left to right by first cell). */
+  bubbles: BubbleCell[];
   start: Cell;
   flag: Cell;
 }
@@ -28,6 +35,8 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const cols = grid[0]?.length ?? 0;
   const solid: boolean[][] = [];
   const coins: Cell[] = [];
+  const bubbles: BubbleCell[] = [];
+  const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
   let flag: Cell = { col: 0, row: 0 };
   for (let row = 0; row < rows; row++) {
@@ -36,12 +45,18 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       const ch = grid[row][col];
       line.push(ch === '#');
       if (ch === 'c') coins.push({ col, row });
+      else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
+      else if (ch === 'O' && !bigTaken.has(`${row}:${col}`)) {
+        // parseLevel checked that every O is part of a whole 2x2 block.
+        bubbles.push({ kind: 'big', col, row });
+        for (const k of [`${row}:${col + 1}`, `${row + 1}:${col}`, `${row + 1}:${col + 1}`]) bigTaken.add(k);
+      }
       else if (ch === 'S') start = { col, row };
       else if (ch === 'F') flag = { col, row };
     }
     solid.push(line);
   }
-  return { cols, rows, solid, coins, start, flag };
+  return { cols, rows, solid, coins, bubbles, start, flag };
 }
 
 /**

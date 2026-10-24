@@ -1,6 +1,6 @@
 // One audio path for the whole app: Web Audio, unlocked on the first user gesture.
 // Sounds come from files when available, otherwise from generated placeholder recipes.
-import { DEFAULT_RECIPES, recipeDuration, type SynthRecipe } from './recipes';
+import { DEFAULT_RECIPES, POP_STEPS, popRecipe, popSoundId, recipeDuration, type SynthRecipe } from './recipes';
 import { DEFAULT_LIMITS, VoiceLimiter } from './voiceLimiter';
 import { PendingQueue } from './pendingQueue';
 
@@ -39,6 +39,7 @@ export class AudioManager {
 
   constructor() {
     for (const [id, synth] of Object.entries(DEFAULT_RECIPES)) this.register(id, { synth });
+    POP_STEPS.forEach((_, i) => this.register(popSoundId(i), { synth: popRecipe(i) }));
   }
 
   get state(): AudioState {

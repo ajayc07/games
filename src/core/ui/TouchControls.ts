@@ -21,7 +21,8 @@ const STYLES: Record<Action, ButtonStyle> = {
   power: { color: 0x8e24aa, pressed: 0xc158dc, icon: 0xffeb3b, size: 0.18 },
 };
 
-/** Jump diameter when it is the only button on screen (Grass 2): big and unmissable. */
+/** Jump diameter when it is the only button on screen (Grass 2): big and unmissable. Power uses it too when it
+ * is the only right-hand button (Grass 4, no Jump): it then takes Jump's slot. */
 const SOLO_JUMP_SIZE = 0.28;
 const HIT_SLOP = 1.1; // hit area is 10% larger than the drawn circle
 const PRESSED_SCALE = 0.9;
@@ -48,6 +49,8 @@ export class TouchControls {
   private readonly buttons = new Map<Action, Button>();
   private readonly scale: number;
   private solo = false;
+  /** Power without Jump: Power sits in Jump's bottom-right slot at the solo size (Task 007). */
+  private powerSlot = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -154,8 +157,10 @@ export class TouchControls {
     }
     const shown = [...this.buttons.values()].filter((b) => b.visible).map((b) => b.action);
     const solo = shown.length === 1 && shown[0] === 'jump';
-    if (solo !== this.solo) {
+    const powerSlot = shown.includes('power') && !shown.includes('jump');
+    if (solo !== this.solo || powerSlot !== this.powerSlot) {
       this.solo = solo;
+      this.powerSlot = powerSlot;
       this.position();
     }
     this.input.refreshPointers();
@@ -163,7 +168,8 @@ export class TouchControls {
 
   private position(): void {
     const short = this.layout.height; // landscape: height is the short edge
-    const size = (a: Action) => (a === 'jump' && this.solo ? SOLO_JUMP_SIZE : STYLES[a].size);
+    const size = (a: Action) =>
+      (a === 'jump' && this.solo) || (a === 'power' && this.powerSlot) ? SOLO_JUMP_SIZE : STYLES[a].size;
     const r = (a: Action) => (size(a) * short * this.scale) / 2;
     for (const b of this.buttons.values()) {
       b.radius = r(b.action);
@@ -180,8 +186,14 @@ export class TouchControls {
 
     const jump = this.layout.anchor('bottom-right', margin + r('jump'), margin + r('jump'));
     this.at('jump', jump.x, jump.y);
-    // Power sits above Jump, nudged left so a thumb on Jump does not cover it.
-    this.at('power', jump.x - r('jump') * 0.35, jump.y - r('jump') - gap - r('power'));
+    if (this.powerSlot) {
+      // No Jump in this level: Power takes Jump's bottom-right slot.
+      const p = this.layout.anchor('bottom-right', margin + r('power'), margin + r('power'));
+      this.at('power', p.x, p.y);
+    } else {
+      // Power sits above Jump, nudged left so a thumb on Jump does not cover it.
+      this.at('power', jump.x - r('jump') * 0.35, jump.y - r('jump') - gap - r('power'));
+    }
     this.input.refreshPointers();
   }
 

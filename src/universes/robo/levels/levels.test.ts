@@ -14,6 +14,10 @@ import { worlds } from '../worlds';
 import grass1 from './grass-1.json';
 import grass2 from './grass-2.json';
 import grass3 from './grass-3.json';
+import grass4 from './grass-4.json';
+import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
+import { SHOT } from '../../../core/levels/shots';
+import { worldDots } from '../../../core/map/unlock';
 
 describe('Robo World level files', () => {
   /** Runs of missing ground in the row under the start. */
@@ -115,11 +119,71 @@ describe('Robo World level files', () => {
     expect(rightGround).toBeGreaterThanOrEqual(stars.two);
   });
 
-  it('the grass world lists grass-1, grass-2, grass-3: Next goes 1 -> 2 -> 3 and is hidden on 3', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3']);
+  it('grass-4 "Shoot" (D-041): Left/Right/Power, flat, 10-12 small bubbles and one big one, about 36-42 coins', () => {
+    const r = parseLevel(grass4);
+    expect(r.ok, r.ok ? '' : r.errors.join('; ')).toBe(true);
+    if (!r.ok) return;
+    const { controls, stars, grid, tileSize } = r.level;
+    expect(controls.enabled).toEqual(['left', 'right', 'power']);
+    expect(controls.autoRun).toBe(false);
+    expect(controls.tapAnywhereJumps).toBe(false);
+    const script = controls.demo && 'script' in controls.demo ? controls.demo.script : [];
+    expect(script.filter((s) => s.action === 'power').length).toBeGreaterThanOrEqual(2);
+    const last = script[script.length - 1];
+    const demoMs = last.t + (last.hold ?? 0);
+    expect(demoMs).toBeGreaterThanOrEqual(5000);
+    expect(demoMs).toBeLessThanOrEqual(8000);
+    const e = extractEntities(grid);
+    expect(e.cols).toBeGreaterThanOrEqual(75);
+    expect(e.cols).toBeLessThanOrEqual(85);
+    expect(e.solid[e.start.row + 1].every(Boolean)).toBe(true); // no gaps
+    expect(e.coins.length).toBe(0); // all coins come from bubbles
+    const small = e.bubbles.filter((b) => b.kind === 'small');
+    const big = e.bubbles.filter((b) => b.kind === 'big');
+    expect(small.length).toBeGreaterThanOrEqual(10);
+    expect(small.length).toBeLessThanOrEqual(12);
+    expect(big.length).toBe(1);
+    // Two close ahead of the start and one behind it.
+    expect(small.filter((b) => b.col < e.start.col).length).toBe(1);
+    expect(small.filter((b) => b.col > e.start.col && b.col <= e.start.col + 8).length).toBe(2);
+    // The big bubble about 60% along, standing on the ground in front of the flag.
+    const bigFrac = big[0].col / e.cols;
+    expect(bigFrac).toBeGreaterThan(0.5);
+    expect(bigFrac).toBeLessThan(0.7);
+    expect(big[0].row + 2).toBe(e.start.row + 1);
+    expect(e.flag.col).toBeGreaterThan(big[0].col + 4);
+    const total = small.length * BUBBLE.coins.small + BUBBLE.coins.big;
+    expect(total).toBeGreaterThanOrEqual(36);
+    expect(total).toBeLessThanOrEqual(42);
+    // 3 stars need most bubbles but not all; the big one alone gives 1 star.
+    expect(stars.three).toBeLessThan(total);
+    expect(stars.three).toBeGreaterThan(total - 2 * BUBBLE.coins.small - 1);
+    expect(BUBBLE.coins.big).toBeLessThan(stars.two);
+    // Every bubble is in reach of a horizontal shot from standing: shots leave 26-78 px above the feet
+    // (measured over both looks, all sizes 0.8-1.6, the smallest and biggest options).
+    const groundY = (e.start.row + 1) * tileSize;
+    for (const b of bubbleSpecs(e.bubbles, tileSize, 0, e.solid)) {
+      const above = groundY - b.y;
+      const reach = b.r * BUBBLE.hitScale + SHOT.radius - BUBBLE.bobPx[b.kind];
+      expect(Math.abs(above - 26), `bubble ${b.index}`).toBeLessThanOrEqual(reach);
+      expect(Math.abs(above - 78), `bubble ${b.index}`).toBeLessThanOrEqual(reach);
+    }
+  });
+
+  it('the grass world lists grass-1..4: Next goes 1 -> 2 -> 3 -> 4 and is hidden on 4', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4']);
     expect(nextLevelId(worlds, 'grass-1')).toBe('grass-2');
     expect(nextLevelId(worlds, 'grass-2')).toBe('grass-3');
-    expect(nextLevelId(worlds, 'grass-3')).toBeNull();
+    expect(nextLevelId(worlds, 'grass-3')).toBe('grass-4');
+    expect(nextLevelId(worlds, 'grass-4')).toBeNull();
+  });
+
+  it('grass-4 is under a cloud on a fresh start (openAtATime 3) and opens once Grass 1 is cleared', () => {
+    const grass = worlds.find((w) => w.id === 'grass')!;
+    const fresh = worldDots(grass, {}, { openAtATime: 3, unlockAll: false });
+    expect(fresh.map((d) => d.open)).toEqual([true, true, true, false]);
+    const after = worldDots(grass, { 'grass-1': { stars: 1, bestCoins: 0 } }, { openAtATime: 3, unlockAll: false });
+    expect(after.map((d) => d.open)).toEqual([true, true, true, true]);
   });
 });
 

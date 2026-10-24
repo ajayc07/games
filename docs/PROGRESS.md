@@ -1,17 +1,16 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 006 done)_
+_Last updated: 2026-10-24 (Task 007 done)_
 
 ## Status
-"Robo World" (D-038) now opens on a world map (Task 006). The first visit shows the colour-card picker; Play opens the map.
-The map shows Grass 1-3 as dots on a winding path (all three open, `openAtATime` 3) with 3 star slots each, and three
-cloud-covered signposts for the worlds to come. Tap a dot (or Left/Right and Enter) to play; after a win the map fills in the
-new stars, clears the cloud over any newly opened level and the robot hops on to the next dot. Progress (stars, best coins, the
-colour choice and the look) is saved per universe in IndexedDB, else localStorage, else memory; the 005d choice key was
-migrated in. In a level a small home icon (top right) leaves to the map when held for 1 second. Palette buttons on the map and
-the win screen reopen the picker. New test knobs: `?size=` (0.8-1.6), `?unlock=all`, `?debug=1&open=N`. The green option now
-has a light rim on its accent parts and the green ball a light rim, so they read on the green hills.
-Next: Task 007 (Grass 4 "Shoot": Power button gameplay).
+"Robo World" (D-038) has four Grass levels on the world map (Task 007). New: Grass 4 "Shoot", where the new control is the
+Power button (purple, star icon, bottom-right in Jump's place; there is no Jump in this level). Walking as in Grass 3; Power
+fires a soft orb in the robot's accent colour (holding repeats every 0.3 s, at most 3 in flight). Shots pop friendly bubbles
+(no faces, they never move): each small bubble gives 3 coins, the big bubble 6, and the coins fly to the robot by themselves.
+The big bubble about 60% along blocks the path (soft stop) until popped; it is the only gate. A 7 s "watch me" demo shows two
+shots ahead and one behind. On a fresh start Grass 4 is under a cloud and opens when Grass 1 is cleared. The Input Lab now
+shoots with the same code. The teaser signposts' clouds are opaque (D-040 housekeeping).
+Next: Task 008 (Grass 5: move + jump gaps).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -26,8 +25,8 @@ Next: Task 007 (Grass 4 "Shoot": Power button gameplay).
 | 005c | Robot three-quarter running view, remove sprite/portrait looks, re-pace Grass 1-2 | Done |
 | 005d | Generic "robo" universe, remove character voices, colour-card picker (D-038) | Done |
 | 006 | World map + stars + unlocking + per-universe progress storage | Done |
-| 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Next |
-| 008 | Grass 5: move + jump gaps | Planned |
+| 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Done |
+| 008 | Grass 5: move + jump gaps | Next |
 | 009 | Minimal parent view (sound, button size, unlock-all) | Planned |
 | later | Cave/Sky/Castle worlds, polish | Later |
 
@@ -61,10 +60,30 @@ Next: Task 007 (Grass 4 "Shoot": Power button gameplay).
   icon in levels, map and win-screen flow, `?size=` knob, light rim for green accents and the green ball. Universe chunk
   101,868 -> 125,446 bytes; `dist/` 1,358,453 -> 1,382,446 bytes.
 
+- 2026-10-24: D-041 (architect): Grass 4 "Shoot" design.
+- 2026-10-24: Task 007: shots (`SHOT`, pure `ShotCannon`, shared `Blaster` for levels and the Input Lab), bubbles (`o`/`O` legend,
+  pure geometry/hit/coin flow, `BubbleField`), soft big-bubble blocker, Power button in Jump's slot, demo `power` steps, pop sounds,
+  `grass-4.json`, four map dots, opaque teaser clouds. Universe chunk 125,446 -> 139,797 bytes; `dist/` 1,382,446 -> 1,397,162 bytes.
+
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Grass 4 (Task 007), to judge on the tablet: does he find Power and see that it shoots the way the robot faces (one bubble is
+  behind the start)? Is the cooldown (300 ms) too slow or too fast? Are the pops (a rising "plip" for quick pops) pleasant?
+  Is the big bubble a problem or fun? Stars 22/34 of 39 coins. All in `grass-4.json`, `core/levels/shots.ts` (`SHOT`) and
+  `bubbles.ts` (`BUBBLE`, `POP_COINS`).
+- Bubble heights: the shot leaves 26-78 px above the feet (robot or ball, every colour, `?size=` 0.8-1.6), so a small bubble
+  floats half a tile below its cell centre (resting on the ground in the bottom row, 1 tile up in the row above). Centred in
+  its cell the upper row would be out of reach for the ball and the small robots. Rule in `BUBBLE.smallDrop`.
+- Bubbles in the bottom row pass behind the Left/Right and Power buttons while they are near a screen edge (far from the robot);
+  the one behind the start is in the upper row so it stays visible. A shot can pop a bubble that is partly behind Power.
+- Holding Power with the 3-shot cap: 3 shots 300 ms apart, then the 4th about 70 ms late (it waits for the first to end).
+- The demo pops three bubbles (they grow back when it ends, its coins never count). The finger now stays on a tapped Jump/Power
+  button for 350 ms before gliding on (Grass 3's demo finger changes the same way).
+- Frame rate (Task 007, headless Chrome on this machine): blank page 60.2 fps, map 59.3, Grass 4 while mashing Power about 20
+  times a second and walking (5 pops): average 58.9, min 57.5; no console errors.
+- Pop and coin sounds were tuned by numbers only (short, soft sines, pentatonic steps, coin sound at most every 140 ms), not by ear.
 - Robot three-quarter view (Task 005c), to judge on the tablet and in the review sheets (`_sources/review/005c/`, not committed;
   before-sheets in `_sources/review/005c-before/`): does running read as "forward" now? Is the head-then-body turn too slow or too
   quick (head 100 ms, body 160 ms)? Is facing the player when standing still right, or should idle keep a slight turn toward
@@ -106,14 +125,13 @@ _(nothing)_
   or confusing (it follows the robot by itself)? Is 1 s the right hold time for the exit icon, and is the icon too tempting?
 - Current dot (Task 006): the task says "the furthest open uncleared level"; the robot stands on the FIRST open level not yet
   cleared (so a fresh start begins at Grass 1, not Grass 3). Easy to change in `core/map/unlock.ts` (`currentDot`).
-- The map is about 1885 px wide (3 dots + 3 teasers), so it scrolls a little even on wide screens; on narrow screens with
+- The map is 2185 px wide (4 dots + 3 teasers since Task 007), so it scrolls on every screen; on narrow screens with
   everything cleared Grass 1 is off to the left until the child drags back.
 - Teaser worlds are drawn as cave, sky and castle signposts (the task text says "pipe"; the world was renamed Cave in 005d).
-- The map's stepping stones and the teaser posts show faintly through the clouds (the theme cloud is slightly transparent).
 - Progress is per device and browser: clearing site data or a different browser starts fresh. iOS Safari private mode and the
   tablet's storage could not be tested here (headless Chrome only).
-- `openAtATime` is 3 (D-037), so all three Grass levels are open from the start; with `?debug=1&open=1` or `open=2` the
-  unlocking can be seen.
+- `openAtATime` is 3 (D-037): Grass 1-3 are open from the start, Grass 4 opens when Grass 1 is cleared; with `?debug=1&open=1`
+  or `open=2` more of the unlocking can be seen.
 
 - Picker (Task 005d), to judge on the tablet: does he understand the cards without text? Is the default (first card, or the last
   choice) fine, or should a first launch have no selection until he taps? Dimming the other cards (0.24) may look like "disabled".
@@ -131,6 +149,13 @@ _(nothing)_
   `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 007 (tablet, https://ajayc07.github.io/games/, or `?level=grass-4`; `?demo=1` replays the demo):
+  - Does he find the purple Power button by himself (it pulses until first pressed)? Does the demo's finger on it help?
+  - Does he understand that it shoots the way the robot faces (turn round for the bubble behind the start)?
+  - Does he like popping? Are the pop sounds pleasant, and the coins flying to the robot fun?
+  - Is the big bubble a problem (stuck, confused) or fun?
+  - Is the cooldown right (hold Power: a shot every 0.3 s), or too slow/fast for his mashing?
+  - Clearing Grass 1 on a fresh start: does the cloud over the fourth dot clear?
 - After pushing Task 006 (tablet, https://ajayc07.github.io/games/):
   - First visit: picker, then the map. Does he tap a dot by himself? Does he see that the robot walks to the dot?
   - After a win (press the house button on the win screen): does he notice the stars filling in on the map? With

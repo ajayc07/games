@@ -1,5 +1,6 @@
 // Input Lab: lets the parent try controls, button sizes and sounds on a real device, and the avatar looks
-// (`?look=`, `?color=`; Power plays the shoot animation and fires a harmless energy ball, Task 005b).
+// (`?look=`, `?color=`; Power plays the shoot animation and fires a harmless energy ball through the same
+// shot code and numbers as the levels: core/levels/Blaster.ts and shots.ts, Task 007).
 // Not a game level: no physics engine, no goals.
 import Phaser from 'phaser';
 import type { Action } from '../../../core/types';
@@ -10,7 +11,7 @@ import { audio } from '../../../core/audio/AudioManager';
 import { AvatarDriver } from '../../../core/avatar/AvatarDriver';
 import { createLook, lookFromUrl } from '../../../core/avatar/createLook';
 import { resolveAvatar } from '../../../core/avatar/config';
-import { energyBall, PART_RES } from '../../../core/avatar/parts';
+import { Blaster } from '../../../core/levels/Blaster';
 import { makeEffectTextures } from '../../../core/levels/placeholders';
 import type { AvatarOptionDef } from '../../../core/types';
 import type { LookName } from '../../../core/avatar/config';
@@ -62,6 +63,7 @@ export class InputLabScene extends Phaser.Scene {
   private audioLight!: Phaser.GameObjects.Arc;
   private modeIcons: Phaser.GameObjects.Container[] = [];
   private modeIndex = DEFAULT_MODE;
+  private blaster!: Blaster;
 
   constructor() {
     super(InputLabScene.KEY);
@@ -97,6 +99,8 @@ export class InputLabScene extends Phaser.Scene {
       groundAt: () => this.groundY(),
     });
 
+    this.blaster = new Blaster(this, resolveAvatar(this.option).palette, 11);
+
     this.input2 = new InputManager(this, {
       reservedKeys: MODE_KEYS,
       ignorePointer: (x, y) => this.modeIcons.some((c) => c.getBounds().contains(x, y)),
@@ -126,6 +130,7 @@ export class InputLabScene extends Phaser.Scene {
         mode: () => this.modeIndex + 1,
         anim: () => this.hero.animState(),
         hero: () => ({ x: this.heroX, y: this.heroY, facing: this.facing, look: this.hero.look.name }),
+        shots: () => ({ inFlight: this.blaster.cannon.inFlight, fired: this.blaster.cannon.fired, visible: this.blaster.visibleCount }),
       };
     }
   }
@@ -177,6 +182,12 @@ export class InputLabScene extends Phaser.Scene {
       ride: null,
       facing: this.facing,
     });
+    // Power: the shared shot code (cooldown, hold-to-repeat, at most 3 in flight; it plays the power sound).
+    this.blaster.update(time, dt * 1000, { pressed: input.justPressed('power'), held: input.isDown('power') }, {
+      facing: this.facing,
+      muzzle: () => this.hero.look.muzzle(),
+      shoot: (now) => this.hero.shoot(now),
+    });
 
     for (const a of ACTIONS) {
       const light = this.indicators.get(a)!;
@@ -198,9 +209,7 @@ export class InputLabScene extends Phaser.Scene {
         audio.play('jump');
         break;
       case 'power':
-        audio.play('power');
-        this.shoot();
-        break;
+        break; // the Blaster fires (and plays the sound) in update()
       default:
         audio.play('tap');
     }
@@ -215,28 +224,6 @@ export class InputLabScene extends Phaser.Scene {
       c.setScale(i === index ? 1.1 : 1);
     });
     if (withSound) audio.play('pick');
-  }
-
-  /** Power: the look's shoot animation and a small energy ball that flies forward and fades. No gameplay. */
-  private shoot(): void {
-    const now = this.time.now;
-    this.hero.shoot(now);
-    // Fire on the next frame, once the arm has started to point forward.
-    this.time.delayedCall(40, () => {
-      const from = this.hero.look.muzzle();
-      const part = energyBall(this, resolveAvatar(this.option).palette);
-      const dir = this.facing;
-      const ball = this.add.image(from.x, from.y, part.key).setOrigin(part.ox, part.oy).setScale(1 / PART_RES).setDepth(11);
-      this.tweens.add({
-        targets: ball,
-        x: from.x + dir * 520,
-        alpha: { from: 1, to: 0 },
-        scale: { from: 1.1 / PART_RES, to: 0.6 / PART_RES },
-        duration: 650,
-        ease: 'Sine.easeOut',
-        onComplete: () => ball.destroy(),
-      });
-    });
   }
 
   private createLights(): void {

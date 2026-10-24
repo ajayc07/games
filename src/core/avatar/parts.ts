@@ -478,18 +478,31 @@ export function ballParts(scene: Phaser.Scene, pal: AvatarPalette): BallParts {
   return { body, shade, sclera, happy, pupil, cheeks, smile, grin, open };
 }
 
-/** Energy ball for shooting (Input Lab): a glowing dot in the accent colour. */
-export function energyBall(scene: Phaser.Scene, pal: AvatarPalette): Part {
-  return canvasPart(scene, `av-energy-${pkey(pal)}`, 22, 22, 11, 11, (ctx) => {
-    const g = ctx.createRadialGradient(11, 11, 1, 11, 11, 11);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.4, hex(tone(pal.accent, 0.3)));
-    g.addColorStop(0.75, hex(pal.accent));
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
+/**
+ * Shot (Task 007): a round, friendly orb in the accent colour with a soft halo, 40 px across with the glow
+ * (the solid core is about 20 px). Origin at the centre.
+ */
+export function shotOrb(scene: Phaser.Scene, pal: AvatarPalette): Part {
+  const c = 20;
+  return canvasPart(scene, `av-shot-${pkey(pal)}`, c * 2, c * 2, c, c, (ctx) => {
+    const halo = ctx.createRadialGradient(c, c, 4, c, c, c);
+    halo.addColorStop(0, hex(tone(pal.accent, 0.35)));
+    halo.addColorStop(0.45, `${hex(pal.accent)}aa`);
+    halo.addColorStop(1, `${hex(pal.accent)}00`);
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(11, 11, 11, 0, Math.PI * 2);
+    ctx.arc(c, c, c, 0, Math.PI * 2);
     ctx.fill();
+    const core = ctx.createRadialGradient(c - 3, c - 3, 1, c, c, 10);
+    core.addColorStop(0, '#ffffff');
+    core.addColorStop(0.5, hex(tone(pal.accent, 0.55)));
+    core.addColorStop(1, hex(tone(pal.accent, 0.15)));
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(c, c, 10, 0, Math.PI * 2);
+    ctx.fill();
+    // A green shot would melt into the green hills: the same light rim as the green robot's accent parts.
+    rimStroke(ctx, needsHillRim(pal.accent), 2);
   });
 }
 
