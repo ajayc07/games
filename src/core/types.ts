@@ -8,6 +8,13 @@ export interface CharacterDef {
   name: string;
   /** URL of the image, resolved by the universe from its assets/ folder. Placeholder shape if missing. */
   image?: string;
+  /**
+   * On-screen height of the visible character in logical px (transparent margins are trimmed first).
+   * Tuned per character so the cast looks about the same size. Default 104.
+   */
+  displayHeight?: number;
+  /** Colour of the placeholder capsule used when there is no image (or it fails to load). */
+  color?: number;
   poses?: { run?: string; jump?: string };
   sounds?: { pick?: string; jump?: string; win?: string };
   /** Key of a power animation. Cosmetic only; all characters share identical physics. */

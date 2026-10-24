@@ -1,10 +1,14 @@
 // Height-locked, width-flexible scaling (D-013).
-// Logical height is always 720; logical width follows the screen aspect ratio, clamped to 960..1680.
+// Logical height is always 720; logical width follows the screen aspect ratio, clamped to 960..1920.
 // Gameplay-critical content stays inside the central 960x720 safe rect; extra width is scenery.
+//
+// High-DPI: the canvas has `renderScale` pixels per logical unit (devicePixelRatio, capped at 2).
+// Scenes keep working in logical units: bindToScene() zooms the main camera by renderScale with its
+// origin at the top-left, so logical (x, y) lands on canvas pixel (x, y) * renderScale.
 import Phaser from 'phaser';
-import { LOGICAL_HEIGHT, SAFE_WIDTH, logicalWidthFor } from './layoutMath';
+import { LOGICAL_HEIGHT, SAFE_WIDTH, logicalWidthFor, renderScaleFor } from './layoutMath';
 
-export { LOGICAL_HEIGHT, MAX_WIDTH, MIN_WIDTH, SAFE_WIDTH, logicalWidthFor } from './layoutMath';
+export { LOGICAL_HEIGHT, MAX_WIDTH, MIN_WIDTH, SAFE_WIDTH, logicalWidthFor, renderScaleFor } from './layoutMath';
 
 export interface Insets {
   top: number;
@@ -48,6 +52,8 @@ type Listener = (layout: Layout) => void;
 export class Layout {
   width = 1280;
   readonly height = LOGICAL_HEIGHT;
+  /** Canvas pixels per logical unit (1..2). */
+  renderScale = 1;
   /** Device safe-area insets (notch, home bar), in logical units. */
   insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
   private readonly listeners = new Set<Listener>();
@@ -111,11 +117,22 @@ export class Layout {
     return () => this.listeners.delete(listener);
   }
 
-  /** Convenience: subscribe for the lifetime of a scene. */
+  /**
+   * Subscribe for the lifetime of a scene. Also keeps the scene's main camera zoomed to renderScale,
+   * so every scene can use logical coordinates.
+   */
   bindToScene(scene: Phaser.Scene, listener: Listener): void {
-    const off = this.onResize(listener);
+    const off = this.onResize((l) => {
+      l.applyCamera(scene.cameras.main);
+      listener(l);
+    });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, off);
     scene.events.once(Phaser.Scenes.Events.DESTROY, off);
+  }
+
+  /** Makes a camera show logical units: zoom = renderScale, anchored at the top-left. */
+  applyCamera(camera: Phaser.Cameras.Scene2D.Camera): void {
+    camera.setOrigin(0, 0).setZoom(this.renderScale);
   }
 
   private apply(): void {
@@ -131,9 +148,13 @@ export class Layout {
       bottom: px(cs.paddingBottom),
       left: px(cs.paddingLeft),
     };
-    if (width !== this.width || this.game.scale.width !== width) {
-      this.width = width;
-      this.game.scale.setGameSize(width, LOGICAL_HEIGHT);
+    const rs = renderScaleFor(cssH, window.devicePixelRatio || 1);
+    const gameW = Math.round(width * rs);
+    const gameH = Math.round(LOGICAL_HEIGHT * rs);
+    this.width = width;
+    this.renderScale = rs;
+    if (this.game.scale.width !== gameW || this.game.scale.height !== gameH) {
+      this.game.scale.setGameSize(gameW, gameH);
     } else {
       this.game.scale.refresh();
     }

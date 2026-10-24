@@ -46,6 +46,13 @@ export const DEFAULT_RECIPES = {
       { freq: 440, at: 0.16, dur: 0.26, type: 'sine', gain: 0.6 },
     ],
   },
+  // Soft falling glide for a fall into a gap (D-019): not a failure sound.
+  whoosh: {
+    tones: [
+      { freq: 700, to: 260, dur: 0.38, type: 'sine', gain: 0.45 },
+      { freq: 1050, to: 390, at: 0.03, dur: 0.32, type: 'sine', gain: 0.18 },
+    ],
+  },
   pick: {
     tones: [
       { freq: 660, dur: 0.08, type: 'sine' },

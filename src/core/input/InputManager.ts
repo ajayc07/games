@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import type { Action } from '../types';
 import { ActionState, type ActionEvent, type InputConfig } from './actionState';
 import { KEY_BINDINGS, PAD_AXIS_THRESHOLD, PAD_BUTTON_BINDINGS } from './bindings';
+import { LOGICAL_HEIGHT } from '../ui/layoutMath';
 
 export type { ActionEvent, InputConfig } from './actionState';
 
@@ -29,7 +30,8 @@ export class InputManager extends Phaser.Events.EventEmitter {
   private readonly reserved: Set<string>;
   private readonly ignorePointer?: (x: number, y: number) => boolean;
   /** Pointers currently held down, with their last position in game coordinates. */
-  private readonly pointers = new Map<number, { x: number; y: number }>();  private hitTest: HitTest = () => null;
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private hitTest: HitTest = () => null;
   private readonly cleanups: Array<() => void> = [];
   private destroyed = false;
 
@@ -126,9 +128,11 @@ export class InputManager extends Phaser.Events.EventEmitter {
 
   // ---------- pointers ----------
 
+  /** Pointer position in logical units (the canvas may have more pixels than logical units on high-DPI). */
   private toGame(e: PointerEvent): { x: number; y: number } {
     const scale = this.scene.scale;
-    return { x: scale.transformX(e.pageX), y: scale.transformY(e.pageY) };
+    const k = LOGICAL_HEIGHT / scale.height;
+    return { x: scale.transformX(e.pageX) * k, y: scale.transformY(e.pageY) * k };
   }
 
   private onPointerDown = (e: PointerEvent): void => {

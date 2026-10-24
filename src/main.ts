@@ -5,7 +5,7 @@ import { installBrowserGuards } from './shell/browserGuards';
 import { keepScreenAwake } from './shell/wakeLock';
 import { registerServiceWorker } from './shell/pwa';
 import { audio } from './core/audio/AudioManager';
-import { initLayout, LOGICAL_HEIGHT, logicalWidthFor } from './core/ui/layout';
+import { initLayout, LOGICAL_HEIGHT, logicalWidthFor, renderScaleFor } from './core/ui/layout';
 
 installBrowserGuards();
 keepScreenAwake();
@@ -15,11 +15,13 @@ audio.installUnlock();
 const parent = document.getElementById('game')!;
 
 // Height-locked, width-flexible (D-013): layout.ts keeps the game size matched to the screen.
+// The canvas is renderScale x the logical size for crisp art on high-DPI screens.
+const renderScale = renderScaleFor(window.innerHeight, window.devicePixelRatio || 1);
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent,
-  width: logicalWidthFor(window.innerWidth, window.innerHeight),
-  height: LOGICAL_HEIGHT,
+  width: Math.round(logicalWidthFor(window.innerWidth, window.innerHeight) * renderScale),
+  height: Math.round(LOGICAL_HEIGHT * renderScale),
   backgroundColor: config.skyColor,
   scale: {
     mode: Phaser.Scale.FIT,

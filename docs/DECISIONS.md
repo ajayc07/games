@@ -71,3 +71,26 @@ Gamepad: d-pad or left stick = left/right, A = jump, X or B = power.
 ## D-016 (2026-10-23) No Claude attribution in commits or PRs
 No `Co-Authored-By`, `Claude-Session` or "Generated with" lines. Enforced by a CLAUDE.md rule and
 `.claude/settings.json` (`attribution` set to empty). Commits use the parent's own git identity.
+
+## D-017 (2026-10-24) Task 002 review outcomes
+Approved: shared Left/Right touch area split at the midpoint, pointer events for touch/mouse, `?debug=1` test hook.
+D-013 amended: `MAX_WIDTH` raised from 1680 to 1920 (about 2.67:1) so ultra-wide screens have no side bars.
+Safe area stays the central 960x720.
+
+## D-018 (2026-10-24) Level format v1: ASCII grid with a legend
+Levels are JSON with a `grid` array of equal-length strings. Legend: `#` solid ground, `.` empty, `c` coin,
+`S` player start, `F` flag. Gaps are simply missing ground. This supersedes the separate `coins`/`gaps`/`flag`
+arrays in the earlier ARCHITECTURE sketch (Code updates ARCHITECTURE.md). Characters added later (bricks, pipes, ...)
+get new legend entries.
+
+## D-019 (2026-10-24) Falling is never a failure
+A fall plays a soft whoosh, and the character floats back on a small cloud to the last safe ground spot
+(about 3 tiles behind the gap) and carries on. No lives, no counters, no penalty to stars.
+
+## D-020 (2026-10-24) Stars
+Finishing a level always gives 1 star. 2 and 3 stars come from coin thresholds declared per level.
+Progress persistence arrives in Task 006; until then results are transient.
+
+## D-021 (2026-10-24) Shared physics, forgiving feel
+All characters share one tuning file (run speed, gravity, jump). Coyote time (about 120 ms) and jump buffering
+(about 150 ms) are on. Jump height is fixed (no variable-height holding) because mashing and holding must behave the same.
