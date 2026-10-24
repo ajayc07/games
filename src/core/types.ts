@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import type { AvatarDef, PortraitRect } from './avatar/config';
 
 /** The only things game code may ask about. Touch, keyboard and gamepad all map to these. */
 export type Action = 'left' | 'right' | 'jump' | 'power';
@@ -50,6 +51,10 @@ export interface CharacterDef {
   };
   /** Voice clips (URLs), one picked at random per play. Characters without voices use the generic sounds. */
   sounds?: { pick?: string[]; jump?: string[]; win?: string[] };
+  /** Code-built avatar looks (Ball, Portrait, Robot; D-032, D-033): palette, size factor, antennae. Cosmetic only. */
+  avatar?: AvatarDef;
+  /** Where the face is in `image`, for the Portrait look (normalised centre and radius). */
+  portrait?: PortraitRect;
   /** Key of a power animation. Cosmetic only; all characters share identical physics. */
   powerAnimation: string;
 }

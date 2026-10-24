@@ -64,11 +64,19 @@ describe('Mario level files', () => {
     expect(e.coins.length).toBeGreaterThanOrEqual(20);
     expect(e.coins.length).toBeLessThanOrEqual(24);
 
-    const ground = e.coins.filter((c) => c.row === e.start.row);
-    const overhead = e.coins.filter((c) => c.row < e.start.row);
+    // Walkable coins: ground level or head height (the body is 84 px tall). Overhead coins need a jump.
+    const ground = e.coins.filter((c) => c.row >= e.start.row - 1);
+    const overhead = e.coins.filter((c) => c.row < e.start.row - 1);
     const left = e.coins.filter((c) => c.col < e.start.col);
     expect(left.length).toBeGreaterThanOrEqual(3);
     expect(left.length).toBeLessThanOrEqual(4);
+    // Walking coins sit at head height (Task 005b section 0): above the Left/Right and Jump buttons, so none is
+    // ever hidden behind a button, yet still collected by walking.
+    for (const c of ground) {
+      expect(c.row).toBe(e.start.row - 1);
+      const above = (e.start.row + 1 - c.row - 0.5) * tileSize;
+      expect(above).toBeLessThan(PHYSICS.body.height + 18);
+    }
     expect(overhead.length).toBe(4);
     expect(ground.length + overhead.length).toBe(e.coins.length);
     // Overhead coins: out of reach walking (body 84 px tall), in reach of a standing jump.

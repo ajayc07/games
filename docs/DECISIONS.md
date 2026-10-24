@@ -165,3 +165,9 @@ Avatar bodies are built from code-drawn parts (cached generated textures assembl
 unit-tested clip functions: idle, walk, run, jump, fall, land, win, shoot. No M cap, moustache or other character-specific signatures
 on avatars; character identity comes only from palette, size factor and sounds. The robot is an original design in the spirit of a
 friendly white/grey bot with cyan accents, a dark visor face and antennae. `_sources/robot-reference.png` is a style reference only; do not trace it.
+
+## D-034 (2026-10-24) Task 005 review outcomes
+Approved: idle rule (c) with the run picture as fallback, demo waiting for the ghost to land, strict (unsorted-rejecting) script validation,
+`characters.ts` split. A real standing picture (`poses.idle`) would improve Mario/Luigi idle later; no code change needed.
+The tablet test with Athiran is deliberately postponed until the avatar looks (Task 005b) exist, so all looks can be compared in one session.
+Grass 3 left-coin placement vs. buttons on 16:10 is fixed in 005b section 0.

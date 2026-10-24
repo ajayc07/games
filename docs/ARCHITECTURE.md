@@ -9,6 +9,7 @@ games/
     shell/               launcher (later), settings, parent view
     core/
       input/             InputManager: touch buttons + keyboard + gamepad -> actions
+      avatar/            how characters are drawn: AvatarLook (sprite, ball, portrait, robot), shared motion
       audio/             AudioManager: unlock on first gesture, placeholder beeps, voice clips
       storage/           per-universe progress + settings (IndexedDB or localStorage wrapper)
       levels/            level JSON loader/runner, control-ladder rules
@@ -50,6 +51,8 @@ interface CharacterDef {
   poses?: { idle?: PoseDef; run?: PoseDef; jump?: PoseDef;  // D-023; idle: Task 005
             runFrames?: PoseDef[]; runFps?: number }; // optional run-cycle flipbook (Task 004b)
   sounds?: { pick?: string[]; jump?: string[]; win?: string[] };  // voice clip URLs, random pick
+  avatar?: { palette?: Partial<AvatarPalette>; scale?: number; antennae?: number }; // code-built looks (Task 005b)
+  portrait?: { x: number; y: number; radius: number };  // face in `image` for the Portrait look (normalised)
   powerAnimation: string;         // key of a power animation; cosmetic only
 }
 interface PoseDef { image?: string; facing?: 'right' | 'left'; displayHeight?: number }
@@ -99,6 +102,46 @@ picture or several. Numbers and maths live in `core/levels/animation.ts` (`ANIM`
   `poses: { run: {...}, runFrames: [{ image: asset('mario-run-1.png'), facing: 'right' }, { image: asset('mario-run-2.png'), facing: 'right' }], runFps: 10 }`.
   Done; no code change.
 - `?debug=1`: `__level.anim()` / `__level.ghostAnim()` give pose, frame, rotation, scales, stretch, blend, shadow and dust counts.
+
+### Avatar looks (D-032, D-033, Task 005b)
+How a character is drawn is separate from physics. `core/avatar/` holds:
+- **`AvatarLook`** (`types.ts`): `root` (display object, origin at the feet), `ready`, `shadowScale`, `motion()`
+  (how strongly the shared motion applies), `update(state)`, `setFacing`, `trigger('jump'|'land'|'win'|'shoot', now)`,
+  `setAlpha`, `setDepth`, `setVisible`, `muzzle()` (world point where a shot leaves), `debug()`, `destroy()`.
+- **`AvatarDriver`**: the Task 004b motion moved out of Player unchanged (stride phase from distance, run blend, take-off /
+  landing / hop / placed pulses, breathing, lean, win bounce, shadow, dust). It turns physics facts into an `AvatarState`
+  (position, lift, stretch, rotation, facing, pose, grounded, speed, vy, stride phase, run blend, gait, time) every frame.
+  `Player` (levels) and the Input Lab hero both use it, so every look behaves the same everywhere. Shadow size is scaled by
+  the look's `shadowScale`. Physics, the 40x84 hit box and level logic never depend on the look.
+- **Looks**: `SpriteLook` (the real pictures, default; frame-for-frame identical to before, checked against a recorded
+  baseline of 6,016 frames), `BallLook` (`ball`, and `portrait` with the face decal), `RobotLook`. `createLook(scene, name,
+  character, x, feet)` builds one; `lookFromUrl()` reads `?look=` (unknown value: one console warning, sprite).
+  LevelScene applies the look to the player, the demo ghost (same look at 55% alpha) and the win screen; the Input Lab uses it
+  for its hero.
+- **Rig** (`parts.ts`, `clips.ts`, `robotSpec.ts`): parts are drawn once with Canvas 2D (gradients, glow) at 2x and cached by
+  palette (`av-robot-<part>-<palette>`); nothing is drawn per frame. The robot is one Container (root at the feet) with 20
+  flat images; joint positions come from forward kinematics of a `RobotPose` (angles: 0 = hanging down, positive = forward;
+  knees bend back, elbows forward). The lower foot is snapped to the ground while grounded, so bent knees lower the body.
+  Clips are pure functions (tested): idle (breathing), walk/run (2 steps per cycle from the driver's stride phase, scaled to the
+  robot's step length so feet do not skate; far limbs half a cycle behind; arms opposite the legs), jump (crouch, then arms up
+  and legs tucked), fall (arms out, legs dangle, by vy), land (crouch, quick in and out), win (arms up in a V, waving, a little
+  dance, happy ^ ^ eyes, antennae wiggle), shoot (near arm points forward, recoil, the hand becomes a cannon, muzzle flash).
+  Blending uses linear weights (ground: idle <-> gait by run blend; air in 90 ms, out 80 ms; win in 160 ms) so cycles keep their
+  full swing and nothing pops. Gait: `walk` when `autoRun` is false, `run` when true. Facing turns like a paper cut-out
+  (scaleX passes through 0 in 120 ms). Eyes blink every 3-5 s and shift toward the facing and with vertical speed; antennae
+  sit on a damped spring. **To tweak the robot, edit `robotSpec.ts` only.**
+- **Ball**: a 96 px ball in the accent colour with a band and spots that roll (angle = distance / radius) under a fixed
+  highlight; the face (eyes with pupils, cheeks, mouth) stays upright and slides toward the facing. Happy eyes and a grin on win;
+  "shoot" opens the mouth. **Portrait**: the same ball with the character's face cut from its image as a round decal
+  (`portrait` crop in the manifest, validated by `portraitProblems`); blink = a small squash, a wiggle on win. No image, a bad crop
+  or a decode failure keeps the Ball face.
+- **Character attributes** (`avatar` in the manifest, `resolveAvatar`): palette (body, joint, accent, visor, eye; defaults
+  white / dark grey / cyan / dark visor / cyan eyes), scale clamped to 0.9-1.15, antennae 0-2 (default 2). Colour only, no emblems.
+- **Shooting** exists only in the Input Lab: Power plays `shoot` and fires a harmless energy ball (accent colour) from `muzzle()`.
+- **Adding a body:** implement `AvatarLook` (use `AvatarState`, return your `motion()` weights), add the name to `LOOK_NAMES`
+  in `config.ts` and a case in `createLook.ts`. Put tuning numbers in a spec file like `robotSpec.ts`.
+- `?debug=1`: `__level.anim()` / `ghostAnim()` include `look` and the look's own numbers (robot: weights, limb angles, flash,
+  cannon, eye openness; ball: decal, face direction).
 
 ### Voices (D-023)
 `audio.registerVoices(characterId, sounds)` (called by LevelScene) registers each clip as `voice:<id>:<slot>:<n>`
@@ -217,8 +260,9 @@ Mario levels: Grass 1 "Tap to hop" (tap anywhere, no demo). Grass 2 "Big Jump bu
 (taps elsewhere never jump), demo `{ tiles: 20, jumpsAtTiles: [8, 15] }`, 30 coins (3 at head height, 9 three-coin arcs
 that need a timed press: pressing on entering column k-1 collects the arc centred on k), gaps at 58, 80, 103-104,
 125-126, each with an arc about 5 tiles before it, stars 15/25. Grass 3 "Left and Right": 70 tiles, flat, no gaps, no auto-run,
-Left/Right/Jump buttons, start at column 6, 22 coins (4 to the LEFT of the start, 14 at ground level in four short trails to the right,
-4 lone coins 2.5 tiles up that need a standing jump), flag at column 64, stars 10/16 (16 needs some left or overhead coins), demo script:
+Left/Right/Jump buttons, start at column 6, 22 coins (4 to the LEFT of the start, 14 in four short trails to the right, all 18 at
+head height: collected by walking and always above the buttons, Task 005b; 4 lone coins 2.5 tiles up that need a standing jump),
+flag at column 64, stars 10/16 (16 needs some left or overhead coins), demo script:
 right 1.5 s, left 0.9 s, one jump.
 
 ## Screen layout (D-013)

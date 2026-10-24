@@ -1,14 +1,15 @@
 # Progress
 
-_Last updated: 2026-10-24 (Task 005 done)_
+_Last updated: 2026-10-24 (Task 005b done)_
 
 ## Status
-Three playable levels. Grass 1 "Tap to hop" (tap anywhere) and Grass 2 "Big Jump button" (auto-run, one big Jump button, "watch me"
-demo) as before, and now Grass 3 "Left and Right": no auto-run, hold Left/Right to walk, let go to stop, Jump while standing, with a
-scripted demo (walk right, walk left, jump). Win screen Next goes Grass 1 -> 2 -> 3. Mario and Luigi stand in their run picture
-(idle rule) and show their main picture on the win screen. Voices for Mario, Luigi, Peach, Toad and Bowser; Yoshi and DK use generic
-sounds. Opening the app starts Grass 1; the Input Lab is behind `?lab=1`. Next: Task 006 (world map, stars, unlocking, storage),
-unless the architect schedules Task 005b (avatar rig) first.
+Three playable levels (Grass 1 "Tap to hop", Grass 2 "Big Jump button", Grass 3 "Left and Right"), each with Next to the following
+level. The player can now be drawn in four interchangeable looks, chosen with `?look=`: `sprite` (the real pictures, default, unchanged),
+`ball` (a rolling ball with a friendly face), `portrait` (the ball with the character's face from its picture) and `robot` (an original
+code-built robot with walk, run, jump, fall, land, win and shoot animations). Every look works in all levels, the demo ghost, the win
+screen and the Input Lab (where Power makes the character shoot a harmless energy ball). Each character has its own avatar colours and
+size. Voices for Mario, Luigi, Peach, Toad and Bowser. Opening the app starts Grass 1; the Input Lab is behind `?lab=1`.
+Next: tablet session with Athiran comparing the looks (checklist below), then Task 006 (world map, stars, unlocking, storage).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -19,7 +20,7 @@ unless the architect schedules Task 005b (avatar rig) first.
 | 004 | Grass 2 "Big Jump button" + "watch me" demo system | Done |
 | 004b | Lively character motion (procedural run, shadow, dust, optional run frames) | Done |
 | 005 | Grass 3 "Left and Right" (no auto-run) | Done |
-| 005b | Avatar looks: sprite, ball, portrait, robot (task file exists) | Planned |
+| 005b | Avatar looks: sprite, ball, portrait, robot | Done |
 | 006 | World map + stars + unlocking + per-universe progress storage | Next |
 | 007 | Character picker + 7-character cast with placeholders + asset import of real files | Planned |
 | 008 | Minimal parent view (sound, button size, unlock-all) | Planned |
@@ -37,11 +38,23 @@ unless the architect schedules Task 005b (avatar rig) first.
 - 2026-10-24: Peach, Toad and Bowser voice clips renamed (D-031) and committed (`assets:` commit before Task 005).
 - 2026-10-24: Task 005 Grass 3 "Left and Right": walking (ramp, both-held = stand, facing hysteresis, soft level-end walls),
   look-ahead camera, demo script v2, idle pose rule, invite/nudge pulses for three buttons, Peach/Toad/Bowser voices wired.
+- 2026-10-24: Task 005b avatar looks: `AvatarLook` + shared `AvatarDriver`, Sprite (unchanged), Ball, Portrait and Robot looks with
+  tested clips, per-character avatar palettes/sizes/portrait crops, shooting in the Input Lab, Grass 3 walking coins at head height.
 
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Avatar looks (Task 005b), to judge on the tablet and in the review sheets (`_sources/review/`, not committed): robot proportions
+  and colours, ball size (96 px, wider than the hit box), portrait crops (chosen by eye). All robot/ball numbers are in
+  `core/avatar/robotSpec.ts`; colours and sizes per character in `universes/mario/characters.ts` (`avatar`, `portrait`).
+- Green avatars (Luigi, Yoshi, Bowser's joints) have low contrast against the green Grass hills; the outline helps but a darker
+  outline or a different palette may be wanted.
+- The Portrait look shows the real character faces on a ball (D-032). D-033 bans Nintendo designs on the code-built bodies; the
+  portrait decal is the one exception D-032 asks for. Flagging in case that should be reconsidered.
+- Frame rate with every look: averages 59.6-60 fps over full Grass 2 runs with mashing; Phaser's smoothed minimum dipped to 52-57
+  in headless Chrome because of a few single long frames (up to 380 ms) at 844x390 dpr 3, which also happen with the unchanged sprite
+  look (test machine, not the looks). Needs a check on the tablet.
 - Grass 3 tuning to confirm on the tablet: walk speed 220, ramp 60/80 ms, 4 coins left of the start, overhead coins 2.5 tiles up
   (need a standing jump), stars 10/16. All in `grass-3.json` / `core/levels/physics.ts`.
 - Idle rule (Task 005): Mario and Luigi stand in their run picture (frozen stride, breathing only). It reads a little like "paused
@@ -49,8 +62,8 @@ _(nothing)_
 - Facing flips on the first frame of a turn, so the character briefly slides about 10 px backwards (4 frames) while slowing. As
   specified (D-029 "facing flips at once"); can be changed to "flip when the speed crosses zero" if it looks odd on the tablet.
 - On wide screens (wider than 4:3) Left and Right sit outside the central 960-wide safe area: they are anchored to the screen's
-  bottom-left corner (inside the device insets) as all UI is (D-013). At the very start of Grass 3 the 4 left coins are partly behind
-  the Left/Right buttons until the camera turns to look left.
+  bottom-left corner (inside the device insets) as all UI is (D-013). Grass 3's walking coins now sit at head height (Task 005b), so no
+  coin is ever behind a button; this changes D-029's "coins at ground level" wording (they are still collected by walking).
 - Mashing at 20 presses per second: average 59.8 fps, Phaser's smoothed fps dipped to 57.9 once at 844x390 (dpr 3) in headless
   Chrome; full Grass 3 run 60 fps (min 59.1).
 - Motion tuning (Task 004b) is by eye from frame captures; all numbers are in `core/levels/animation.ts`. Landing squash is 15%, take-off stretch 18%, run lean ~4 deg plus ~2 deg rock, bounce 5 px.
@@ -77,6 +90,14 @@ _(nothing)_
 - No side-view run poses yet; use bob/stretch/flip tricks (ARCHITECTURE.md). Side-view images may be added later as `run` poses.
 
 ## Parent action items
+- After pushing Task 005b, one tablet session with Athiran comparing the looks (add `&look=ball`, `&look=portrait`, `&look=robot`
+  to any level URL, e.g. https://ajayc07.github.io/games/?level=grass-3&look=robot; `&char=` works too):
+  - Which look does he like best? Which one does he call by name or ask for again?
+  - Do the eyes (looking where he goes) help him see the direction, especially on Grass 3 (Left/Right)?
+  - Is the robot clear at that size on the tablet (arms and legs readable, not a blur)? Does the ball rolling read as moving?
+  - Does he recognise the characters in the Portrait look? Is any crop off-centre?
+  - Input Lab (`?lab=1&look=robot`, press the 4-dots mode, then the star button): does he enjoy the shooting?
+  - Still smooth (no stutter) with the robot while mashing?
 - After pushing Task 005, try Grass 3 on the tablet with Athi (finish Grass 2 and press Next, or open `?level=grass-3`):
   - Does he find Left and Right? Does he watch the demo's finger move between the buttons?
   - Does he understand that letting go stops? Or does he keep the button held and get surprised at the wall?

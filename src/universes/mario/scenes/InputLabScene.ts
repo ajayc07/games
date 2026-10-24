@@ -1,11 +1,18 @@
-// Input Lab: lets the parent try controls, button sizes and sounds on a real device
-// before any level exists. Not a game level: no physics engine, no goals.
+// Input Lab: lets the parent try controls, button sizes and sounds on a real device, and the avatar looks
+// (`?look=`, `?char=`; Power plays the shoot animation and fires a harmless energy ball, Task 005b).
+// Not a game level: no physics engine, no goals.
 import Phaser from 'phaser';
 import type { Action } from '../../../core/types';
 import { InputManager, type InputConfig } from '../../../core/input/InputManager';
 import { TouchControls } from '../../../core/ui/TouchControls';
 import { getLayout, type Layout } from '../../../core/ui/layout';
 import { audio } from '../../../core/audio/AudioManager';
+import { AvatarDriver } from '../../../core/avatar/AvatarDriver';
+import { createLook, lookFromUrl } from '../../../core/avatar/createLook';
+import { resolveAvatar } from '../../../core/avatar/config';
+import { energyBall, PART_RES } from '../../../core/avatar/parts';
+import { makeEffectTextures } from '../../../core/levels/placeholders';
+import { characters } from '../characters';
 
 /** The control ladder (D-001), one config per mode. */
 const MODES: InputConfig[] = [
@@ -21,6 +28,7 @@ const ACTIONS: Action[] = ['left', 'right', 'jump', 'power'];
 const LIGHT_COLORS: Record<Action, number> = { left: 0xff8f00, right: 0xff8f00, jump: 0xe53935, power: 0x8e24aa };
 
 const GROUND_H = 110;
+/** Half the hero's width, for keeping it on screen. */
 const HERO_R = 48;
 const SPEED = 420; // px/s
 const JUMP_V = 980; // px/s
@@ -34,10 +42,15 @@ export class InputLabScene extends Phaser.Scene {
   private controls!: TouchControls;
   private ground!: Phaser.GameObjects.Rectangle;
   private groundTop!: Phaser.GameObjects.Rectangle;
-  private hero!: Phaser.GameObjects.Container;
-  private heroBody!: Phaser.GameObjects.Arc;
+  private hero!: AvatarDriver;
+  /** Hero feet position (logical px). */
+  private heroX = 0;
+  private heroY = 0;
   private vy = 0;
-  private facing = 1;
+  private facing: 1 | -1 = 1;
+  private airborneSince = -1;
+  private jumped = false;
+  private character = characters[0];
   private indicators = new Map<Action, Phaser.GameObjects.Arc>();
   private audioLight!: Phaser.GameObjects.Arc;
   private modeIcons: Phaser.GameObjects.Container[] = [];
@@ -54,12 +67,22 @@ export class InputLabScene extends Phaser.Scene {
     this.ground = this.add.rectangle(0, 0, 10, GROUND_H, 0x4caf50).setOrigin(0, 0);
     this.groundTop = this.add.rectangle(0, 0, 10, 16, 0x388e3c).setOrigin(0, 0);
 
-    this.heroBody = this.add.circle(0, 0, HERO_R, 0xff5252).setStrokeStyle(6, 0xffffff);
-    const eyeL = this.add.circle(10, -12, 9, 0xffffff);
-    const eyeR = this.add.circle(30, -12, 9, 0xffffff);
-    const pupilL = this.add.circle(13, -12, 4, 0x222222);
-    const pupilR = this.add.circle(33, -12, 4, 0x222222);
-    this.hero = this.add.container(0, 0, [this.heroBody, eyeL, eyeR, pupilL, pupilR]);
+    // The hero is the chosen character in the chosen look, moved by the same avatar code as the levels.
+    makeEffectTextures(this);
+    const charId = new URLSearchParams(location.search).get('char');
+    this.character = characters.find((c) => c.id === charId) ?? characters[0];
+    this.heroX = this.layout.centerX;
+    this.heroY = this.groundY();
+    const look = createLook(this, lookFromUrl(), this.character, this.heroX, this.heroY);
+    this.hero = new AvatarDriver(this, {
+      look,
+      x: this.heroX,
+      feet: this.heroY,
+      depth: 10,
+      refSpeed: SPEED,
+      gait: 'walk',
+      groundAt: () => this.groundY(),
+    });
 
     this.input2 = new InputManager(this, {
       reservedKeys: MODE_KEYS,
@@ -78,7 +101,6 @@ export class InputLabScene extends Phaser.Scene {
 
     this.layout.bindToScene(this, (l) => this.relayout(l));
     this.setMode(this.modeIndex, false);
-    this.hero.setPosition(this.layout.centerX, this.groundY());
 
     // Test/debug hook, only with ?debug=1.
     if (new URLSearchParams(location.search).has('debug')) {
@@ -89,29 +111,59 @@ export class InputLabScene extends Phaser.Scene {
         audio,
         scene: this,
         mode: () => this.modeIndex + 1,
+        anim: () => this.hero.animState(),
+        hero: () => ({ x: this.heroX, y: this.heroY, facing: this.facing, look: this.hero.look.name }),
       };
     }
   }
 
-  override update(_time: number, deltaMs: number): void {
+  override update(time: number, deltaMs: number): void {
     const dt = Math.min(deltaMs, 50) / 1000;
     const input = this.input2;
 
     let dir = 0;
     if (input.isDown('left')) dir -= 1;
     if (input.isDown('right')) dir += 1;
-    if (dir !== 0) this.facing = dir;
+    if (dir !== 0) this.facing = dir as 1 | -1;
     const safe = this.layout.safeRect;
     const minX = safe.x + HERO_R;
     const maxX = safe.x + safe.width - HERO_R;
-    this.hero.x = Phaser.Math.Clamp(this.hero.x + dir * SPEED * dt, minX, maxX);
-    this.hero.scaleX = this.facing;
+    const before = this.heroX;
+    this.heroX = Phaser.Math.Clamp(this.heroX + dir * SPEED * dt, minX, maxX);
+    const vx = dt > 0 ? (this.heroX - before) / dt : 0;
 
     const floor = this.groundY();
-    if (input.justPressed('jump') && this.hero.y >= floor - 0.5) this.vy = -JUMP_V;
+    const onGround = this.heroY >= floor - 0.5;
+    if (input.justPressed('jump') && onGround) {
+      this.vy = -JUMP_V;
+      this.jumped = true;
+      this.hero.takeoff(time);
+    }
     this.vy += GRAVITY * dt;
-    this.hero.y = Math.min(floor, this.hero.y + this.vy * dt);
-    if (this.hero.y >= floor) this.vy = 0;
+    this.heroY = Math.min(floor, this.heroY + this.vy * dt);
+    const grounded = this.heroY >= floor;
+    if (grounded) {
+      this.vy = 0;
+      if (this.airborneSince >= 0 && time - this.airborneSince > 120) this.hero.land(time, this.heroX, floor);
+      this.airborneSince = -1;
+      this.jumped = false;
+    } else if (this.airborneSince < 0) {
+      this.airborneSince = time;
+    }
+    this.hero.update({
+      time,
+      dtMs: dt * 1000,
+      x: this.heroX,
+      bottom: this.heroY,
+      vx,
+      vy: this.vy,
+      onGround: grounded,
+      enabled: true,
+      airborneMs: this.airborneSince < 0 ? 0 : time - this.airborneSince,
+      jumped: this.jumped,
+      ride: null,
+      facing: this.facing,
+    });
 
     for (const a of ACTIONS) {
       const light = this.indicators.get(a)!;
@@ -122,8 +174,9 @@ export class InputLabScene extends Phaser.Scene {
     this.audioLight.setFillStyle(audio.state === 'running' ? 0x43a047 : 0xe53935);
   }
 
+  /** Top of the ground: where the hero's feet stand. */
   private groundY(): number {
-    return this.layout.height - GROUND_H - HERO_R;
+    return this.layout.height - GROUND_H;
   }
 
   private onPress(action: Action): void {
@@ -133,7 +186,7 @@ export class InputLabScene extends Phaser.Scene {
         break;
       case 'power':
         audio.play('power');
-        this.burst();
+        this.shoot();
         break;
       default:
         audio.play('tap');
@@ -151,23 +204,26 @@ export class InputLabScene extends Phaser.Scene {
     if (withSound) audio.play('pick');
   }
 
-  private burst(): void {
-    const { x, y } = this.hero;
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const p = this.add.circle(x, y, 12, i % 2 ? 0xffeb3b : 0xffffff).setDepth(10);
+  /** Power: the look's shoot animation and a small energy ball that flies forward and fades. No gameplay. */
+  private shoot(): void {
+    const now = this.time.now;
+    this.hero.shoot(now);
+    // Fire on the next frame, once the arm has started to point forward.
+    this.time.delayedCall(40, () => {
+      const from = this.hero.look.muzzle();
+      const part = energyBall(this, resolveAvatar(this.character.avatar).palette);
+      const dir = this.facing;
+      const ball = this.add.image(from.x, from.y, part.key).setOrigin(part.ox, part.oy).setScale(1 / PART_RES).setDepth(11);
       this.tweens.add({
-        targets: p,
-        x: x + Math.cos(a) * 140,
-        y: y + Math.sin(a) * 140,
-        alpha: 0,
-        scale: 0.3,
-        duration: 420,
-        ease: 'Quad.easeOut',
-        onComplete: () => p.destroy(),
+        targets: ball,
+        x: from.x + dir * 520,
+        alpha: { from: 1, to: 0 },
+        scale: { from: 1.1 / PART_RES, to: 0.6 / PART_RES },
+        duration: 650,
+        ease: 'Sine.easeOut',
+        onComplete: () => ball.destroy(),
       });
-    }
-    this.tweens.add({ targets: this.heroBody, scale: 1.25, duration: 100, yoyo: true });
+    });
   }
 
   private createLights(): void {
@@ -209,7 +265,7 @@ export class InputLabScene extends Phaser.Scene {
     });
 
     const safe = l.safeRect;
-    this.hero.x = Phaser.Math.Clamp(this.hero.x || l.centerX, safe.x + HERO_R, safe.x + safe.width - HERO_R);
-    this.hero.y = Math.min(this.hero.y || this.groundY(), this.groundY());
+    this.heroX = Phaser.Math.Clamp(this.heroX || l.centerX, safe.x + HERO_R, safe.x + safe.width - HERO_R);
+    this.heroY = Math.min(this.heroY || this.groundY(), this.groundY());
   }
 }

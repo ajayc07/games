@@ -3,7 +3,7 @@
 // particles, so emitting allocates nothing per frame. Counts and rates are in animation.ts (ANIM.dust).
 import type Phaser from 'phaser';
 import { ANIM } from './animation';
-import type { MotionFxSink } from './Player';
+import type { MotionFxSink } from '../avatar/types';
 
 export class MotionFx implements MotionFxSink {
   private readonly puff: Phaser.GameObjects.Particles.ParticleEmitter;

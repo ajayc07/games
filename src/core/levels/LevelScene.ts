@@ -12,6 +12,9 @@ import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
 import { makeEffectTextures, makeThemeTextures, themeKey } from './placeholders';
 import { CharacterLook } from './characterLook';
+import { createLook, lookFromUrl } from '../avatar/createLook';
+import { gaitFor } from '../avatar/clips';
+import type { LookName } from '../avatar/config';
 import { ParallaxBackground } from './background';
 import { ResultScreen } from './ResultScreen';
 import { Player } from './Player';
@@ -76,7 +79,10 @@ export class LevelScene extends Phaser.Scene {
   private input2!: InputManager;
   private touch!: TouchControls;
   private bg!: ParallaxBackground;
-  private look!: CharacterLook;
+  /** The character's pictures, shared by the player and the ghost (sprite look only). */
+  private pictures: CharacterLook | undefined;
+  /** How characters are drawn (`?look=`, D-032). */
+  private lookName: LookName = 'sprite';
   private player!: Player;
   private ghost: Player | null = null;
   private demo: DemoRunner | null = null;
@@ -162,7 +168,8 @@ export class LevelScene extends Phaser.Scene {
     this.buildGround();
     this.buildCoins();
     this.buildFlag();
-    this.look = new CharacterLook(this, character);
+    this.lookName = lookFromUrl();
+    this.pictures = this.lookName === 'sprite' ? new CharacterLook(this, character) : undefined;
     this.motionFx = new MotionFx(this, DEPTH.player - 1);
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
@@ -276,10 +283,13 @@ export class LevelScene extends Phaser.Scene {
 
   /** The real player gets dust; the demo ghost does not. */
   private makePlayer(depth: number, alpha: number, dust: boolean): Player {
+    const x = this.cellCenter(this.grid.start).x;
+    const feet = this.startFeet();
     return new Player(this, {
-      x: this.cellCenter(this.grid.start).x,
-      feet: this.startFeet(),
-      look: this.look,
+      x,
+      feet,
+      look: createLook(this, this.lookName, this.data0.character, x, feet, this.pictures),
+      gait: gaitFor(this.level.controls.autoRun),
       colliders: this.groundBodies,
       depth,
       tile: this.tile,
@@ -407,7 +417,7 @@ export class LevelScene extends Phaser.Scene {
     const ghost = this.ghost!;
     ghost.body.setVelocity(0, 0);
     ghost.body.enable = false;
-    this.tweens.add({ targets: [ghost.sprite, ghost.shadow], alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
+    this.tweens.add({ targets: [ghost.look.root, ghost.avatar.shadow], alpha: 0, duration: 350, onComplete: () => ghost.destroy() });
     this.ghost = null;
     this.demoCues!.hideFinger();
     this.demoCues!.aim(this.demo!.firstAction); // "your turn" pulses the first button the demo pressed
@@ -619,7 +629,7 @@ export class LevelScene extends Phaser.Scene {
     audio.play('win');
     const charId = this.data0.character.id;
     this.time.delayedCall(WIN_VOICE_DELAY_MS, () => audio.playVoice(charId, 'win'));
-    player.sprite.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
+    player.avatar.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
     player.hop(this.time.now);
     this.confetti.explode(70, this.flagX, this.flagTopY + 20);
     this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
@@ -677,14 +687,14 @@ export class LevelScene extends Phaser.Scene {
         totalCoins: this.coins.length,
         jumps: this.player.jumps,
         respawns: this.respawns,
-        ghost: this.ghost && { x: this.ghost.body.center.x, jumps: this.ghost.jumps, alpha: this.ghost.sprite.alpha },
+        ghost: this.ghost && { x: this.ghost.body.center.x, jumps: this.ghost.jumps, alpha: this.ghost.look.root.alpha },
         demoPresses: this.demo?.pressed ?? 0,
         vx: this.player.body.velocity.x,
         pressedOnce: [...this.pressedOnce],
         lookDir: this.lookDir,
-        playerVisible: this.player.sprite.visible,
+        playerVisible: this.player.look.root.visible,
         pose: this.player.pose,
-        flipX: Math.sign(this.player.sprite.scaleX),
+        flipX: Math.sign(this.player.look.root.scaleX),
         facing: this.player.facing,
         invite: this.invite !== null,
         hasNext: !!this.data0.onNext,
@@ -693,9 +703,10 @@ export class LevelScene extends Phaser.Scene {
         hint: this.hint !== null,
         camX: this.camX,
         fps: this.game.loop.actualFps,
-        texture: this.player.sprite.texture.key,
-        spriteHeight: this.player.sprite.displayHeight,
-        ghostTexture: this.ghost?.sprite.texture.key ?? null,
+        look: this.lookName,
+        texture: this.player.look.debug().texture,
+        spriteHeight: this.player.look.debug().displayHeight,
+        ghostTexture: this.ghost?.look.debug().texture ?? null,
       }),
       anim: () => this.player.animState(),
       ghostAnim: () => this.ghost?.animState() ?? null,
