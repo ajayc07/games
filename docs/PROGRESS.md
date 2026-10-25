@@ -25,10 +25,11 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`.
 | 009 | Grass 6 Everything (four buttons) | Done |
 | 010 | Parent view | Done |
 | 011 | Combo Practice (free play) | Done |
-| post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice; replay variety and unique per-colour traits (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
+| 012 | Replay variety (shuffle coins and small bubbles on replays, rare rainbow bubble); task drafted in `docs/tasks/012-replay-variety.md` | Drafted, not started |
+| post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## In progress
-_(nothing)_
+_(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers to its three open questions: when variety starts, rainbow bubble yes/no, Grass 1-2 handling)_
 
 ## Open issues and tuning (current)
 - **Not verified on a real device:** chimes, pop and combo sounds by ear; 58+ fps (the headless test machine measures a 52-60 fps blank page);
