@@ -25,6 +25,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`.
 | 009 | Grass 6 Everything (four buttons) | Done |
 | 010 | Parent view | Done |
 | 011 | Combo Practice (free play) | Done |
+| next session (parent request 2026-10-25) | Full screen when playing in a browser tab (see "Open issues": Fullscreen); small task, to be drafted | Queued |
 | 012 | Replay variety (shuffle coins and small bubbles on replays, rare rainbow bubble); task drafted in `docs/tasks/012-replay-variety.md` | Drafted, not started |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
@@ -52,6 +53,9 @@ _(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers t
   with origin (0, 0), so scenes scroll by hand and children of screen-fixed containers need `setScrollFactor(0, 0, true)` (docs/architecture/ui-input-audio.md "Screen layout").
   Phaser re-sends queued key events when several keys arrive in one frame; handle repeats in any new key code (the picker does). The picker is not driven by a gamepad.
   The map is about 2185 px wide, so it scrolls; the robot stands on the first open level not yet cleared.
+- **Fullscreen (queued, not built):** today only the installed PWA is fullscreen (`display: fullscreen` in the manifest); in a normal browser tab there is no way into fullscreen, so the address bar and tabs eat screen space.
+  Ideas for the task: call the Fullscreen API (`requestFullscreen`, webkit-prefixed fallback) from a user gesture, e.g. together with the first-tap audio unlock; plus a small fullscreen toggle (parent view row, and/or a held icon so a toddler cannot exit by accident);
+  landscape lock where supported (`screen.orientation.lock`); re-layout on resize/exit (layout is already responsive, D-013/D-017); iPhone Safari has no Fullscreen API for pages (only the home-screen PWA), iPad Safari does; a `?fullscreen=0|1` test hook; settings precedence as in D-047; never block play if the request is refused.
 - **Public git history** still contains the removed Nintendo files (`docs/IDEAS.md`); rewriting it is a parent decision.
 - **No media files** in the game; the former character images and voice clips are archived in `_sources/archive-private/` (not committed).
 
