@@ -19,6 +19,8 @@ import { HoldButton } from '../ui/HoldButton';
 import { PARENT_HOLD_MS } from '../ui/hold';
 import { clampScroll, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
+import { addPracticeBadge } from '../practice/icons';
+import { MAP_PRACTICE, mapPracticeSpot } from '../practice/practiceLayout';
 
 export type TeaserIcon = 'cave' | 'sky' | 'castle';
 
@@ -35,6 +37,8 @@ export interface MapSceneData {
   onPicker: () => void;
   /** The parent view (Task 010): opened by holding the gear for PARENT_HOLD_MS. Without it there is no gear. */
   onParent?: () => void;
+  /** Combo Practice (Task 011): a fixed button (bottom-right) opens the practice selector. Always open. */
+  onPractice?: () => void;
 }
 
 interface DotView {
@@ -66,6 +70,9 @@ export class MapScene extends Phaser.Scene {
   private teaserViews: Phaser.GameObjects.Container[] = [];
   private palette!: Phaser.GameObjects.Container;
   private gear: HoldButton | null = null;
+  /** The Practice button (Task 011), screen-fixed bottom-right; its face bobs inside it. */
+  private practiceBtn: Phaser.GameObjects.Container | null = null;
+  private practiceFace: Phaser.GameObjects.Container | null = null;
   private driver!: AvatarDriver;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private dots: DotState[] = [];
@@ -140,6 +147,18 @@ export class MapScene extends Phaser.Scene {
       // Top-left, far from the palette button and the dots; a 3 s hold (visible ring) or P held 3 s on a keyboard.
       this.gear = new HoldButton(this, () => this.openParent(), DEPTH.ui, { holdMs: PARENT_HOLD_MS, icon: 'gear', corner: 'top-left', inset: 84, key: 'KeyP', color: 0x6d6258 });
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.gear?.destroy());
+    }
+    this.practiceBtn = null;
+    this.practiceFace = null;
+    if (this.data0.onPractice) {
+      // Bottom-right, below the dots and their stars, far from the gear (top-left) and the palette (top-right).
+      const face = this.add.container(0, 0);
+      addPracticeBadge(this, face, MAP_PRACTICE.r);
+      const btn = this.add.container(0, 0, [face]).setDepth(DEPTH.ui).setSize(MAP_PRACTICE.hit, MAP_PRACTICE.hit);
+      btn.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, () => this.openPractice());
+      this.tweens.add({ targets: face, y: -MAP_PRACTICE.bob, duration: MAP_PRACTICE.bobMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.practiceBtn = btn;
+      this.practiceFace = face;
     }
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onDown, this);
@@ -307,6 +326,10 @@ export class MapScene extends Phaser.Scene {
     const p = l.anchor('top-right', 84, 84);
     this.palette.setPosition(p.x, p.y);
     this.gear?.layout(l);
+    if (this.practiceBtn) {
+      const s = mapPracticeSpot(l.width, l.height, l.insets);
+      this.practiceBtn.setPosition(s.x, s.y);
+    }
     this.scrollTarget = scrollFor(this.geo.width, l.width, this.pos.x);
     this.scroll = this.scrollTarget;
   }
@@ -314,7 +337,7 @@ export class MapScene extends Phaser.Scene {
   // ---------- input ----------
 
   private onDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
-    if (over.includes(this.palette)) return;
+    if (over.includes(this.palette) || (this.practiceBtn && over.includes(this.practiceBtn))) return;
     const at = this.logical(pointer);
     if (this.gear?.contains(at.x, at.y)) return;
     const { x } = at;
@@ -432,6 +455,18 @@ export class MapScene extends Phaser.Scene {
     this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onParent?.());
   }
 
+  private openPractice(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    audio.play('pick');
+    const face = this.practiceFace;
+    if (face) {
+      this.tweens.killTweensOf(face);
+      this.tweens.add({ targets: face, scale: 1.15, duration: 110, yoyo: true, ease: 'Back.easeOut' });
+    }
+    this.time.delayedCall(240, () => this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onPractice?.()));
+  }
+
   private openPicker(): void {
     if (this.leaving) return;
     this.leaving = true;
@@ -507,6 +542,7 @@ export class MapScene extends Phaser.Scene {
         avatar: { x: this.pos.x - this.scroll, y: this.pos.y - this.lift },
         palette: { x: this.palette.x, y: this.palette.y, r: PALETTE_R },
         gear: this.gear?.state ?? null,
+        practice: this.practiceBtn && { x: this.practiceBtn.x, y: this.practiceBtn.y, r: MAP_PRACTICE.r, hit: MAP_PRACTICE.hit, faceY: this.practiceFace?.y ?? 0 },
         scroll: this.scroll,
         mapWidth: this.geo.width,
         hopping: !!this.hop,

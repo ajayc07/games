@@ -27,6 +27,9 @@ import { Blaster, type Shooter } from './Blaster';
 import { BubbleField } from './BubbleField';
 import { SHOT } from './shots';
 import { resolveAvatar } from '../avatar/config';
+import type { PracticeMode } from './practice';
+import { PracticeRun } from '../practice/PracticeRun';
+import { resultHandlerFor, walkAssistOn } from '../practice/practiceResult';
 
 export interface LevelSceneData {
   level: LevelData;
@@ -45,6 +48,10 @@ export interface LevelSceneData {
   look?: LookName;
   /** Reopen the avatar picker (small icon on the win screen) until the map has its own button. */
   onPicker?: () => void;
+  /** Win screen Replay; default restarts this level. A practice run passes a new layout (a new seed). */
+  onReplay?: () => void;
+  /** Combo Practice (Task 011): only for levels with `practice: true`. */
+  practice?: { mode: PracticeMode; walkAssist: boolean; onPractice: () => void };
 }
 
 /** demo: the ghost shows the control; turn: "your turn" cue; then the real run. */
@@ -126,6 +133,8 @@ export class LevelScene extends Phaser.Scene {
   /** The demo ghost's Power press this frame. */
   private ghostPower = false;
   private bubbles!: BubbleField;
+  /** Combo Practice (Task 011): star row, combos, coach and walk assist. Only on practice levels. */
+  private practice: PracticeRun | null = null;
 
   private mode: Mode = 'play';
   private coinCount = 0;
@@ -172,6 +181,7 @@ export class LevelScene extends Phaser.Scene {
     this.blaster = null;
     this.ghostBlaster = null;
     this.ghostPower = false;
+    this.practice = null;
   }
 
   preload(): void {
@@ -223,6 +233,17 @@ export class LevelScene extends Phaser.Scene {
     this.input2.configure({ enabled: this.level.controls.enabled, tapAnywhereJumps: this.level.controls.tapAnywhereJumps });
     this.touch = new TouchControls(this, this.input2, this.layout);
     this.input2.on(INPUT_EVENTS.MISS, this.onMissTap, this);
+    const practice = this.data0.practice;
+    if (this.level.practice && practice) {
+      this.practice = new PracticeRun(this, {
+        mode: practice.mode,
+        walkAssist: walkAssistOn(this.level, practice.walkAssist),
+        touch: this.touch,
+        layout: this.layout,
+        coinTexture: themeKey(theme, 'coin'),
+        onRowDone: () => this.cheer(),
+      });
+    }
 
     this.layout.bindToScene(this, (l) => this.relayout(l));
     const demo = this.level.controls.demo;
@@ -242,6 +263,7 @@ export class LevelScene extends Phaser.Scene {
     this.player.updateAvatar(time, dt);
     this.ghost?.updateAvatar(time, dt);
     this.updateShots(time, dt * 1000);
+    this.updatePractice(time);
     this.exitBtn.update(time);
     this.demoCues?.update();
     this.updateCamera(dt);
@@ -552,8 +574,12 @@ export class LevelScene extends Phaser.Scene {
   private updatePlay(now: number, dtMs: number): void {
     const input = this.input2;
     const controls = this.level.controls;
-    // Hold = move, release = stop; both held = stand (D-029).
-    const move = controls.autoRun ? 1 : walkDirection(input.isDown('left'), input.isDown('right'));
+    // Hold = move, release = stop; both held = stand (D-029). Practice may add the walk assist (Task 011).
+    const move = controls.autoRun
+      ? 1
+      : this.practice
+        ? this.practice.move(now, input.isDown('left'), input.isDown('right'))
+        : walkDirection(input.isDown('left'), input.isDown('right'));
     for (const a of ['left', 'right', 'jump', 'power'] as const) if (input.justPressed(a)) this.pressedOnce.add(a);
     const pressed = input.justPressed('jump');
     const r = this.player.step(now, { move, jumpPressed: pressed, walls: this.bubbleWalls(this.player) }, dtMs);
@@ -635,6 +661,46 @@ export class LevelScene extends Phaser.Scene {
     this.addCoins(this.bubbles.collect(now).counted);
   }
 
+  /** Combo Practice (Task 011): combos and the coach, every frame (combos only count in play). */
+  private updatePractice(now: number): void {
+    if (!this.practice) return;
+    const input = this.input2;
+    const playing = this.mode === 'play';
+    const b = this.player.body;
+    const cam = this.camX;
+    this.practice.update({
+      now,
+      playing,
+      left: playing && input.isDown('left'),
+      right: playing && input.isDown('right'),
+      jump: playing && input.isDown('jump'),
+      power: playing && input.isDown('power'),
+      jumpPressed: playing && input.justPressed('jump'),
+      powerPressed: playing && input.justPressed('power'),
+      airborne: !this.player.grounded,
+      possible: playing && !this.player.ride && !this.nearGap(b.center.x) && b.center.x < this.flagX - 2 * this.tile,
+      facing: this.player.facing,
+      avatar: { left: b.left - cam - 30, right: b.right - cam + 30, top: b.top - 40, bottom: b.bottom + 8 },
+    });
+  }
+
+  /** True within a tile of a gap in the ground under the start row (the coach keeps quiet there). */
+  private nearGap(x: number): boolean {
+    const row = this.grid.solid[this.grid.start.row + 1];
+    if (!row) return false;
+    for (let c = Math.floor((x - this.tile) / this.tile); c <= Math.floor((x + this.tile) / this.tile); c++) {
+      if (c >= 0 && c < row.length && !row[c]) return true;
+    }
+    return false;
+  }
+
+  /** The fifth combo star (Task 011): the win pose for about a second while the walk goes on. */
+  private cheer(): void {
+    const look = this.player.look;
+    look.trigger('win', this.time.now);
+    this.time.delayedCall(1000, () => look.trigger('rest', this.time.now));
+  }
+
   private updateCamera(dt: number): void {
     const safe = this.layout.safeRect;
     const actor = this.ghost ?? this.player;
@@ -675,6 +741,7 @@ export class LevelScene extends Phaser.Scene {
   private startRespawn(): void {
     this.mode = 'respawn';
     this.respawns++;
+    this.practice?.cancelLatch(); // the walk assist lets go on a fall (Task 011)
     audio.play('whoosh');
     const player = this.player;
     // Put him back on the side he came from: a fall while walking left over a gap must not carry him across it.
@@ -721,6 +788,7 @@ export class LevelScene extends Phaser.Scene {
     this.invite?.remove();
     this.invite = null;
     this.input2.configure({ enabled: [], tapAnywhereJumps: false });
+    this.practice?.finish();
     // Coins still flying from popped bubbles land now, so they count for the stars.
     this.addCoins(this.bubbles.flushCoins());
     if (this.hint) {
@@ -742,19 +810,22 @@ export class LevelScene extends Phaser.Scene {
     this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
     this.tweens.add({ targets: this.flagCloth, angle: { from: -8, to: 8 }, duration: 160, yoyo: true, repeat: 3 });
     const stars = starsFor(true, this.coinCount, this.level.stars);
-    // Keep progress now, before the win screen, so quitting right after still saves it.
-    this.data0.onResult?.({ stars, coins: this.coinCount });
+    // Keep progress now, before the win screen, so quitting right after still saves it. Practice saves nothing (Task 011).
+    resultHandlerFor(this.level, this.data0.onResult)?.({ stars, coins: this.coinCount });
+    const practice = this.practice && this.data0.practice ? { combos: this.practice.combo.total } : undefined;
     this.time.delayedCall(1100, () => {
       // A joyful bounce on the spot while the stars fill, ending as the buttons appear.
-      player.celebrate(this.time.now, ResultScreen.fillMs(stars));
+      player.celebrate(this.time.now, ResultScreen.fillMs(stars, practice));
+      const replay = this.data0.onReplay;
       this.result = new ResultScreen(this, this.layout, stars, {
-        onReplay: () => this.scene.restart(this.data0),
+        onReplay: replay ? () => this.afterStep(replay) : () => this.scene.restart(this.data0),
         // Leave after this frame: stopping the scene mid-update would break the rest of the frame.
         onHome: () => this.afterStep(this.data0.onHome),
         onNext:
           this.data0.onNext && (this.data0.nextAvailable?.() ?? true) ? () => this.afterStep(this.data0.onNext!) : undefined,
         onPicker: this.data0.onPicker && (() => this.afterStep(this.data0.onPicker!)),
-      });
+        onPractice: practice && this.data0.practice ? () => this.afterStep(this.data0.practice!.onPractice) : undefined,
+      }, practice);
     });
   }
 
@@ -826,6 +897,9 @@ export class LevelScene extends Phaser.Scene {
         resultButtons: this.result?.buttons() ?? [],
         resultArmed: this.result?.isArmed ?? false,
         stars: this.mode === 'result' ? starsFor(true, this.coinCount, this.level.stars) : 0,
+        resultStars: this.result?.starCounts ?? null,
+        practice: this.practice?.debug() ?? null,
+        layoutWidth: this.layout.width,
         hint: this.hint !== null,
         camX: this.camX,
         fps: this.game.loop.actualFps,

@@ -14,6 +14,7 @@ games/
       storage/           per-universe progress record: IndexedDB -> localStorage -> memory (store.ts)
       picker/            PickerScene (colour cards), pure selection + layout
       map/               MapScene (world map), pure unlock rule + map layout
+      practice/          Combo Practice (Task 011): selector scene, combo tracker, coach, run effects
       levels/            level JSON loader/runner, control-ladder rules
       ui/                reusable big buttons, cloud/lock visuals
     universes/
@@ -254,6 +255,8 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
   are sky. Grass 1 uses 11 rows of 64 (704 px), so the top 16 px are sky. Grids taller than 720 extend above the screen.
 - `controls` is the **control ladder**: `InputManager.configure` follows it, and TouchControls only shows enabled
   actions (none with `tapAnywhereJumps`). `autoRun` runs right at `runSpeed`; otherwise Left/Right move and release stops.
+- `practice` (optional, Task 011): `true` marks a generated Combo Practice level (no progress saved, combo stars on the win
+  screen); any other non-boolean value is an error. Absent on Grass 1-6.
 - `stars` (D-020): finishing = 1, `two` and `three` are coin thresholds. `runSpeed` is optional (default in physics.ts).
 - `demo` (D-024, D-030): `false`, or one of two forms (mixing them is an error):
   - Tile form `{ "tiles": N, "jumpsAtTiles": [..] }` (auto-run levels). Both are grid columns, 0-based from the left edge
@@ -404,6 +407,61 @@ walking over without a jump falls too. All six gaps were crossed from a standing
 with Right and Jump pressed together. Holding Right only: he falls at the first gap, floats back (about 160 px behind the gap),
 walks on and falls again, in a loop (7 falls in 24 s) that is never a soft lock: a Jump at the edge crosses it at any time.
 
+## Combo Practice (D-049, Task 011)
+Free play for the hold-and-tap coordination: always open, nothing saved, every run a new layout.
+- **Generator** (`core/levels/practice.ts`, pure, tested): `generatePractice(mode, seed, world)` returns `{ config, gaps, chunks }`;
+  `config` is a normal level (passes `parseLevel`): 11 rows like Grass 6, start at column 6, `controls.enabled` all four,
+  `autoRun`/`tapAnywhereJumps`/`demo` false, `practice: true`, id `practice-<mode>-<seed>`. Seeded mulberry32 (`makeRng`), so
+  the same seed gives the same grid; Replay uses `newSeed()`. About 120 tiles: chunks of 12-20 tiles until about 10 tiles before
+  120, joined by 1-2 tiles of ground, then the flag (at column 112 or later, 7+ tiles after the last gap, after all content) and 4
+  tiles. Behind the start: two small bubbles in the upper row (turn round to pop them), or three coins in walk + jump.
+  Chunks: `shoot` (small bubbles 3-4 tiles apart in the two standing rows, coins between, no gaps), `air` (high `h` bubbles
+  taking turns with small ones; usually one 1-tile gap with a small bubble 4 columns after its start, just past the landing),
+  `gaps` (1- and 2-tile gaps 7-8 tiles apart, each with the Grass 5 coin arc, a walking coin between). Focus -> chunks:
+  `walk-shoot` shoot, `jump-shoot` air, `walk-jump` gaps, `everything` shuffled bags of all three. Rules (D-045): gaps 1-2 tiles
+  through both ground rows, 7+ tiles of ground between gaps and from the start and flag; small bubbles 2+ columns from any gap
+  column, high bubbles 3+; no big bubbles; no head-height coin in the two columns after a 1-tile gap.
+  `practiceFromSearch`: `?practice=<mode>` starts a run at boot, `?practice=1` the selector, `?seed=<n>` fixes the first seed.
+  Tests (`practice.test.ts`): determinism, 200 seeds per mode parse and keep every rule, focus content (15+ small bubbles,
+  6+ high, 5+ gaps), shot reach (Grass 4/6 heights), and a kinematic bot (walk ramp, gravity, jump, shots, coin pick-up) that
+  finishes every seed with every coin and bubble and no fall, in about 35 s.
+- **Combos** (`core/practice/combo.ts`, pure, tested): `ComboTracker(mode).step(frame)`; a combo is Power or Jump pressed (edge)
+  while Left/Right is held or was held in the last `COMBO.navGraceMs` (120), or Power pressed while airborne. Per focus
+  (`COMBO_KINDS`): walk-shoot nav + Power, jump-shoot Power in the air, walk-jump nav + Jump, everything all three. Counted combos
+  are at least `minGapMs` (400) apart. Event `{ kind, nav, action, star, rowDone }`; the fifth star empties the row.
+  The walk-assist latch counts as a held nav button.
+- **Coach** (`core/practice/coach.ts`, pure, tested): `CoachTimer` shows the hint after `idleMs` (8 s) without a combo while one is
+  possible (play mode, not on the cloud, not within a tile of a gap, not in the last 2 tiles before the flag), for `showMs` (2.5 s),
+  then quiet for `quietMs` (20 s); a combo or the moment ending stops it at once. The clock starts with play. `coachTaps(mode, n)`:
+  Power twice, Jump twice, Jump then Power (jump + shoot), everything takes turns.
+- **Walk assist** (`core/levels/stickyWalk.ts`, pure, tested): `StickyWalk.step(now, left, right)`; a press released within
+  `STICKY.tapMs` (250) latches that way, the same tap again stops, the other reverses; a longer press walks while held and
+  cancels the latch; `cancel()` on a fall. Only when `walkAssistOn(level, setting)` (practice levels and `sticky`).
+- **Run effects** (`core/practice/PracticeRun.ts`, used by LevelScene only on practice levels): `move()` (walk assist; the latched
+  button shows pressed via `TouchControls.setLatched`), `update(frame)` every frame (combos in play, the coach), `cancelLatch()`
+  on a fall, `finish()` at the flag (the row fades out for the win screen). Reward: sparkles and a ring on the nav button (Jump
+  for Power in the air without one) and the action button (screen-fixed emitter), `combo-<star>` sound, the next star of the row
+  of five (top centre, r 30, 76 apart) pops. Fifth star: `comboRow` jingle, confetti and a 16-coin shower from the row, `onRowDone`
+  (LevelScene: the look's `win` pose for 1 s, then `rest`; physics untouched), the row empties after 0.9 s (at once if the next
+  combo comes first). Ghost hand: two `drawFinger` fingers, one glides onto the nav button in the facing direction and stays down
+  (the button shows pressed, a yellow ring fills), the other taps the action button at 0.8 and 1.55 s (press look + nudge pulse);
+  hidden for any frame a finger would cover the avatar.
+- **Selector** (`core/practice/PracticeScene.ts` + `practiceLayout.ts`, pure layout tested at the five sizes with insets): four
+  cards in a 2x2 grid (at most 360x300, at least 150), pictograms of the real buttons (`icons.ts`: arrow + star, up + star,
+  arrow + up, all four), soft colours; Back (r 70) bottom-left. Tap: pop, `pick`, then `onPick(mode)`. Keys: arrows move a cursor
+  (`moveCardFocus`), Enter/Space start, Escape/Backspace back. `?debug=1`: `window.__practice.state()`.
+- **Map button**: `mapPracticeSpot` (bottom-right inside the insets, inset 96, r 60, hit 132, idle bob 6 px), below every dot,
+  star slot and teaser (tested at the four map sizes), far from the gear and the palette. A tap: `pick`, a pop, `onPractice`.
+  Always shown, independent of `openAtATime` and `?unlock`. `__map.state().practice`.
+- **Flow** (`universes/robo/manifest.ts`): map -> selector (`openPracticeSelect`, cursor on the last focus) -> `openPractice(mode,
+  seed)`: a normal LevelScene run with `practice: { mode, walkAssist, onPractice }` and `onReplay` (a new seed, same mode); no
+  `onResult`, no Next, no picker. LevelScene also guards with `resultHandlerFor(level, onResult)` so a practice level never records.
+  Falls float back as always (D-019), popped bubbles stay popped, no demo. Win screen (`ResultScreen` with a `PracticeResult`):
+  the run's combo stars (`practiceStars`: 5 slots, 10 for more than five combos, one filled per combo, no numbers), Home, Practice
+  (the badge, back to the selector), Replay (big, pulsing). Keys add P = Practice.
+- `?debug=1`: `__level.state().practice` (mode, walkAssist, combos, stars, rows, celebrations, ignored, lastCombo, latch, hint with
+  finger boxes, avatar box), `resultStars`; `__progress.session()` adds `practiceMode` and `walkAssist`.
+
 ## Screen layout (D-013)
 `core/ui/layout.ts`: logical height is always 720, logical width follows the screen (960..1920, D-017). `getLayout()` gives
 `width`, `height`, `safeRect` (central 960x720 for gameplay-critical content), `insets` (device safe areas, logical units),
@@ -458,6 +516,7 @@ The layouts of Grass 1-5 are exactly as before (tested). The Input Lab's mode 4 
 `core/audio/AudioManager` (`audio` singleton) unlocks Web Audio on the first touch/click/key. `register(id, { file?, synth?, volume? })`,
 `play(id)`: plays the file if it loaded, otherwise the synth recipe (`core/audio/recipes.ts`: tap, jump, coin, win, tryAgain, whoosh, yourTurn, pick, power, bump, unlock, hop, and `pop-0`..`pop-5`
 (`popRecipe(step)`, Task 007);
+plus `comboRow` and `combo-0`..`combo-4` (`comboRecipe(step)`, a rising two-note, one step higher per star in the row, Task 011);
 plus the per-option chimes, see "Avatar options and picker").
 Never throws; a failed file logs one warning. A play request made while audio is still unlocking (the first tap both
 unlocks and jumps) is queued (`pendingQueue.ts`, tested: one per id, at most 4) and played once the context runs if it is
@@ -470,7 +529,7 @@ universe's assets plus a `register(id, { file, synth })` entry: the synth stays 
 - **Settings module** (`core/settings/settings.ts`, pure, tested). Each setting resolves as URL parameter, then the saved value
   (the record's `settings`; `look` is the record's own field), then the default: `buttonScale` (`?buttonScale=`, default 1, clamped
   0.6-1.6, parent steps 0.8/1/1.2/1.4), `buttonsPrimary` (`?buttons=`, `jump`), `soundOn` (`?sound=0|1|off|on`, on),
-  `unlockAll` (`?unlock=all`, off), `look` (`?look=`, robot). A bad URL value is ignored (falls to the saved one). The URL value is
+  `unlockAll` (`?unlock=all`, off), `look` (`?look=`, robot), `walkAssist` (`?assist=sticky|off`, off; Task 011, practice levels only). A bad URL value is ignored (falls to the saved one). The URL value is
   never written to the saved settings (the old `?look=` saving rule is unchanged). `bindSettings(read, search)` is called once at boot
   with the store, so `settings.buttonScale()` etc. read live; TouchControls, the unlock rule (`unlockFromSearch(search, n, savedUnlockAll)`),
   AudioManager mute (`audio.setMuted(!settings.soundOn())` at boot, before any sound) and the look all go through it.
@@ -480,7 +539,9 @@ universe's assets plus a `register(id, { file, synth })` entry: the synth stays 
 - **Access**: the map shows a grey gear top-left (`HoldButton` with `icon: 'gear'`, `holdMs: PARENT_HOLD_MS` 3000, key `P`; hit 110 px). A tap only wobbles it.
   `?parent=1` opens the view at boot (not with `?level=` or `?lab=`). Nothing in levels, picker, win screen or lab opens it.
 - **ParentScene** (`core/parent/`, generic; data `ParentSceneData` of read/set callbacks). `parentLayout.ts` (pure, tested at the five sizes, with and
-  without insets): two columns, no scrolling. Left: Sound, Look, Main button, Unlock all, Demos (label + two controls, rows 84 px, 24 px gaps).
+  without insets): two columns, no scrolling. Left: Sound, Look, Main button, Unlock all, Walk assist in Practice (Off/Sticky, Task 011),
+  Demos (label + two controls, rows 84 px, 24 px gaps; the gap would close up to 12 px if a screen were too short). The preview
+  caption mentions the assist when it is Sticky.
   Right: button size steps, the preview, Reset (held `RESET_HOLD_MS` 3 s, fill bar) and Back (also Escape). The preview draws the real
   `placeButtons` result for all four buttons at the chosen scale and main button on a mini screen of the real aspect (`previewFit`). A change calls the
   universe (which saves) and the scene redraws from the saved state. Demos "Show again" calls `LevelScene.forgetDemos()`.
@@ -489,7 +550,7 @@ universe's assets plus a `register(id, { file, synth })` entry: the synth stays 
 ## Storage (D-036, Task 006)
 `core/storage/progress.ts` (pure, tested): one record per universe, key `athi.<universe>.progress`:
 `{ version: 1, chosenCharacterId (a colour id or null), look (or null), levels: { [id]: { stars 0-3, bestCoins } }, settings }`
-(`settings`: soundOn, buttonScale, buttonsPrimary, unlockAll; see "Settings and the parent view"). `parseRecord` repairs bad fields and reports
+(`settings`: soundOn, buttonScale, buttonsPrimary, unlockAll, walkAssist; see "Settings and the parent view"). `parseRecord` repairs bad fields and reports
 `empty`, `corrupt` or `unknown-version`; `mergeResult` keeps the best stars and coins (never lowers them).
 `core/storage/backends.ts`: `IndexedDbBackend` (database `athi-games`, store `kv`, every call with a 1.5 s timeout so a stuck
 private mode never hangs the game), `LocalStorageBackend`, `MemoryBackend`.

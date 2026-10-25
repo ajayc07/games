@@ -13,6 +13,7 @@ import {
   resolveLook,
   resolveSoundOn,
   resolveUnlockAll,
+  resolveWalkAssist,
   settings,
   urlOverrides,
   type SettingsInput,
@@ -70,6 +71,14 @@ describe('settings precedence: URL, then saved, then default', () => {
     expect(resolveLook(input('', {}, 'nonsense'))).toBe('robot');
   });
 
+  it('walk assist (Task 011): ?assist=sticky|off, then the saved value, then off', () => {
+    expect(resolveWalkAssist(input())).toBe('off');
+    expect(resolveWalkAssist(input('', { walkAssist: 'sticky' }))).toBe('sticky');
+    expect(resolveWalkAssist(input('?assist=off', { walkAssist: 'sticky' }))).toBe('off');
+    expect(resolveWalkAssist(input('?assist=STICKY'))).toBe('sticky');
+    expect(resolveWalkAssist(input('?assist=maybe', { walkAssist: 'sticky' }))).toBe('sticky'); // a bad URL value is ignored
+  });
+
   it('removing the URL parameter returns to the saved value', () => {
     const saved = { buttonScale: 1.4, buttonsPrimary: 'power' as const };
     expect(resolveButtonScale(input('?buttonScale=0.8', saved))).toBe(0.8);
@@ -79,8 +88,9 @@ describe('settings precedence: URL, then saved, then default', () => {
   });
 
   it('reports which settings the URL pins', () => {
-    expect(urlOverrides('')).toEqual({ buttonScale: false, buttonsPrimary: false, soundOn: false, unlockAll: false, look: false });
-    expect(urlOverrides('?buttonScale=1.3&buttons=power&sound=0&unlock=all&look=ball')).toEqual({ buttonScale: true, buttonsPrimary: true, soundOn: true, unlockAll: true, look: true });
+    expect(urlOverrides('')).toEqual({ buttonScale: false, buttonsPrimary: false, soundOn: false, unlockAll: false, look: false, walkAssist: false });
+    expect(urlOverrides('?buttonScale=1.3&buttons=power&sound=0&unlock=all&look=ball&assist=sticky')).toEqual({ buttonScale: true, buttonsPrimary: true, soundOn: true, unlockAll: true, look: true, walkAssist: true });
+    expect(urlOverrides('?assist=maybe').walkAssist).toBe(false);
     expect(urlOverrides('?buttonScale=junk&look=sprite').buttonScale).toBe(false);
     expect(urlOverrides('?look=sprite').look).toBe(false);
   });
@@ -120,6 +130,13 @@ describe('the record and the store', () => {
     expect(record.settings).toEqual({ soundOn: false, buttonScale: 1.2, unlockAll: true });
     expect(record.levels.g1).toEqual({ stars: 2, bestCoins: 9 });
     expect(record.settings.buttonsPrimary).toBeUndefined();
+  });
+
+  it('walkAssist is optional, round-trips and an invalid value is dropped (no version bump)', () => {
+    const r = { ...freshRecord(), settings: { walkAssist: 'sticky' as const } };
+    expect(parseRecord(serializeRecord(r)).record.settings.walkAssist).toBe('sticky');
+    expect(parseRecord(JSON.stringify({ version: 1, settings: { walkAssist: 'always' } })).record.settings).toEqual({});
+    expect(parseRecord(JSON.stringify({ version: 1, settings: { soundOn: true } })).record.settings.walkAssist).toBeUndefined();
   });
 
   it('buttonsPrimary round-trips; an invalid value is dropped', () => {

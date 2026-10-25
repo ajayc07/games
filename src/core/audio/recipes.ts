@@ -91,6 +91,18 @@ export const DEFAULT_RECIPES = {
       { freq: 600, to: 1800, at: 0.04, dur: 0.24, type: 'sine', gain: 0.4 },
     ],
   },
+  // Combo Practice (Task 011): the star row is full. A quick happy run up and a sparkly top note (not the win jingle).
+  comboRow: {
+    tones: [
+      { freq: 784, dur: 0.09, type: 'triangle', gain: 0.55 },
+      { freq: 988, at: 0.08, dur: 0.09, type: 'triangle', gain: 0.55 },
+      { freq: 1175, at: 0.16, dur: 0.09, type: 'triangle', gain: 0.55 },
+      { freq: 1568, at: 0.24, dur: 0.1, type: 'triangle', gain: 0.55 },
+      { freq: 1175, at: 0.34, dur: 0.09, type: 'triangle', gain: 0.5 },
+      { freq: 1568, at: 0.42, dur: 0.38, type: 'sine', gain: 0.55 },
+      { freq: 3136, at: 0.44, dur: 0.26, type: 'sine', gain: 0.12 },
+    ],
+  },
 } satisfies Record<string, SynthRecipe>;
 
 export type DefaultSoundId = keyof typeof DEFAULT_RECIPES;
@@ -114,6 +126,27 @@ export function popRecipe(step: number): SynthRecipe {
     tones: [
       { freq: f * 0.75, to: f * 1.5, dur: 0.09, type: 'sine', gain: 0.55 },
       { freq: f * 1.5, to: f * 2, at: 0.05, dur: 0.11, type: 'sine', gain: 0.22 },
+    ],
+  };
+}
+
+/** Steps (semitones) for the combo sound: one per star in the row, so each combo in a row sounds a little higher (Task 011). */
+export const COMBO_STEPS = [0, 2, 4, 7, 9] as const;
+
+/** Sound id of the combo sound for the star at `step` (0-based, clamped to COMBO_STEPS). */
+export function comboSoundId(step: number): string {
+  return `combo-${Math.max(0, Math.min(COMBO_STEPS.length - 1, Math.round(step)))}`;
+}
+
+/** A happy rising two-note "ta-da" (a fourth up), under 0.3 s; `step` raises both notes along COMBO_STEPS. */
+export function comboRecipe(step: number): SynthRecipe {
+  const i = Math.max(0, Math.min(COMBO_STEPS.length - 1, Math.round(step)));
+  const f = 660 * 2 ** (COMBO_STEPS[i] / 12);
+  return {
+    tones: [
+      { freq: f, dur: 0.09, type: 'triangle', gain: 0.55 },
+      { freq: f * 1.335, at: 0.08, dur: 0.18, type: 'triangle', gain: 0.55 },
+      { freq: f * 2.67, at: 0.09, dur: 0.14, type: 'sine', gain: 0.12 },
     ],
   };
 }

@@ -6,8 +6,20 @@ import { PickerScene, type PickerSceneData } from '../../core/picker/PickerScene
 import { MapScene, type MapSceneData, type TeaserIcon } from '../../core/map/MapScene';
 import { unlockFromSearch, worldDots, type UnlockOptions } from '../../core/map/unlock';
 import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene';
+import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
+import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
+import { parseLevelOrThrow } from '../../core/levels/format';
 import { audio } from '../../core/audio/AudioManager';
-import { bindSettings, resolveButtonScale, resolveButtonsPrimary, resolveSoundOn, resolveUnlockAll, settings, urlOverrides } from '../../core/settings/settings';
+import {
+  bindSettings,
+  resolveButtonScale,
+  resolveButtonsPrimary,
+  resolveSoundOn,
+  resolveUnlockAll,
+  resolveWalkAssist,
+  settings,
+  urlOverrides,
+} from '../../core/settings/settings';
 import { colorFromSearch, findOption, validateOptions } from '../../core/avatar/options';
 import { parseLook, type LookName } from '../../core/avatar/config';
 import { loadLegacyChoice } from '../../core/storage/choice';
@@ -44,6 +56,8 @@ interface Session {
   look: LookName;
   /** Set when a level was finished; the map plays its arrival animation once. */
   arrival: { levelId: string; before: ProgressRecord } | null;
+  /** The last practice focus (the selector's cursor starts there). */
+  practiceMode: PracticeMode | null;
 }
 
 async function boot(game: Phaser.Game): Promise<void> {
@@ -71,6 +85,7 @@ async function boot(game: Phaser.Game): Promise<void> {
     visitOption: color.requested ? color.option : null,
     look,
     arrival: null,
+    practiceMode: null,
   };
   exposeDebug(s);
 
@@ -78,6 +93,13 @@ async function boot(game: Phaser.Game): Promise<void> {
   const levelId = params.get('level');
   if (params.has('lab') && params.get('lab') !== '0') return openLab(s);
   if (params.get('parent') === '1' && !levelId) return openParent(s);
+  // ?practice=<mode> starts a run at once, ?practice=1 opens the selector (Task 011); ?level= wins.
+  const practice = practiceFromSearch(search);
+  if (practice.warning) console.warn(`${TAG} ${practice.warning}`);
+  if (practice.open && !levelId) {
+    if (practice.mode) return openPractice(s, practice.mode, practice.seed ?? newSeed());
+    return openPracticeSelect(s);
+  }
   const forcePicker = params.has('picker') && params.get('picker') !== '0';
   if (levelId && !forcePicker) return openLevel(s, levelId);
   if (forcePicker || (!store.record.chosenCharacterId && !s.visitOption)) {
@@ -135,8 +157,40 @@ function openMap(s: Session): void {
     onPlay: (id) => openLevel(s, id),
     onPicker: () => openPicker(s, () => openMap(s)),
     onParent: () => openParent(s),
+    onPractice: () => openPracticeSelect(s),
   };
   startOnly(s.game, MapScene.KEY, MapScene, data);
+}
+
+/** The Combo Practice selector (Task 011): always open, reached from the map's Practice button. */
+function openPracticeSelect(s: Session): void {
+  s.arrival = null;
+  const data: PracticeSceneData = {
+    focus: s.practiceMode ?? undefined,
+    onPick: (mode) => openPractice(s, mode, newSeed()),
+    onBack: () => openMap(s),
+  };
+  startOnly(s.game, PracticeScene.KEY, PracticeScene, data);
+}
+
+/**
+ * A practice run (Task 011, D-049): a generated level of the focus, played in the normal LevelScene. Nothing is recorded
+ * (no onResult); Replay builds a new layout of the same focus; Practice goes back to the selector, Home to the map.
+ */
+function openPractice(s: Session, mode: PracticeMode, seed: number): void {
+  s.arrival = null;
+  s.practiceMode = mode;
+  const level = parseLevelOrThrow(generatePractice(mode, seed, 'grass').config, `practice ${mode} ${seed}`);
+  const data: LevelSceneData = {
+    level,
+    theme: themeForWorld(level.world),
+    option: currentOption(s),
+    look: s.look,
+    onHome: () => openMap(s),
+    onReplay: () => openPractice(s, mode, newSeed()),
+    practice: { mode, walkAssist: settings.walkAssist() === 'sticky', onPractice: () => openPracticeSelect(s) },
+  };
+  startOnly(s.game, LevelScene.KEY, LevelScene, data);
 }
 
 /** The parent view (D-047): reached only from the map's gear or `?parent=1`; Back returns to the map. */
@@ -154,6 +208,7 @@ function openParent(s: Session): void {
         buttonsPrimary: saved.buttonsPrimary ?? resolveButtonsPrimary(input),
         look: s.look,
         unlockAll: saved.unlockAll ?? resolveUnlockAll(input),
+        walkAssist: saved.walkAssist ?? resolveWalkAssist(input),
         pinned: urlOverrides(input.search),
       };
     },
@@ -169,6 +224,7 @@ function openParent(s: Session): void {
       s.look = l;
     },
     setUnlockAll: (on) => store.updateSettings({ unlockAll: on }),
+    setWalkAssist: (v) => store.updateSettings({ walkAssist: v }),
     showDemosAgain: () => LevelScene.forgetDemos(),
     resetProgress: async () => {
       s.arrival = null;
@@ -226,7 +282,14 @@ function exposeDebug(s: Session): void {
     backend: () => s.store.backendName,
     status: s.store.status,
     flush: () => s.store.flush(),
-    session: () => ({ option: currentOption(s).id, look: s.look, unlock: unlockOptions(s), visitOption: s.visitOption?.id ?? null }),
+    session: () => ({
+      option: currentOption(s).id,
+      look: s.look,
+      unlock: unlockOptions(s),
+      visitOption: s.visitOption?.id ?? null,
+      practiceMode: s.practiceMode,
+      walkAssist: settings.walkAssist(),
+    }),
   };
 }
 

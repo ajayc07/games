@@ -6,6 +6,8 @@ import Phaser from 'phaser';
 import { audio } from '../audio/AudioManager';
 import type { Layout } from '../ui/layout';
 import { drawPalette } from '../ui/icons';
+import { addPracticeBadge } from '../practice/icons';
+import { practiceStars } from '../practice/practiceResult';
 
 const DEPTH = 2000;
 const STAR_R = 72;
@@ -19,6 +21,8 @@ const PICKER_INSET = 84;
 const STAR_STEP_MS = 450;
 /** Buttons ignore input this long after they appear, so leftover mashing does not press them. */
 const ARM_MS = 600;
+/** Practice (Task 011): the combo stars fill quicker, one after another. */
+const COMBO_STEP_MS = 160;
 
 export interface ResultHandlers {
   onReplay: () => void;
@@ -27,14 +31,22 @@ export interface ResultHandlers {
   onNext?: () => void;
   /** Omitted = no picker button. */
   onPicker?: () => void;
+  /** Practice runs (Task 011): back to the practice selector. Omitted = no Practice button. */
+  onPractice?: () => void;
 }
 
-type Choice = 'replay' | 'next' | 'home' | 'picker';
+/** A practice run's result (Task 011): the combo stars of the run replace the 1-3 stars. */
+export interface PracticeResult {
+  combos: number;
+}
+
+type Choice = 'replay' | 'next' | 'home' | 'picker' | 'practice';
 
 export class ResultScreen {
   static readonly DEPTH = DEPTH;
   /** Time from the screen appearing until the buttons pop in (all earned stars filled), ms. */
-  static fillMs(count: number): number {
+  static fillMs(count: number, practice?: PracticeResult): number {
+    if (practice) return 450 + practiceStars(practice.combos).filled * COMBO_STEP_MS + 250;
     return 450 + count * STAR_STEP_MS + 250;
   }
   private readonly root: Phaser.GameObjects.Container;
@@ -44,30 +56,62 @@ export class ResultScreen {
   private readonly home: Phaser.GameObjects.Container;
   private readonly next: Phaser.GameObjects.Container | null;
   private readonly picker: Phaser.GameObjects.Container | null;
+  private readonly practiceBtn: Phaser.GameObjects.Container | null;
+  /** Stars that fill (the earned ones, or the run's combo stars). */
+  private readonly filled: number;
+  private readonly stepMs: number;
   private armed = false;
   private done = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
     layout: Layout,
-    private readonly count: number,
+    count: number,
     private readonly handlers: ResultHandlers,
+    practice?: PracticeResult,
   ) {
     this.dim = scene.add.rectangle(0, 0, 10, 10, 0x0d47a1, 0).setOrigin(0, 0).setScrollFactor(0).setDepth(DEPTH);
     this.root = scene.add.container(0, 0).setScrollFactor(0).setDepth(DEPTH + 1);
-    for (let i = 0; i < 3; i++) {
-      const star = this.makeStar();
-      star.setPosition((i - 1) * STAR_GAP, i === 1 ? -150 : -120).setScale(0);
-      this.root.add(star);
-      this.stars.push(star);
+    if (practice) {
+      // The run's combo stars (Task 011): a row of 5 (two rows for a busy run), no numbers.
+      const { slots, filled } = practiceStars(practice.combos);
+      this.filled = filled;
+      this.stepMs = COMBO_STEP_MS;
+      const rows = Math.ceil(slots / 5);
+      const r = rows > 1 ? 40 : 56;
+      const gap = rows > 1 ? 104 : 140;
+      for (let i = 0; i < slots; i++) {
+        const star = this.makeStar(r);
+        const row = Math.floor(i / 5);
+        star.setPosition(((i % 5) - 2) * gap, rows > 1 ? -205 + row * 100 : -140).setScale(0);
+        this.root.add(star);
+        this.stars.push(star);
+      }
+    } else {
+      this.filled = count;
+      this.stepMs = STAR_STEP_MS;
+      for (let i = 0; i < 3; i++) {
+        const star = this.makeStar(STAR_R);
+        star.setPosition((i - 1) * STAR_GAP, i === 1 ? -150 : -120).setScale(0);
+        this.root.add(star);
+        this.stars.push(star);
+      }
     }
     const hasNext = !!handlers.onNext;
-    const homeR = hasNext ? HOME_R_WITH_NEXT : BUTTON_R;
-    this.replay = this.makeButton(0x43a047, BUTTON_R, (g) => drawReplay(g, BUTTON_R * 0.5), () => this.choose('replay'));
+    const homeR = hasNext || handlers.onPractice ? HOME_R_WITH_NEXT : BUTTON_R;
+    // A practice run: Replay is the big pulsing button (a new layout), Practice goes back to the selector.
+    const replayR = handlers.onPractice ? NEXT_R : BUTTON_R;
+    this.replay = this.makeButton(0x43a047, replayR, (g) => drawReplay(g, replayR * 0.5), () => this.choose('replay'));
     this.home = this.makeButton(0x1e88e5, homeR, (g) => drawHouse(g, homeR * 0.5), () => this.choose('home'));
     this.next = hasNext ? this.makeButton(0xff8f00, NEXT_R, (g) => drawNext(g, NEXT_R * 0.5), () => this.choose('next')) : null;
+    this.practiceBtn = handlers.onPractice ? this.makePracticeButton(BUTTON_R, () => this.choose('practice')) : null;
     // Around the character, who celebrates in the middle of the screen. With Next: Home, Replay | Next.
-    if (this.next) {
+    if (this.practiceBtn) {
+      this.home.setPosition(-385, 150).setScale(0);
+      this.practiceBtn.setPosition(-200, 150).setScale(0);
+      this.replay.setPosition(245, 140).setScale(0);
+      this.root.add([this.practiceBtn, this.home, this.replay]);
+    } else if (this.next) {
       this.home.setPosition(-385, 150).setScale(0);
       this.replay.setPosition(-200, 150).setScale(0);
       this.next.setPosition(245, 140).setScale(0);
@@ -108,6 +152,7 @@ export class ResultScreen {
       ['replay', this.replay],
       ['next', this.next],
       ['home', this.home],
+      ['practice', this.practiceBtn],
     ];
     const out = list
       .filter((e): e is [Choice, Phaser.GameObjects.Container] => e[1] !== null)
@@ -118,7 +163,13 @@ export class ResultScreen {
 
   private get all(): Phaser.GameObjects.Container[] {
     const main = this.next ? [this.replay, this.next, this.home] : [this.replay, this.home];
+    if (this.practiceBtn) main.push(this.practiceBtn);
     return this.picker ? [...main, this.picker] : main;
+  }
+
+  /** Test hook: how many star slots are shown and how many fill. */
+  get starCounts(): { slots: number; filled: number } {
+    return { slots: this.stars.length, filled: this.filled };
   }
 
   private play(): void {
@@ -126,15 +177,15 @@ export class ResultScreen {
     t.add({ targets: this.dim, fillAlpha: 0.28, duration: 400 });
     // Empty slots pop in together, then the earned stars fill one by one.
     this.stars.forEach((s) => t.add({ targets: s, scale: 1, duration: 300, ease: 'Back.easeOut' }));
-    for (let i = 0; i < this.count; i++) {
+    for (let i = 0; i < this.filled; i++) {
       const fill = this.stars[i].getAt(1) as Phaser.GameObjects.Graphics;
-      this.scene.time.delayedCall(450 + i * STAR_STEP_MS, () => {
+      this.scene.time.delayedCall(450 + i * this.stepMs, () => {
         audio.play('coin');
         t.add({ targets: fill, scale: { from: 0, to: 1 }, duration: 320, ease: 'Back.easeOut' });
         t.add({ targets: this.stars[i], angle: { from: -12, to: 0 }, duration: 320, ease: 'Sine.easeOut' });
       });
     }
-    const buttonsAt = ResultScreen.fillMs(this.count);
+    const buttonsAt = 450 + this.filled * this.stepMs + 250;
     this.scene.time.delayedCall(buttonsAt, () => {
       for (const b of this.all) t.add({ targets: b, scale: 1, duration: 300, ease: 'Back.easeOut' });
       this.scene.time.delayedCall(ARM_MS, () => {
@@ -150,13 +201,14 @@ export class ResultScreen {
     if (e.repeat) return;
     if (e.code === 'Space' || e.code === 'ArrowRight') this.choose(this.next ? 'next' : 'replay');
     else if (e.code === 'KeyR') this.choose('replay');
+    else if (e.code === 'KeyP') this.choose('practice');
     else if (e.code === 'KeyC') this.choose('picker');
     else if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'NumpadEnter') this.choose('home');
   }
 
   private choose(which: Choice): void {
     if (!this.armed || this.done) return;
-    const target = { replay: this.replay, home: this.home, next: this.next, picker: this.picker }[which];
+    const target = { replay: this.replay, home: this.home, next: this.next, picker: this.picker, practice: this.practiceBtn }[which];
     if (!target) return;
     this.done = true;
     audio.play('pick');
@@ -168,20 +220,30 @@ export class ResultScreen {
       scale: 0.85,
       duration: 90,
       yoyo: true,
-      onComplete: () => ({ replay: h.onReplay, home: h.onHome, next: h.onNext, picker: h.onPicker })[which]?.(),
+      onComplete: () => ({ replay: h.onReplay, home: h.onHome, next: h.onNext, picker: h.onPicker, practice: h.onPractice })[which]?.(),
     });
   }
 
-  private makeStar(): Phaser.GameObjects.Container {
+  private makeStar(r: number): Phaser.GameObjects.Container {
+    const line = r >= 60 ? 8 : 6;
     const empty = this.scene.add.graphics();
-    empty.fillStyle(0xffffff, 0.35).lineStyle(8, 0xffffff, 1);
-    empty.fillPoints(starPoints(STAR_R), true).strokePoints(starPoints(STAR_R), true);
+    empty.fillStyle(0xffffff, 0.35).lineStyle(line, 0xffffff, 1);
+    empty.fillPoints(starPoints(r), true).strokePoints(starPoints(r), true);
     const full = this.scene.add.graphics();
-    full.fillStyle(0xffd600, 1).lineStyle(8, 0xff8f00, 1);
-    full.fillPoints(starPoints(STAR_R), true).strokePoints(starPoints(STAR_R), true);
-    full.fillStyle(0xffffff, 0.6).fillCircle(-STAR_R * 0.2, -STAR_R * 0.2, STAR_R * 0.12);
+    full.fillStyle(0xffd600, 1).lineStyle(line, 0xff8f00, 1);
+    full.fillPoints(starPoints(r), true).strokePoints(starPoints(r), true);
+    full.fillStyle(0xffffff, 0.6).fillCircle(-r * 0.2, -r * 0.2, r * 0.12);
     full.setScale(0);
     return this.scene.add.container(0, 0, [empty, full]);
+  }
+
+  /** The Practice button (Task 011): the map's two-buttons badge, so it reads as "practise again". */
+  private makePracticeButton(r: number, onTap: () => void): Phaser.GameObjects.Container {
+    const c = this.scene.add.container(0, 0);
+    addPracticeBadge(this.scene, c, r);
+    c.setSize(r * 2.2, r * 2.2).setData('r', r);
+    c.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, onTap);
+    return c;
   }
 
   private makeButton(color: number, r: number, icon: (g: Phaser.GameObjects.Graphics) => void, onTap: () => void) {

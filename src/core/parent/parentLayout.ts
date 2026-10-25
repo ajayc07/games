@@ -1,5 +1,5 @@
 // Where the parent view's rows, preview and buttons go for a given screen (Task 010, D-047). Pure and unit-tested.
-// Two columns, no scrolling: the left column holds five rows (label + controls), the right column the button size
+// Two columns, no scrolling: the left column holds six rows (label + controls; walk assist added in Task 011), the right column the button size
 // steps, the live preview of the real button layout, the held Reset button and Back.
 import type { Area } from '../ui/buttonLayout';
 
@@ -17,7 +17,7 @@ export interface Insets {
   left: number;
 }
 
-export type RowId = 'sound' | 'look' | 'main' | 'unlock' | 'demos';
+export type RowId = 'sound' | 'look' | 'main' | 'unlock' | 'assist' | 'demos';
 
 export interface ParentRow {
   id: RowId;
@@ -73,9 +73,11 @@ export function parentLayout(width: number, height: number, insets: Insets): Par
 
   const labelW = Math.round(Math.max(P.labelMin, Math.min(P.labelMax, leftW * 0.42)));
   // Left column rows.
-  const ids: RowId[] = ['sound', 'look', 'main', 'unlock', 'demos'];
+  const ids: RowId[] = ['sound', 'look', 'main', 'unlock', 'assist', 'demos'];
+  // Rows keep the usual gap when it fits (it does at every tested size); otherwise they close up a little.
+  const rowGap = Math.max(12, Math.min(P.gap, (bottom - top - ids.length * P.rowH) / (ids.length - 1)));
   const rows: ParentRow[] = ids.map((id, i) => {
-    const y = top + i * (P.rowH + P.gap);
+    const y = top + i * (P.rowH + rowGap);
     const rect = { x: cx, y, width: leftW, height: P.rowH };
     const label = { x: cx, y, width: labelW, height: P.rowH };
     const ctrlX = cx + labelW + P.gap;

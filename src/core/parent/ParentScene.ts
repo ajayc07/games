@@ -7,7 +7,7 @@ import { audio } from '../audio/AudioManager';
 import { HoldTracker, RESET_HOLD_MS } from '../ui/hold';
 import { placeButtons } from '../ui/buttonLayout';
 import { STYLES, drawActionIcon } from '../ui/TouchControls';
-import { BUTTON_SCALE_STEPS, nearestScaleStep, type ButtonsPrimary } from '../settings/settings';
+import { BUTTON_SCALE_STEPS, nearestScaleStep, type ButtonsPrimary, type WalkAssist } from '../settings/settings';
 import { LOOK_NAMES, type LookName } from '../avatar/config';
 import { parentLayout, previewFit, type ParentLayout, type Rect } from './parentLayout';
 
@@ -17,8 +17,10 @@ export interface ParentState {
   buttonsPrimary: ButtonsPrimary;
   look: LookName;
   unlockAll: boolean;
+  /** Walk assist in Practice (Task 011). */
+  walkAssist: WalkAssist;
   /** Settings the URL pins for this visit (a change is saved but this visit still uses the URL value). */
-  pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean };
+  pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean };
 }
 
 export interface ParentSceneData {
@@ -28,6 +30,7 @@ export interface ParentSceneData {
   setButtonsPrimary(p: ButtonsPrimary): void;
   setLook(look: LookName): void;
   setUnlockAll(on: boolean): void;
+  setWalkAssist(v: WalkAssist): void;
   showDemosAgain(): void;
   resetProgress(): Promise<void>;
   onBack(): void;
@@ -124,6 +127,12 @@ export class ParentScene extends Phaser.Scene {
     this.rowLabel(row('unlock'), 'Unlock all');
     this.choice(row('unlock').controls[0], 'On', st.unlockAll, () => this.change(() => this.data0.setUnlockAll(true)));
     this.choice(row('unlock').controls[1], 'Off', !st.unlockAll, () => this.change(() => this.data0.setUnlockAll(false)));
+    // Walk assist (Task 011): two lines, the second smaller, so the long name fits the label column.
+    const ar = row('assist');
+    root.add(this.text('Walk assist', ar.label.x, ar.label.y + ar.label.height / 2 - 14, 26, C.ink, true).setOrigin(0, 0.5));
+    root.add(this.text('in Practice', ar.label.x, ar.label.y + ar.label.height / 2 + 16, 19, C.soft).setOrigin(0, 0.5));
+    this.choice(ar.controls[0], 'Off', st.walkAssist !== 'sticky', () => this.change(() => this.data0.setWalkAssist('off')));
+    this.choice(ar.controls[1], 'Sticky', st.walkAssist === 'sticky', () => this.change(() => this.data0.setWalkAssist('sticky')));
     this.rowLabel(row('demos'), 'Demos');
     this.choice(row('demos').controls[0], this.demoTick > 0 ? 'Shown again ✓' : 'Show again', this.demoTick > 0, () => {
       this.data0.showDemosAgain();
@@ -132,7 +141,7 @@ export class ParentScene extends Phaser.Scene {
       this.change(() => undefined);
     }).setFontSize(24);
 
-    const pinned = [st.pinned.soundOn && 'sound', st.pinned.look && 'look', st.pinned.buttonScale && 'button size', st.pinned.buttonsPrimary && 'main button', st.pinned.unlockAll && 'unlock all'].filter(Boolean);
+    const pinned = [st.pinned.soundOn && 'sound', st.pinned.look && 'look', st.pinned.buttonScale && 'button size', st.pinned.buttonsPrimary && 'main button', st.pinned.unlockAll && 'unlock all', st.pinned.walkAssist && 'walk assist'].filter(Boolean);
     if (pinned.length > 0) {
       const last = row('demos').rect;
       put(this.text(`The web address sets ${pinned.join(', ')} for this visit.`, last.x, last.y + last.height + 14, 17, C.soft).setWordWrapWidth(last.width));
@@ -209,7 +218,8 @@ export class ParentScene extends Phaser.Scene {
       this.root!.add([base, icon]);
       this.previewButtons.push({ action: p.action, x, y, r });
     }
-    const cap = this.text('What he sees in the last level', panel.x + 16, panel.y + 6, 16, C.soft);
+    const assist = st.walkAssist === 'sticky' ? '  ·  Practice: a quick tap on an arrow keeps walking' : '';
+    const cap = this.text(`What he sees in the last level${assist}`, panel.x + 16, panel.y + 6, 16, C.soft);
     this.root!.add(cap);
   }
 

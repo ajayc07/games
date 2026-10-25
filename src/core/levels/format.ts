@@ -79,6 +79,11 @@ export interface LevelData {
   stars: { two: number; three: number };
   /** Equal-length rows, top row first. */
   grid: string[];
+  /**
+   * A generated free-play level (Task 011, D-049): no progress is saved for it and the win screen shows the run's
+   * combo stars. Absent on the normal levels.
+   */
+  practice?: true;
 }
 
 export type ParseResult = { ok: true; level: LevelData } | { ok: false; errors: string[] };
@@ -101,6 +106,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
   if (!isPositive(raw.tileSize)) err('"tileSize" must be a positive number');
   if (raw.runSpeed !== undefined && !isPositive(raw.runSpeed)) err('"runSpeed" must be a positive number');
   if (raw.walkSpeed !== undefined && !isPositive(raw.walkSpeed)) err('"walkSpeed" must be a positive number');
+  if (raw.practice !== undefined && typeof raw.practice !== 'boolean') err('"practice" must be true or false');
 
   // controls
   const c = raw.controls;
@@ -194,6 +200,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       walkSpeed: raw.walkSpeed as number | undefined,
       stars: { two: (s as { two: number }).two, three: (s as { three: number }).three },
       grid: [...(g as string[])],
+      ...(raw.practice === true ? { practice: true as const } : {}),
     },
   };
 }

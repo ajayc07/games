@@ -1,13 +1,19 @@
 # Progress
 
-_Last updated: 2026-10-25 (Task 010 done, original plan complete)_
+_Last updated: 2026-10-25 (Task 011 Combo Practice done)_
 
 ## Status
-The original plan is complete (Task 010). The map has a grey gear (top-left) that opens the parent view after a 3 s hold (or `P` held 3 s;
+Task 011 (D-049) added Combo Practice: a teal button bottom-right on the map (two buttons with a sparkle) opens a selector with
+four icon cards (walk + shoot, jump + shoot, walk + jump, everything). Each run is a generated level of about 120 tiles (a new
+layout every time) where every combo (an action button while a nav button is held, or Power in the air) sparkles and fills a row
+of five stars; five give a coin shower. A ghost hand coaches after 8 s without a combo. Nothing is saved. The parent view has a
+new row "Walk assist in Practice" (Off / Sticky). `?practice=<mode>` / `?practice=1`, `?seed=`, `?assist=sticky` for testing.
+Next (D-049): the architect's docs trim, then the tablet test.
+
+Before that, the original plan was completed (Task 010). The map has a grey gear (top-left) that opens the parent view after a 3 s hold (or `P` held 3 s;
 `?parent=1` opens it directly). It sets sound, button size (four steps with a live preview of the real four-button layout), main button
 (Jump or Power), look, unlock all, shows the watch-me demos again, and resets progress (held 3 s; keeps colour, look and settings).
-Settings resolve URL, then saved, then default through `core/settings/settings.ts`. Next: the architect decides (tablet feedback, replay
-variety D-044, Cave/Sky/Castle).
+Settings resolve URL, then saved, then default through `core/settings/settings.ts`.
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -26,6 +32,8 @@ variety D-044, Cave/Sky/Castle).
 | 008 | Grass 5 "Move and Jump": walking over gaps (D-043) | Done |
 | 009 | Grass 6 "Everything": Left, Right, Jump and Power together (D-043) | Done |
 | 010 | Minimal parent view (sound, button size, unlock-all, reset progress) | Done |
+| 011 | Combo Practice: free play for hold-and-tap combos (D-049) | Done |
+| next | Docs trim (architect), tablet test, post-plan list (D-048) | Next |
 | later | Cave/Sky/Castle worlds, polish | Later |
 
 ## Done
@@ -79,10 +87,31 @@ variety D-044, Cave/Sky/Castle).
   (3 s hold, `P`), `?parent=1`, ParentScene with pure layout, live preview, held Reset, Show demos again, `?sound=` parameter. 292 tests.
   Universe chunk 143,677 -> 156,583 bytes; `dist/` 1,401,042 -> 1,413,948 bytes.
 
+- 2026-10-25: Task 011 Combo Practice: seeded generator (`core/levels/practice.ts`, four focuses, D-045 rules), ComboTracker,
+  CoachTimer, StickyWalk walk assist, PracticeRun effects (star row, sparkles, combo sounds, celebration, ghost hand), selector scene,
+  map button, practice win screen (combo stars, Home / Practice / Replay), `walkAssist` setting and parent row, `practice` level flag.
+  358 tests. Universe chunk 156,583 -> 182,729 bytes; `dist/` 1,440,859 bytes (all files).
+
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Combo Practice (Task 011), to judge on the tablet: see the checklist under "Parent action items". Numbers to tune: `COMBO`
+  (`navGraceMs` 120, `minGapMs` 400) in `core/practice/combo.ts`, `COACH` (8 s / 2.5 s / 20 s) in `coach.ts`, `STICKY.tapMs` (250)
+  in `core/levels/stickyWalk.ts`, `PRACTICE` (120 tiles, chunk sizes) in `core/levels/practice.ts`. Combo and jingle sounds were
+  tuned by numbers only (rising two-note, one step higher per star), not by ear.
+- Practice run length: the in-browser bot (walking right on purpose, jumping and shooting) finished every mode in about 35 s; the
+  unit-test bot averages 30-48 s. A masher will take longer (Grass 5/6 numbers), with no penalty.
+- Practice: with many combos the win screen shows at most 10 stars (two rows of five); a run with no combo shows 5 empty slots
+  (no numbers, nothing taken away). The in-level star row is the main reward; the win screen is a recap.
+- The coach counts "possible" by place only (not over a gap, not on the cloud, not at the flag), not by whether a bubble is in reach;
+  in walk + jump it may coach between gaps. Its hand hides for any frame a finger would cover the avatar (never seen in tests).
+- Walk assist: the latched arrow shows its pressed look while it keeps walking; holding Right through a gap with the latch falls
+  as usual and the float-back drops the latch (so he is not walked into the same gap again).
+- The `everything` focus counts all three combo kinds; Power while airborne and walking counts once (as nav + Power).
+- Frame rate (Task 011, headless Chrome 844x390 dpr 3): blank page 60.3, map 59.1, practice runs 60.0-60.3 average (min 58.4-60);
+  mashing all four buttons about 20 times a second for 10 s in `everything`: average 59.2, lowest 57.3; no console errors. One
+  earlier batch dipped to 46-57 average while the machine was busy; rerun alone it was 60.3.
 - Parent view (Task 010): headless Chrome 59.8 fps in the parent view. Not checked: a real tablet, a real child on the gear, iOS Safari, real device insets
   (only the layout unit tests). The shown value of a setting is the saved one; the scene adds a note when the URL pins it.
 - `?sound=0|1` is new (the task wanted a URL form for every key). A Look change in the parent view applies at once and is saved; `?look=` still wins on a visit.
@@ -196,6 +225,16 @@ _(nothing)_
   `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 011 (tablet, https://ajayc07.github.io/games/; `?practice=walk-shoot` etc. jump straight in):
+  - Does he find the teal Practice button (bottom-right of the map, gently bobbing) by himself?
+  - Does he understand the four cards (arrow + star, up arrow + star, arrow + up arrow, all four)? Which one does he pick?
+  - Does he make combos (holding an arrow while tapping the star or the up arrow)? Does the 120 ms grace feel right?
+  - Does the ghost-hand hint (after 8 s without a combo) help, or does he ignore it? Is it too frequent or too rare?
+  - Is walk assist needed (parent view: "Walk assist in Practice" Sticky; a quick tap on an arrow keeps walking, tap again to stop)?
+    Does it help him practise the action button first, or confuse him?
+  - Is a run too long or too short (about 35 s of walking)?
+  - Does he enjoy the star row and the celebration (coin shower, jingle, the robot's arms up)? Are the combo sounds pleasant?
+  - Replay gives a new layout every time: does that keep it fresh?
 - After pushing Task 010 (tablet, https://ajayc07.github.io/games/, or `?parent=1`):
   - Can you open the parent view (hold the grey gear top-left of the map for 3 s)? Does Athiran stop at a quick tap or mashing? Does the hold ring read clearly?
   - Does the button-size preview match the real buttons in Grass 3 and Grass 6? Which size and which main button (Jump or Power) is best for his thumb?

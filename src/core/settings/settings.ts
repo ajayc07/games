@@ -10,6 +10,8 @@ export const BUTTON_SCALE_MIN = 0.6;
 export const BUTTON_SCALE_MAX = 1.6;
 export const DEFAULT_BUTTON_SCALE = 1;
 export type ButtonsPrimary = 'jump' | 'power';
+/** Walk assist in Practice (Task 011, D-049): off (default) or sticky (a quick tap on Left/Right keeps walking). */
+export type WalkAssist = 'off' | 'sticky';
 
 export interface SettingsInput {
   /** `location.search` of this visit. */
@@ -57,6 +59,13 @@ export function resolveUnlockAll(i: SettingsInput): boolean {
   return param(i.search, 'unlock') === 'all' || i.saved.unlockAll === true;
 }
 
+/** `?assist=sticky|off`, else the saved value, else off. Only practice levels use it. */
+export function resolveWalkAssist(i: SettingsInput): WalkAssist {
+  const url = param(i.search, 'assist')?.toLowerCase();
+  if (url === 'sticky' || url === 'off') return url;
+  return i.saved.walkAssist === 'sticky' ? 'sticky' : 'off';
+}
+
 /** `?look=` (a known name), else the saved look, else the robot. (An unknown `?look=` is ignored here; the boot warns.) */
 export function resolveLook(i: SettingsInput): LookName {
   const url = param(i.search, 'look')?.toLowerCase();
@@ -65,16 +74,25 @@ export function resolveLook(i: SettingsInput): LookName {
 }
 
 /** Which settings the URL pins for this visit (the parent view says so, since a change would not show). */
-export function urlOverrides(search: string): { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean } {
+export function urlOverrides(search: string): {
+  buttonScale: boolean;
+  buttonsPrimary: boolean;
+  soundOn: boolean;
+  unlockAll: boolean;
+  look: boolean;
+  walkAssist: boolean;
+} {
   const scale = Number(param(search, 'buttonScale'));
   const sound = param(search, 'sound')?.toLowerCase();
   const buttons = param(search, 'buttons');
+  const assist = param(search, 'assist')?.toLowerCase();
   return {
     buttonScale: param(search, 'buttonScale') !== null && Number.isFinite(scale) && scale > 0,
     buttonsPrimary: buttons === 'jump' || buttons === 'power',
     soundOn: sound === '0' || sound === 'off' || sound === '1' || sound === 'on',
     unlockAll: param(search, 'unlock') === 'all',
     look: isLook(param(search, 'look')?.toLowerCase()),
+    walkAssist: assist === 'sticky' || assist === 'off',
   };
 }
 
@@ -102,4 +120,5 @@ export const settings = {
   soundOn: (): boolean => resolveSoundOn(source()),
   unlockAll: (): boolean => resolveUnlockAll(source()),
   look: (): LookName => resolveLook(source()),
+  walkAssist: (): WalkAssist => resolveWalkAssist(source()),
 };

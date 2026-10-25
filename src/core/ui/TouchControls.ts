@@ -46,6 +46,8 @@ export class TouchControls {
   private readonly scale: number;
   /** Which right-hand button is the larger corner one when both are shown (`?buttons=`, Task 009). */
   private readonly primary: Primary;
+  /** Walk assist (Task 011): the latched direction shows its pressed look while it keeps walking. */
+  private latched: Action | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -96,6 +98,11 @@ export class TouchControls {
   animatePress(action: Action, ms = 220): void {
     const b = this.buttons.get(action);
     if (b) b.fakeUntil = this.scene.time.now + ms;
+  }
+
+  /** Walk assist (Task 011): show `action` pressed while the latch keeps walking, or nothing (null). */
+  setLatched(action: Action | null): void {
+    this.latched = action;
   }
 
   /**
@@ -159,7 +166,7 @@ export class TouchControls {
   private render(): void {
     const now = this.scene.time.now;
     for (const b of this.buttons.values()) {
-      const pressed = b.visible && (this.input.isDown(b.action) || now < b.fakeUntil);
+      const pressed = b.visible && (this.input.isDown(b.action) || now < b.fakeUntil || this.latched === b.action);
       if (pressed === b.pressed) continue;
       b.pressed = pressed;
       const style = STYLES[b.action];

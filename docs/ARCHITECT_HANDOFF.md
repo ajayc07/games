@@ -1,7 +1,7 @@
 # Architect handoff (for a new Claude Desktop session)
 
 Read this first if you are a new Claude Desktop session taking over as the **architect** of Athi's Game.
-Last updated: 2026-10-25 (after the 009 review).
+Last updated: 2026-10-25 (Task 011 written).
 
 ## Roles and workflow
 - **You (Claude Desktop) = architect.** You plan, write task files, review summaries and review screenshots. You do not write the game code.
@@ -28,7 +28,7 @@ A gentle platformer that teaches navigation buttons (Left/Right), Jump and Power
 ## Where things stand (check docs/PROGRESS.md for the truth)
 - Done and accepted: 001 to 007 (setup, input/audio, level engine, Grass 1-4, lively motion, avatar rig, robot view, robo universe + picker, map + progress, shooting).
 - Tablet findings (D-037): Athiran liked the robot best, loves its shooting, got bored with auto-run/tap-to-jump (Grass 1/2), liked Grass 3 (walking). Robot looked like it ran backwards: fixed in 005c (parent should confirm on tablet).
-- 005d to 009 are done and reviewed (D-039 to D-046): Grass 4-6 (Shoot, Move and Jump, Everything), map with six dots. 010 parent view (docs/tasks/010-parent-view.md, design D-047) is the last task of the original plan and was handed to Claude Code (Sonnet 5.5); check whether its summary has come in. After 010 the parent wants: doc trim and cheaper workflow (he asked to wait until 010 is done), replay variety, unique per-colour traits (docs/IDEAS.md), a git-history rewrite offer, and a tablet test of Grass 5-6.
+- The original plan 001-010 is complete and reviewed (D-039 to D-048): picker, map and progress, Grass 1-6 (all four buttons), parent view. Everything up to ad168f0 is pushed. Tablet feedback (D-049): he loves shooting bubbles; holding a nav button while pressing an action button is hard. 011 Combo Practice (free play with a generated level, combo stars, ghost-hand hint, optional walk assist; docs/tasks/011-combo-practice.md, design D-049) was handed to Claude Code (Opus 5.5); check whether its summary has come in. Then, as the parent asked: the docs trim (architect does it directly after 011 to avoid clashing with Claude Code's PROGRESS.md edits). Remaining post-plan list (nothing starts without the parent's say-so): tablet tests, replay variety and unique per-colour traits (docs/IDEAS.md), git-history rewrite offer, more worlds.
 - Open items: the public GitHub repo history still contains the removed Nintendo files; the parent may want a clean-history restart (offer exact steps once 005d is done). The commercial idea is parked in `docs/IDEAS.md`.
 
 ## Useful facts

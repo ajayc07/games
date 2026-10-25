@@ -17,6 +17,8 @@ export interface ProgressSettings {
   /** Which right-hand button is the larger corner one in a level with both Jump and Power. */
   buttonsPrimary?: 'jump' | 'power';
   unlockAll?: boolean;
+  /** Walk assist in Practice (Task 011): `sticky` = a quick tap on Left/Right keeps walking. Missing = off. */
+  walkAssist?: 'off' | 'sticky';
 }
 
 export interface ProgressRecord {
@@ -69,6 +71,7 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
     if (typeof s.buttonScale === 'number' && Number.isFinite(s.buttonScale)) record.settings.buttonScale = s.buttonScale;
     if (s.buttonsPrimary === 'jump' || s.buttonsPrimary === 'power') record.settings.buttonsPrimary = s.buttonsPrimary;
     if (typeof s.unlockAll === 'boolean') record.settings.unlockAll = s.unlockAll;
+    if (s.walkAssist === 'off' || s.walkAssist === 'sticky') record.settings.walkAssist = s.walkAssist;
   }
   return { record, status: 'ok' };
 }

@@ -278,3 +278,22 @@ Goal: the parent can tune the game for Athiran without code or URL parameters. I
 - Reset progress: a held button (3 s, ring) that clears stars, best coins and unlocks only; the colour choice, look and settings stay.
 - Precedence everywhere: URL parameter, then saved setting, then default.
 - Not in scope: passcodes or maths gates, accounts, cloud sync, export/import, usage statistics, per-level settings, language options.
+
+## D-048 (2026-10-25) Task 010 review outcomes; the original plan is complete
+Approved all deviations: `?sound=0|1` added so every setting has a URL form; the parent view shows the saved value and prints a note when a URL parameter pins a setting for that visit; no scrolling (two columns fit at all five sizes); `?parent=1` is ignored together with `?level=` or `?lab=`.
+Architect review of the sheets (844x390 parent view and the map gear): labelled rows with large on/off choices, the button-size steps, a live preview drawn with the real layout, a clearly separate red Reset progress (hold for 3 seconds) and Back; the grey gear sits top-left away from the palette button and the dots.
+Pushed: the parent asked Claude Code to push, so main equals origin/main at ad168f0 (Tasks 005d to 010). `.claude/launch.json` and `.claude/settings.local.json` stay untracked on purpose.
+Original plan 001-010 is done. Post-plan list, in the parent's words and order of mention (nothing starts without his say-so): tablet test of Grass 5-6 and the parent view; doc trim and cheaper workflow (D-044 follow-up, asked to wait until now); replay variety (docs/IDEAS.md); unique per-colour traits (docs/IDEAS.md); git-history rewrite to remove the old Nintendo files from the public repo; more worlds (Cave, Sky, Castle).
+Still unverified on a real device: chimes and pop sounds by ear, 58+ fps, iOS Safari, device insets (layout unit tests only), the gear hold with a real child.
+
+## D-049 (2026-10-25) Tablet feedback after Grass 6; free-play "Combo Practice"
+Parent feedback: things look good; he loves shooting bubbles; the hard part is holding a navigation button while pressing an action button (and combos in general), which is exactly the hand coordination the game should train, so he needs a place to practise without pressure.
+Decision: add a free-play Practice mode (Task 011), then do the docs trim (the parent asked for it right after). Design:
+- Always open, reached from a fixed icon button on the map (not a level dot, not subject to `openAtATime`). A tiny selector with four big icon-only cards picks the focus: walk + shoot, jump + shoot, walk + jump, everything.
+- A practice run is a generated level (seeded, pure generator using the existing legend and the D-045 rules: gaps of 1-2 tiles, at least 7 tiles of ground between gaps) of about 120 tiles, ending at the usual flag. Replay builds a new seed, so repeats are never identical (this also helps the replay boredom of D-044). All four buttons are on screen in every mode; the mode changes only the content and which actions count as a combo.
+- Combo reward, never a penalty: a combo is an action button press while a navigation button is held, or Power pressed while airborne, or Jump pressed while walking. Each combo gives a sparkle and a happy sound on the two buttons involved, and fills one star in a row of five at the top; five stars give a small celebration (coin shower), then the row empties and starts again. No numbers, no failure, no timers, nothing is ever lost.
+- Gentle coaching: if no combo has happened for about 8 s, a ghost hand shows a hold on the navigation button and a tap on the action button (icons only, once at a time, never nagging).
+- Walk assist (parent setting, practice mode only, default Off): a quick tap on Left/Right latches walking in that direction until tapped again or the other direction is tapped, so he can practise the action button first; holding still works as before (hold = walk, release = stop, D-029). The assist is a stepping stone, not a replacement; normal levels are unaffected.
+- No stars or progress are saved for practice runs; the win screen shows the combo stars instead of 1-3 stars.
+- Not in scope: timers, scores with numbers, failure states, leaderboards, a new world or art, changes to the normal levels, physics or hit boxes.
+- Order now: 011 Combo Practice (Opus 5.5), then the docs trim (done by the architect directly after 011 to avoid clashing with Claude Code's edits to PROGRESS.md), then the tablet test and the remaining post-plan list (D-048).

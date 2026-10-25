@@ -78,10 +78,17 @@ describe('parent view layout', () => {
     }
   });
 
-  it('the five settings are in a fixed order in the left column; the right column is right of them', () => {
+  it('the six settings are in a fixed order in the left column (walk assist added in Task 011); the right column is right of them', () => {
     const l = parentLayout(960, 720, NO_INSETS);
-    expect(l.rows.map((r) => r.id)).toEqual(['sound', 'look', 'main', 'unlock', 'demos']);
-    expect(l.rows.map((r) => r.controls.length)).toEqual([2, 2, 2, 2, 1]);
+    expect(l.rows.map((r) => r.id)).toEqual(['sound', 'look', 'main', 'unlock', 'assist', 'demos']);
+    expect(l.rows.map((r) => r.controls.length)).toEqual([2, 2, 2, 2, 2, 1]);
+    // The rows keep the usual gap at every size (so the "no two controls closer than the gap" check above holds).
+    for (const [, cw, ch] of SIZES) {
+      for (const ins of [NO_INSETS, NOTCH]) {
+        const rows = parentLayout(logicalWidthFor(cw, ch), 720, ins).rows;
+        for (let i = 1; i < rows.length; i++) expect(rows[i].rect.y - rows[i - 1].rect.y - PARENT.rowH).toBe(PARENT.gap);
+      }
+    }
     expect(l.sizeSteps).toHaveLength(4);
     const leftEdge = Math.max(...l.rows.map((r) => r.rect.x + r.rect.width));
     expect(Math.min(l.preview.x, l.reset.x, ...l.sizeSteps.map((s) => s.x))).toBeGreaterThan(leftEdge);
