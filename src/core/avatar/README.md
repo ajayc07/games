@@ -11,4 +11,4 @@ How the player is drawn (D-032, D-033, D-037), separate from physics. Pick a loo
 - `parts.ts`: generated part textures (Canvas 2D, once per palette). `config.ts`: `?look=`, palette/scale/antennae.
 - `options.ts` (pure, tested): the universe's avatar options (colour cards, D-038): validation, `?color=`.
 
-See docs/ARCHITECTURE.md, "Avatar looks" and "Avatar options and picker".
+See docs/architecture/avatar-and-motion.md, "Avatar looks" and "Avatar options and picker".

@@ -1,6 +1,6 @@
 # robo/levels
 
-One JSON file per level, loaded automatically by `index.ts` (format v1, D-018; see docs/ARCHITECTURE.md).
+One JSON file per level, loaded automatically by `index.ts` (format v1, D-018; see docs/architecture/levels.md).
 Legend: `#` ground, `.` empty, `c` coin, `S` player start, `F` flag, `o` small bubble, `O` big bubble (a 2x2 block), `h` high bubble (4 coins, 2.5 tiles up, reachable only from the air).
 A small bubble in the row on the ground rests on it; one row higher it floats 1 tile up (both in reach of a shot). Rows are top-first and equal length;
 the bottom row sits on the bottom of the screen. Add the level id to its world in `../worlds.ts`.

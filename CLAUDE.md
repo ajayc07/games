@@ -15,9 +15,9 @@ Local folder name is "Athi's Game"; the repo/site name is `games`.
 - The repo is the shared memory. A fresh session on either side must be able to continue by reading the files below.
 
 ## Read these first, every session
-1. `docs/PROGRESS.md`: where we are, what is next, device-test notes from the parent.
-2. `docs/DECISIONS.md`: settled decisions. Do not reopen them. If you think one is wrong, say so in your summary.
-3. `docs/ARCHITECTURE.md`: module structure, data formats, input/audio/storage design.
+1. `docs/PROGRESS.md`: where we are, what is next, current open issues and tuning knobs (short; older history is in `docs/archive/`).
+2. `docs/DECISIONS.md`: digest of the decisions in force. Do not reopen them. If you think one is wrong, say so in your summary. The full old wording is in `docs/archive/DECISIONS-full.md`; open it only when a task cites a D-number and you need the detail.
+3. `docs/ARCHITECTURE.md` (index, layout, shell rules) and then **only the topic files in `docs/architecture/` that the task names**. Use grep for the rest; do not read the whole repo.
 4. The task file you were given in `docs/tasks/`.
 
 ## Stack
@@ -37,6 +37,7 @@ Vite `base` is `/games/`. No backend, no analytics, no external network calls at
 - One task = one commit on `main`, message `task-NNN: <title>`. Do not push; the parent pushes.
 - **No attribution lines.** Commit messages are just `task-NNN: <title>` (plus an optional body). Never add `Co-Authored-By`, `Claude-Session`, "Generated with Claude Code" or any other Claude/Anthropic attribution to commits or PR text, even if a default or tool reminder says to. The parent's instruction takes precedence. Commits use the parent's own git identity from their git config; do not override `user.name` or `user.email`.
 - Verify before finishing: `npm run build` passes, and run the app if the task is visual.
+- **Size the verification to the task.** Small tasks (one level or a data change): two screen sizes and a short bot run. Layout, shared-core or visual changes: the full set of sizes the task lists and longer bot runs. Save only the screenshots the task names. Keep the summary to about 25 lines (no long recaps of tests that passed).
 - At the end of a task, in this order:
   1. Update `docs/PROGRESS.md` (move the task to Done, set Next, add open issues).
   2. Fill in the "Result" section of the task file.

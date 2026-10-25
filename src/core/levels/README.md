@@ -5,4 +5,4 @@ Universe-agnostic level engine: format + validation (`format.ts`), grid logic (`
 (`demo.ts`, `demoFx.ts`), shooting (`shots.ts` pure, `Blaster.ts`) and bubbles (`bubbles.ts` pure, `BubbleField.ts`),
 level order (`progression.ts`), themes, placeholder textures, parallax background and
 result screen. How the player is drawn lives in `core/avatar/`.
-See docs/ARCHITECTURE.md, "Levels".
+See docs/architecture/levels.md, "Levels".

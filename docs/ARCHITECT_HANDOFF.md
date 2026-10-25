@@ -1,19 +1,19 @@
 # Architect handoff (for a new Claude Desktop session)
 
 Read this first if you are a new Claude Desktop session taking over as the **architect** of Athi's Game.
-Last updated: 2026-10-25 (Task 011 written).
+Last updated: 2026-10-25 (after the 011 review and the docs trim).
 
 ## Roles and workflow
 - **You (Claude Desktop) = architect.** You plan, write task files, review summaries and review screenshots. You do not write the game code.
 - **Claude Code = developer.** The parent (Ajay) pastes a one-line prompt into Claude Code in `D:\code\Athi's Game`; Code executes one task file in `docs/tasks/`, commits, and ends with a standard `TASK NNN SUMMARY`. The parent pastes that summary back to you.
-- The repo is the shared memory: `CLAUDE.md` (rules for Code), `docs/PROGRESS.md` (state, roadmap, tablet notes), `docs/DECISIONS.md` (D-001...; do not reopen settled ones without good reason), `docs/ARCHITECTURE.md`, `docs/IDEAS.md` (parked ideas), `docs/tasks/NNN-*.md` (one per task, with a Result section Code fills in).
+- The repo is the shared memory: `CLAUDE.md` (rules for Code), `docs/PROGRESS.md` (current state, roadmap, open issues, latest tablet checklists), `docs/DECISIONS.md` (digest of decisions in force; new decisions are appended in full at the bottom; do not reopen settled ones without good reason), `docs/ARCHITECTURE.md` (index) with the detail in `docs/architecture/<topic>.md`, `docs/IDEAS.md` (parked ideas), `docs/tasks/NNN-*.md` (one per task, with a Result section Code fills in), `docs/archive/` (full old PROGRESS and DECISIONS, read only when needed). Docs were trimmed in D-051 to cut token use; keep them lean (fold new decisions into the digest and move finished checklists to the archive when files grow).
 - Repo: https://github.com/ajayc07/games (public, GitHub Pages at https://ajayc07.github.io/games/). Local: `D:\code\Athi's Game` (needs the folder connected to your session; ask the parent to add `D:\code` if you cannot reach it). Raw/private material lives in the gitignored `_sources/` (review images in `_sources/review/`, archived Nintendo files in `_sources/archive-private/`).
 
 ## Your review routine for each summary
 1. Check the repo (git log, status, PROGRESS.md) rather than trusting the summary alone; stage and look at the review sheets in `_sources/review/` for visual work.
 2. Approve or reject Code's listed deviations; record outcomes as a new D-number in `docs/DECISIONS.md` (append with `cat >>`).
 3. Write the next task file in the same format as the existing ones (Goal, Read first, In scope, Out of scope, Acceptance criteria, How to verify, Result) and tell the parent the exact prompt to paste:
-   `Read CLAUDE.md, then docs/PROGRESS.md, DECISIONS.md and ARCHITECTURE.md, then execute docs/tasks/<file>. Finish with the standard summary.`
+   `Read CLAUDE.md, then docs/PROGRESS.md and docs/DECISIONS.md, then only the docs/architecture/ files that the task names, then execute docs/tasks/<file>. Finish with the standard summary.` Say which model to use with every prompt (Sonnet 5.5 for well-specified data/feature tasks, Opus 5.5 for shared core, layout and combination work).
 4. Keep replies short: what you reviewed, decisions, the next prompt. The parent is busy and works in short sessions.
 
 ## Standing rules from the parent
@@ -28,7 +28,7 @@ A gentle platformer that teaches navigation buttons (Left/Right), Jump and Power
 ## Where things stand (check docs/PROGRESS.md for the truth)
 - Done and accepted: 001 to 007 (setup, input/audio, level engine, Grass 1-4, lively motion, avatar rig, robot view, robo universe + picker, map + progress, shooting).
 - Tablet findings (D-037): Athiran liked the robot best, loves its shooting, got bored with auto-run/tap-to-jump (Grass 1/2), liked Grass 3 (walking). Robot looked like it ran backwards: fixed in 005c (parent should confirm on tablet).
-- The original plan 001-010 is complete and reviewed (D-039 to D-048): picker, map and progress, Grass 1-6 (all four buttons), parent view. Everything up to ad168f0 is pushed. Tablet feedback (D-049): he loves shooting bubbles; holding a nav button while pressing an action button is hard. 011 Combo Practice (free play with a generated level, combo stars, ghost-hand hint, optional walk assist; docs/tasks/011-combo-practice.md, design D-049) was handed to Claude Code (Opus 5.5); check whether its summary has come in. Then, as the parent asked: the docs trim (architect does it directly after 011 to avoid clashing with Claude Code's PROGRESS.md edits). Remaining post-plan list (nothing starts without the parent's say-so): tablet tests, replay variety and unique per-colour traits (docs/IDEAS.md), git-history rewrite offer, more worlds.
+- The original plan 001-010 and Task 011 Combo Practice are complete and reviewed (D-039 to D-050); the docs trim is done (D-051). Everything up to Task 010 is pushed; Task 011 and the trim are committed locally (the parent pushes). Tablet feedback so far: D-037, D-044, D-049. Post-plan list (nothing starts without the parent's say-so): tablet test of Grass 5-6, the parent view and Practice; replay variety and unique per-colour traits (docs/IDEAS.md); git-history rewrite offer; more worlds (Cave, Sky, Castle).
 - Open items: the public GitHub repo history still contains the removed Nintendo files; the parent may want a clean-history restart (offer exact steps once 005d is done). The commercial idea is parked in `docs/IDEAS.md`.
 
 ## Useful facts
