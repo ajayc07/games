@@ -29,6 +29,12 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`.
 | 012 | Replay variety (shuffle coins and small bubbles on replays, rare rainbow bubble); task drafted in `docs/tasks/012-replay-variety.md` | Drafted, not started |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
+## Pending for next session (parent, 2026-10-25)
+Tell the parent these first when they ask for pending tasks:
+1. Task 012 replay variety: drafted; needs their answers (when variety starts, rainbow bubble yes/no, Grass 1-2 handling), then it can start.
+2. Browser fullscreen: draft the small task, then build it (see "Open issues": Fullscreen).
+3. Optional: Task 013 polish bundle (footsteps, landing thump, idle wave), not drafted.
+
 ## In progress
 _(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers to its three open questions: when variety starts, rainbow bubble yes/no, Grass 1-2 handling)_
 
