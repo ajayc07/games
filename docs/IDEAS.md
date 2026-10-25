@@ -2,6 +2,18 @@
 
 Ideas that are not part of the current plan. Do not build these unless the parent asks. Newest first.
 
+## 2026-10-25: Polish and life suggestions (parked, none approved)
+Already in the game: idle breathing and a blink every 3-5 s. Not in the game (as far as a quick look showed): footstep sounds and a landing sound.
+Suggested first bundle, a cheap cosmetic task ("Polish: sounds and idle life", would be Task 013): footsteps, landing thump with a dust puff, idle wave.
+- **Idle fidgets:** after about 6-8 s standing still the robot waves, then random fidgets (antenna wiggle, look around, stretch, small dance); any press cancels at once; could differ per colour (see per-colour traits below).
+- **Footsteps:** quiet taps per stride with slight pitch variation; a faster, lighter patter when auto-running; later a distinct timbre per colour.
+- **Landing thump:** soft sound, dust puff and a tiny squash when landing after a jump.
+- **Happy reactions:** a hop or sparkle on a run of coins; a "wheee" sweep on a long jump; a small robot dance after a combo row or five stars.
+- **Music:** very quiet background music per world, on/off in the parent view.
+- **Map life:** the robot looks around or hops on the spot, drifting clouds.
+- **Parent view "today's play" summary:** levels played and combos made, icons only.
+Rule: nothing may change gameplay, hit boxes or fairness; every extra works with both looks (robot and ball).
+
 ## 2026-10-24: Mario content removed (Task 005d, D-038)
 The game is now the generic "Robo World" universe: no franchise names, pictures or voice clips in `src/`, the bundle or the
 built site (a unit test scans for the names). The removed files are archived locally in `_sources/archive-private/` (gitignored).

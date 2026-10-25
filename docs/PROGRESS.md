@@ -26,7 +26,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`.
 | 010 | Parent view | Done |
 | 011 | Combo Practice (free play) | Done |
 | 012 | Replay variety (shuffle coins and small bubbles on replays, rare rainbow bubble); task drafted in `docs/tasks/012-replay-variety.md` | Drafted, not started |
-| post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
+| post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave; docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## In progress
 _(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers to its three open questions: when variety starts, rainbow bubble yes/no, Grass 1-2 handling)_
