@@ -2,6 +2,13 @@
 
 Ideas that are not part of the current plan. Do not build these unless the parent asks. Newest first.
 
+## 2026-10-25: Learning and variety suggestions (parked, none approved)
+Top three picked from a longer list; build only with the parent's say-so.
+- **Left/right target mode:** a short mini-mode where a big glowing target appears on the left or right and a soft arrow points the way; no text. Reinforces left vs right directly (Grass 3 only teaches it implicitly). Could be a fifth Practice card or a Grass 3 follow-up.
+- **Gentle auto-difficulty:** invisible to him. After about three falls in a row, quietly widen safe ground or drop a gap; after clean clears, offer a slightly harder variation. Must respect D-019/D-020 (no failure, no star cost), D-045 spacing rules and never change the first-play canonical grid without a decision. Pairs with Task 012's `varyLevel`.
+- **Weather/time skins:** the same level with a different sky and colours (sunset, rain, night with fireflies), picked at random on replay. Cosmetic only, almost no logic; pairs with Task 012 replay variety.
+Not kept for now: jump-height awareness level (conflicts with the fixed jump height, D-021), coin-tracing and rhythm-tap games, collectible stickers, robot outfits, auto-pause when the tab is hidden (worth a quick check on the tablet), a mashing detector in the parent view.
+
 ## 2026-10-25: Polish and life suggestions (parked, none approved)
 Already in the game: idle breathing and a blink every 3-5 s. Not in the game (as far as a quick look showed): footstep sounds and a landing sound.
 Suggested first bundle, a cheap cosmetic task ("Polish: sounds and idle life", would be Task 013): footsteps, landing thump with a dust puff, idle wave.
