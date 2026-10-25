@@ -13,7 +13,7 @@ combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey 
 (sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
 `?demo=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?debug=1` (+ `&open=N`).
-Everything up to Task 010 is pushed; Task 011 and the docs trim are committed locally (the parent pushes).
+Everything through Task 011 and the docs trim is pushed to `origin/main`.
 
 ## Roadmap
 | # | Task | Status |
@@ -55,7 +55,7 @@ _(nothing)_
 - **No media files** in the game; the former character images and voice clips are archived in `_sources/archive-private/` (not committed).
 
 ## Parent action items
-- Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it").
+- Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
   - **Practice (011)** (`?practice=walk-shoot` etc. jump straight in): does he find the teal Practice button and understand the four cards? Does he make combos (an arrow held while
     tapping the star or the up arrow)? Does the ghost hand help? Is walk assist needed (parent view, Sticky)? Is a run (about 35 s) too long or short? Does he enjoy the star row and celebration?
@@ -77,3 +77,4 @@ Format: date, device, what he did, what confused him, what bored him, what he lo
 - 2026-10-24 evening, tablet (D-044): Grass 1-4, map and picker all worked; he enjoyed popping the bubbles; after repeated play of the same level he got bored.
 - 2026-10-25, tablet (D-049): everything through Grass 6 and the parent view worked; he loves shooting bubbles; holding a navigation button while pressing an action button, and combos in general, are hard
   for him, which led to Combo Practice (Task 011).
+- 2026-10-25, tablet (after Task 011): tested the pushed build; everything worked as expected. No details recorded on Practice feel (button discovery, run length, combos).
