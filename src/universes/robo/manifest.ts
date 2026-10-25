@@ -5,8 +5,11 @@ import { nextLevelId } from '../../core/levels/progression';
 import { PickerScene, type PickerSceneData } from '../../core/picker/PickerScene';
 import { MapScene, type MapSceneData, type TeaserIcon } from '../../core/map/MapScene';
 import { unlockFromSearch, worldDots, type UnlockOptions } from '../../core/map/unlock';
+import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene';
+import { audio } from '../../core/audio/AudioManager';
+import { bindSettings, resolveButtonScale, resolveButtonsPrimary, resolveSoundOn, resolveUnlockAll, settings, urlOverrides } from '../../core/settings/settings';
 import { colorFromSearch, findOption, validateOptions } from '../../core/avatar/options';
-import { DEFAULT_LOOK, LOOK_NAMES, parseLook, type LookName } from '../../core/avatar/config';
+import { parseLook, type LookName } from '../../core/avatar/config';
 import { loadLegacyChoice } from '../../core/storage/choice';
 import { ProgressStore } from '../../core/storage/store';
 import type { ProgressRecord } from '../../core/storage/progress';
@@ -36,15 +39,12 @@ export const manifest: UniverseManifest = {
 interface Session {
   game: Phaser.Game;
   store: ProgressStore;
-  unlock: UnlockOptions;
   /** `?color=` for this visit only (not saved, D-039); cleared when the child picks in the picker. */
   visitOption: AvatarOptionDef | null;
   look: LookName;
   /** Set when a level was finished; the map plays its arrival animation once. */
   arrival: { levelId: string; before: ProgressRecord } | null;
 }
-
-const isLook = (v: unknown): v is LookName => typeof v === 'string' && (LOOK_NAMES as readonly string[]).includes(v);
 
 async function boot(game: Phaser.Game): Promise<void> {
   for (const e of validateOptions(options)) console.warn(`${TAG} ${e}`);
@@ -53,22 +53,21 @@ async function boot(game: Phaser.Game): Promise<void> {
   // Progress first (IndexedDB -> localStorage -> memory; never throws). The 005d choice key is migrated in.
   const store = await ProgressStore.open(UNIVERSE_ID, { legacyChoice: loadLegacyChoice(UNIVERSE_ID) });
   store.flushOnHide();
+  // Settings (Task 010): URL parameter, then the saved value, then the default; everything reads them through the module.
+  bindSettings(() => ({ saved: store.record.settings, savedLook: store.record.look }), search);
+  audio.setMuted(!settings.soundOn()); // before the first sound, including the first tap
   // ?look= overrides and is saved (the tablet remembers the last comparison); else the saved look.
-  let look: LookName = isLook(store.record.look) ? store.record.look : DEFAULT_LOOK;
   if (params.has('look')) {
     const parsed = parseLook(search);
     if (parsed.warning) console.warn(parsed.warning);
-    else {
-      look = parsed.look;
-      store.setLook(look);
-    }
+    else store.setLook(parsed.look);
   }
+  const look: LookName = settings.look();
   const color = colorFromSearch(search, options);
   if (color.warning) console.warn(color.warning);
   const s: Session = {
     game,
     store,
-    unlock: unlockFromSearch(search, manifest.unlock.openAtATime),
     visitOption: color.requested ? color.option : null,
     look,
     arrival: null,
@@ -78,6 +77,7 @@ async function boot(game: Phaser.Game): Promise<void> {
   // Start order (Task 006): ?lab=1 and ?level= bypass the map as before; else picker on first launch, else the map.
   const levelId = params.get('level');
   if (params.has('lab') && params.get('lab') !== '0') return openLab(s);
+  if (params.get('parent') === '1' && !levelId) return openParent(s);
   const forcePicker = params.has('picker') && params.get('picker') !== '0';
   if (levelId && !forcePicker) return openLevel(s, levelId);
   if (forcePicker || (!store.record.chosenCharacterId && !s.visitOption)) {
@@ -95,8 +95,13 @@ function worldOf(levelId: string): WorldDef | undefined {
   return worlds.find((w) => w.levels.includes(levelId));
 }
 
+/** `?unlock=all` or the parent view's switch, and the debug-only `?open=N`; read fresh, since the parent view changes it. */
+function unlockOptions(s: Session): UnlockOptions {
+  return unlockFromSearch(window.location.search, manifest.unlock.openAtATime, s.store.record.settings.unlockAll === true);
+}
+
 function dotsFor(s: Session, world: WorldDef, record: ProgressRecord = s.store.record) {
-  return worldDots(world, record.levels, s.unlock);
+  return worldDots(world, record.levels, unlockOptions(s));
 }
 
 /** The picker; Play saves the choice and continues with `then` (the map, or a level). */
@@ -129,8 +134,50 @@ function openMap(s: Session): void {
     arrival: arrival && from >= 0 ? { before: dotsFor(s, world, arrival.before), from } : undefined,
     onPlay: (id) => openLevel(s, id),
     onPicker: () => openPicker(s, () => openMap(s)),
+    onParent: () => openParent(s),
   };
   startOnly(s.game, MapScene.KEY, MapScene, data);
+}
+
+/** The parent view (D-047): reached only from the map's gear or `?parent=1`; Back returns to the map. */
+function openParent(s: Session): void {
+  const store = s.store;
+  const data: ParentSceneData = {
+    // The saved choice is shown (so a tapped button lights up even when the URL pins the value for this visit);
+    // the scene adds a note for pinned settings. Values never saved show what a level would use.
+    read: () => {
+      const input = { search: window.location.search, saved: store.record.settings, savedLook: store.record.look };
+      const saved = store.record.settings;
+      return {
+        soundOn: saved.soundOn ?? resolveSoundOn(input),
+        buttonScale: saved.buttonScale ?? resolveButtonScale(input),
+        buttonsPrimary: saved.buttonsPrimary ?? resolveButtonsPrimary(input),
+        look: s.look,
+        unlockAll: saved.unlockAll ?? resolveUnlockAll(input),
+        pinned: urlOverrides(input.search),
+      };
+    },
+    setSound: (on) => {
+      store.updateSettings({ soundOn: on });
+      audio.setMuted(!settings.soundOn());
+      if (on) audio.play('pick'); // one short chime so the parent hears that it is on
+    },
+    setButtonScale: (v) => store.updateSettings({ buttonScale: v }),
+    setButtonsPrimary: (p) => store.updateSettings({ buttonsPrimary: p }),
+    setLook: (l) => {
+      store.setLook(l);
+      s.look = l;
+    },
+    setUnlockAll: (on) => store.updateSettings({ unlockAll: on }),
+    showDemosAgain: () => LevelScene.forgetDemos(),
+    resetProgress: async () => {
+      s.arrival = null;
+      await store.resetProgress();
+    },
+    onBack: () => openMap(s),
+  };
+  void store.flush();
+  startOnly(s.game, ParentScene.KEY, ParentScene, data);
 }
 
 function openLevel(s: Session, levelId: string): void {
@@ -179,7 +226,7 @@ function exposeDebug(s: Session): void {
     backend: () => s.store.backendName,
     status: s.store.status,
     flush: () => s.store.flush(),
-    session: () => ({ option: currentOption(s).id, look: s.look, unlock: s.unlock, visitOption: s.visitOption?.id ?? null }),
+    session: () => ({ option: currentOption(s).id, look: s.look, unlock: unlockOptions(s), visitOption: s.visitOption?.id ?? null }),
   };
 }
 

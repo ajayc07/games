@@ -1,38 +1,65 @@
-// Small home icon that must be held for 1 s to leave a level (D-036, Task 006). A ring fills while it is held;
-// a quick tap only wobbles it, so a 3-year-old cannot leave by accident. Escape held 1 s does the same on desktop.
-// Screen-fixed, anchored to a top corner inside the device insets.
+// Small round icon that must be held to act (D-036, Task 006; D-047, Task 010). A ring fills while it is held;
+// a quick tap only wobbles it, so a 3-year-old cannot leave a level (home icon, 1 s, Escape on desktop) or open the
+// parent view (gear on the map, 3 s, P on desktop) by accident. Screen-fixed, anchored to a top corner inside the insets.
 import Phaser from 'phaser';
 import type { Layout } from './layout';
-import { HoldTracker } from './hold';
+import type { Anchor } from './layout';
+import { HOLD_MS, HoldTracker } from './hold';
 
 const R = 40;
 /** Hit area (square side): bigger than the icon, at least 96 px. */
 const HIT = 110;
 const INSET = 70;
 
+export interface HoldButtonOptions {
+  /** Hold time in ms (default HOLD_MS, 1 s). */
+  holdMs?: number;
+  /** `home` (default) or `gear`. */
+  icon?: 'home' | 'gear';
+  /** Screen corner (default top-right). */
+  corner?: Extract<Anchor, 'top-left' | 'top-right'>;
+  /** Distance from the corner (default 70). */
+  inset?: number;
+  /** Key code that holds it on desktop (default Escape). */
+  key?: string;
+  /** Face colour. */
+  color?: number;
+}
+
 export class HoldButton {
   private readonly root: Phaser.GameObjects.Container;
   private readonly ring: Phaser.GameObjects.Graphics;
-  private readonly tracker = new HoldTracker();
+  private readonly tracker: HoldTracker;
+  private readonly corner: 'top-left' | 'top-right';
+  private readonly inset: number;
+  private readonly keyCode: string;
   private enabled = true;
   private onKeyDown = (e: KeyboardEvent) => {
-    if (e.code === 'Escape' && !e.repeat && this.enabled) this.tracker.down(this.scene.time.now);
+    if (e.code === this.keyCode && !e.repeat && this.enabled) this.tracker.down(this.scene.time.now);
   };
   private onKeyUp = (e: KeyboardEvent) => {
-    if (e.code === 'Escape') this.release();
+    if (e.code === this.keyCode) this.release();
   };
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly onDone: () => void,
     depth: number,
+    opts: HoldButtonOptions = {},
   ) {
-    const base = scene.add.circle(0, 0, R, 0x1e88e5, 0.85).setStrokeStyle(6, 0xffffff);
+    this.tracker = new HoldTracker(opts.holdMs ?? HOLD_MS);
+    this.corner = opts.corner ?? 'top-right';
+    this.inset = opts.inset ?? INSET;
+    this.keyCode = opts.key ?? 'Escape';
+    const base = scene.add.circle(0, 0, R, opts.color ?? 0x1e88e5, 0.85).setStrokeStyle(6, 0xffffff);
     const icon = scene.add.graphics();
     const s = R * 0.48;
     icon.fillStyle(0xffffff, 1);
-    icon.fillTriangle(-s * 1.05, -s * 0.05, 0, -s * 1.0, s * 1.05, -s * 0.05);
-    icon.fillRect(-s * 0.72, -s * 0.1, s * 1.44, s * 0.95);
+    if (opts.icon === 'gear') drawGear(icon, s, opts.color ?? 0x1e88e5);
+    else {
+      icon.fillTriangle(-s * 1.05, -s * 0.05, 0, -s * 1.0, s * 1.05, -s * 0.05);
+      icon.fillRect(-s * 0.72, -s * 0.1, s * 1.44, s * 0.95);
+    }
     this.ring = scene.add.graphics();
     this.root = scene.add.container(0, 0, [base, icon, this.ring]).setDepth(depth).setScrollFactor(0);
     this.root.setSize(HIT, HIT).setInteractive();
@@ -46,7 +73,7 @@ export class HoldButton {
   }
 
   layout(l: Layout): void {
-    const p = l.anchor('top-right', INSET, INSET);
+    const p = l.anchor(this.corner, this.inset, this.inset);
     this.root.setPosition(p.x, p.y);
   }
 
@@ -100,4 +127,18 @@ export class HoldButton {
     this.scene.input.keyboard?.off('keyup', this.onKeyUp);
     this.root.destroy();
   }
+}
+
+/** A cog: eight teeth round a disc with a centre hole in the button colour. */
+function drawGear(g: Phaser.GameObjects.Graphics, s: number, hole: number): void {
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    g.save();
+    g.translateCanvas(0, 0);
+    g.rotateCanvas(a);
+    g.fillRect(-s * 0.2, -s * 1.15, s * 0.4, s * 0.5);
+    g.restore();
+  }
+  g.fillCircle(0, 0, s * 0.85);
+  g.fillStyle(hole, 1).fillCircle(0, 0, s * 0.36);
 }

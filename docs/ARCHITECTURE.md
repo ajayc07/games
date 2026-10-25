@@ -466,10 +466,30 @@ a compressor on the master bus prevents clipping. `setMuted`, `setMasterVolume`,
 All sounds are generic synth recipes or per-option chimes; there are no voice clips (D-038). A future real sound is a file in the
 universe's assets plus a `register(id, { file, synth })` entry: the synth stays the fallback.
 
+## Settings and the parent view (D-047, Task 010)
+- **Settings module** (`core/settings/settings.ts`, pure, tested). Each setting resolves as URL parameter, then the saved value
+  (the record's `settings`; `look` is the record's own field), then the default: `buttonScale` (`?buttonScale=`, default 1, clamped
+  0.6-1.6, parent steps 0.8/1/1.2/1.4), `buttonsPrimary` (`?buttons=`, `jump`), `soundOn` (`?sound=0|1|off|on`, on),
+  `unlockAll` (`?unlock=all`, off), `look` (`?look=`, robot). A bad URL value is ignored (falls to the saved one). The URL value is
+  never written to the saved settings (the old `?look=` saving rule is unchanged). `bindSettings(read, search)` is called once at boot
+  with the store, so `settings.buttonScale()` etc. read live; TouchControls, the unlock rule (`unlockFromSearch(search, n, savedUnlockAll)`),
+  AudioManager mute (`audio.setMuted(!settings.soundOn())` at boot, before any sound) and the look all go through it.
+  `urlOverrides(search)` says which settings the URL pins this visit (the parent view prints a note).
+- **Record**: `settings.buttonsPrimary` added (optional, additive, no version bump; invalid values dropped). `ProgressStore.updateSettings(patch)`,
+  `resetProgress()` (`resetLevels`: levels only; colour, look and settings stay; flushed at once). An unknown-version record is still never overwritten.
+- **Access**: the map shows a grey gear top-left (`HoldButton` with `icon: 'gear'`, `holdMs: PARENT_HOLD_MS` 3000, key `P`; hit 110 px). A tap only wobbles it.
+  `?parent=1` opens the view at boot (not with `?level=` or `?lab=`). Nothing in levels, picker, win screen or lab opens it.
+- **ParentScene** (`core/parent/`, generic; data `ParentSceneData` of read/set callbacks). `parentLayout.ts` (pure, tested at the five sizes, with and
+  without insets): two columns, no scrolling. Left: Sound, Look, Main button, Unlock all, Demos (label + two controls, rows 84 px, 24 px gaps).
+  Right: button size steps, the preview, Reset (held `RESET_HOLD_MS` 3 s, fill bar) and Back (also Escape). The preview draws the real
+  `placeButtons` result for all four buttons at the chosen scale and main button on a mini screen of the real aspect (`previewFit`). A change calls the
+  universe (which saves) and the scene redraws from the saved state. Demos "Show again" calls `LevelScene.forgetDemos()`.
+  The universe wires it in `manifest.ts` `openParent`. `?debug=1`: `window.__parent` (`layout()`, `state()` with reset hold progress, preview geometry), `__map.state().gear`.
+
 ## Storage (D-036, Task 006)
 `core/storage/progress.ts` (pure, tested): one record per universe, key `athi.<universe>.progress`:
 `{ version: 1, chosenCharacterId (a colour id or null), look (or null), levels: { [id]: { stars 0-3, bestCoins } }, settings }`
-(`settings` is reserved for the parent view: soundOn, buttonScale, unlockAll). `parseRecord` repairs bad fields and reports
+(`settings`: soundOn, buttonScale, buttonsPrimary, unlockAll; see "Settings and the parent view"). `parseRecord` repairs bad fields and reports
 `empty`, `corrupt` or `unknown-version`; `mergeResult` keeps the best stars and coins (never lowers them).
 `core/storage/backends.ts`: `IndexedDbBackend` (database `athi-games`, store `kv`, every call with a 1.5 s timeout so a stuck
 private mode never hangs the game), `LocalStorageBackend`, `MemoryBackend`.

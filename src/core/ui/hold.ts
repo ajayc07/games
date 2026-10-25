@@ -2,6 +2,9 @@
 // Pure and unit-tested; HoldButton.ts draws it.
 
 export const HOLD_MS = 1000;
+/** Parent view (D-047, Task 010): the map's gear and the Reset button need 3 s, longer than leaving a level. */
+export const PARENT_HOLD_MS = 3000;
+export const RESET_HOLD_MS = 3000;
 
 export type HoldEvent = 'none' | 'done' | 'tap';
 

@@ -2,7 +2,7 @@
 // (IndexedDB -> localStorage -> memory). A backend that is missing or throws is skipped silently; the game
 // never waits on or crashes because of storage. Writes are coalesced and flushed on page hide.
 import { defaultBackends, MemoryBackend, type KVBackend } from './backends';
-import { mergeResult, parseRecord, serializeRecord, type LevelProgress, type ParseStatus, type ProgressRecord } from './progress';
+import { mergeResult, parseRecord, resetLevels, serializeRecord, type LevelProgress, type ParseStatus, type ProgressRecord, type ProgressSettings } from './progress';
 
 export function progressKey(universeId: string): string {
   return `athi.${universeId}.progress`;
@@ -107,6 +107,19 @@ export class ProgressStore {
     if (this.current.look === look) return;
     this.current = { ...this.current, look };
     this.scheduleSave();
+  }
+
+  /** Changes some parent-view settings (merged into the record's `settings`) and saves. */
+  updateSettings(patch: Partial<ProgressSettings>): void {
+    this.current = { ...this.current, settings: { ...this.current.settings, ...patch } };
+    this.scheduleSave();
+  }
+
+  /** Clears stars, best coins and unlocks; the colour choice, look and settings stay (Task 010). Saved at once. */
+  resetProgress(): Promise<void> {
+    this.current = resetLevels(this.current);
+    this.scheduleSave();
+    return this.flush();
   }
 
   /** Coalesces writes: one write SAVE_DEBOUNCE_MS after the last change. */

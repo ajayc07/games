@@ -10,10 +10,12 @@ export interface LevelProgress {
   bestCoins: number;
 }
 
-/** Reserved for the parent view (Task 009); stored and kept, not used yet. */
+/** The parent view's saved settings (Task 010, D-047). Every field is optional; a missing one means "default". */
 export interface ProgressSettings {
   soundOn?: boolean;
   buttonScale?: number;
+  /** Which right-hand button is the larger corner one in a level with both Jump and Power. */
+  buttonsPrimary?: 'jump' | 'power';
   unlockAll?: boolean;
 }
 
@@ -65,6 +67,7 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
     const s = data.settings;
     if (typeof s.soundOn === 'boolean') record.settings.soundOn = s.soundOn;
     if (typeof s.buttonScale === 'number' && Number.isFinite(s.buttonScale)) record.settings.buttonScale = s.buttonScale;
+    if (s.buttonsPrimary === 'jump' || s.buttonsPrimary === 'power') record.settings.buttonsPrimary = s.buttonsPrimary;
     if (typeof s.unlockAll === 'boolean') record.settings.unlockAll = s.unlockAll;
   }
   return { record, status: 'ok' };
@@ -87,4 +90,9 @@ export function mergeResult(r: ProgressRecord, levelId: string, result: { stars:
 /** Stars of a level (0 when never played). */
 export function starsOf(r: ProgressRecord, levelId: string): number {
   return r.levels[levelId]?.stars ?? 0;
+}
+
+/** Reset progress (Task 010): stars, best coins and the unlock record go; colour, look and settings stay. Returns a new record. */
+export function resetLevels(r: ProgressRecord): ProgressRecord {
+  return { ...r, levels: {} };
 }

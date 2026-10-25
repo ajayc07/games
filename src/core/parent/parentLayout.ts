@@ -1,0 +1,121 @@
+// Where the parent view's rows, preview and buttons go for a given screen (Task 010, D-047). Pure and unit-tested.
+// Two columns, no scrolling: the left column holds five rows (label + controls), the right column the button size
+// steps, the live preview of the real button layout, the held Reset button and Back.
+import type { Area } from '../ui/buttonLayout';
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export type RowId = 'sound' | 'look' | 'main' | 'unlock' | 'demos';
+
+export interface ParentRow {
+  id: RowId;
+  rect: Rect;
+  label: Rect;
+  /** Two choices (On/Off, Robot/Ball, Jump/Power) or, for the demos row, one wide "Show again" button. */
+  controls: Rect[];
+}
+
+export interface ParentLayout {
+  rows: ParentRow[];
+  /** Caption above the size steps. */
+  sizeLabel: Rect;
+  sizeSteps: Rect[];
+  /** The preview panel (the mini screen is drawn inside it, see `previewFit`). */
+  preview: Rect;
+  reset: Rect;
+  back: Rect;
+}
+
+export const PARENT = {
+  margin: 28,
+  /** Space between rows and between controls. */
+  gap: 24,
+  /** Row and control height; no control is smaller than this. */
+  rowH: 84,
+  labelH: 30,
+  /** Widest content (wider screens centre it). */
+  maxContentW: 1240,
+  colGap: 32,
+  /** Share of the content width taken by the left column. */
+  leftShare: 0.49,
+  /** Label column: 42% of the left column, between these. */
+  labelMin: 150,
+  labelMax: 190,
+  controlMinW: 100,
+  backW: 128,
+  /** The preview never gets less than this height. */
+  previewMinH: 200,
+} as const;
+
+export function parentLayout(width: number, height: number, insets: Insets): ParentLayout {
+  const P = PARENT;
+  const left0 = insets.left + P.margin;
+  const top = insets.top + P.margin;
+  const right0 = width - insets.right - P.margin;
+  const bottom = height - insets.bottom - P.margin;
+  const contentW = Math.min(P.maxContentW, right0 - left0);
+  const cx = left0 + (right0 - left0 - contentW) / 2;
+  const leftW = Math.floor((contentW - P.colGap) * P.leftShare);
+  const rightX = cx + leftW + P.colGap;
+  const rightW = contentW - leftW - P.colGap;
+
+  const labelW = Math.round(Math.max(P.labelMin, Math.min(P.labelMax, leftW * 0.42)));
+  // Left column rows.
+  const ids: RowId[] = ['sound', 'look', 'main', 'unlock', 'demos'];
+  const rows: ParentRow[] = ids.map((id, i) => {
+    const y = top + i * (P.rowH + P.gap);
+    const rect = { x: cx, y, width: leftW, height: P.rowH };
+    const label = { x: cx, y, width: labelW, height: P.rowH };
+    const ctrlX = cx + labelW + P.gap;
+    const ctrlW = leftW - labelW - P.gap;
+    let controls: Rect[];
+    if (id === 'demos') {
+      controls = [{ x: ctrlX, y, width: ctrlW, height: P.rowH }];
+    } else {
+      const w = Math.floor((ctrlW - P.gap) / 2);
+      controls = [
+        { x: ctrlX, y, width: w, height: P.rowH },
+        { x: ctrlX + w + P.gap, y, width: w, height: P.rowH },
+      ];
+    }
+    return { id, rect, label, controls };
+  });
+
+  // Right column: size steps on top, Reset and Back at the bottom, the preview in between.
+  const sizeLabel = { x: rightX, y: top, width: rightW, height: P.labelH };
+  const stepY = top + P.labelH + 8;
+  const stepW = Math.floor((rightW - P.gap * 3) / 4);
+  const sizeSteps: Rect[] = [0, 1, 2, 3].map((i) => ({ x: rightX + i * (stepW + P.gap), y: stepY, width: stepW, height: P.rowH }));
+  const bottomY = bottom - P.rowH;
+  const back = { x: rightX + rightW - P.backW, y: bottomY, width: P.backW, height: P.rowH };
+  const reset = { x: rightX, y: bottomY, width: rightW - P.backW - P.gap, height: P.rowH };
+  const previewY = stepY + P.rowH + P.gap;
+  const preview = { x: rightX, y: previewY, width: rightW, height: Math.max(P.previewMinH, bottomY - P.gap - previewY) };
+  return { rows, sizeLabel, sizeSteps, preview, reset, back };
+}
+
+/**
+ * Where the mini screen sits inside the preview panel: the whole screen (width x 720 logical, minus nothing; its UI
+ * area is `ui`) shrunk by `k` to fit with a small padding. `ui` is the screen's UI area in screen units, so the
+ * preview can call `placeButtons` with exactly what the real level uses.
+ */
+export function previewFit(panel: Rect, screenW: number, screenH: number, pad = 12): { x: number; y: number; k: number; width: number; height: number } {
+  const k = Math.min((panel.width - pad * 2) / screenW, (panel.height - pad * 2) / screenH);
+  const width = screenW * k;
+  const height = screenH * k;
+  return { x: panel.x + (panel.width - width) / 2, y: panel.y + (panel.height - height) / 2, k, width, height };
+}
+
+export const toArea = (r: Rect): Area => ({ x: r.x, y: r.y, width: r.width, height: r.height });

@@ -59,10 +59,11 @@ export function stepOpen(dots: readonly DotState[], from: number, dir: 1 | -1): 
   return from;
 }
 
-/** `?unlock=all`, and with `?debug=1` an `?open=N` override of openAtATime (to show the unlock animation). */
-export function unlockFromSearch(search: string, openAtATime: number): UnlockOptions {
+/** `?unlock=all` (or the saved parent switch), and with `?debug=1` an `?open=N` override of openAtATime (to show the unlock animation). */
+export function unlockFromSearch(search: string, openAtATime: number, savedUnlockAll = false): UnlockOptions {
   const p = new URLSearchParams(search);
-  const unlockAll = p.get('unlock') === 'all';
+  // The parent view's "unlock all" switch (Task 010) counts like `?unlock=all`.
+  const unlockAll = p.get('unlock') === 'all' || savedUnlockAll;
   const forced = p.has('debug') ? Number(p.get('open')) : NaN;
   return { openAtATime: Number.isFinite(forced) && forced >= 1 ? Math.floor(forced) : openAtATime, unlockAll };
 }

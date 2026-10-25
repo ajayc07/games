@@ -4,8 +4,8 @@ import Phaser from 'phaser';
 import type { Action } from '../types';
 import { INPUT_EVENTS, type InputConfig, type InputManager } from '../input/InputManager';
 import type { Layout } from './layout';
-import { readButtonScale } from './buttonScale';
-import { parsePrimary, pickButton, placeButtons, sizesFor, type ButtonPlacement, type Primary } from './buttonLayout';
+import { settings } from '../settings/settings';
+import { pickButton, placeButtons, sizesFor, type ButtonPlacement, type Primary } from './buttonLayout';
 
 interface ButtonStyle {
   color: number;
@@ -14,7 +14,7 @@ interface ButtonStyle {
 }
 
 // Sizes and positions come from buttonLayout.ts (Task 009).
-const STYLES: Record<Action, ButtonStyle> = {
+export const STYLES: Record<Action, ButtonStyle> = {
   left: { color: 0xff8f00, pressed: 0xffc046, icon: 0xffffff },
   right: { color: 0xff8f00, pressed: 0xffc046, icon: 0xffffff },
   jump: { color: 0xe53935, pressed: 0xff6f60, icon: 0xffffff },
@@ -53,8 +53,8 @@ export class TouchControls {
     private readonly layout: Layout,
     options: { buttonScale?: number; primary?: Primary } = {},
   ) {
-    this.scale = options.buttonScale ?? readButtonScale();
-    this.primary = options.primary ?? parsePrimary(window.location.search);
+    this.scale = options.buttonScale ?? settings.buttonScale();
+    this.primary = options.primary ?? settings.buttonsPrimary();
     for (const action of ['left', 'right', 'jump', 'power'] as const) this.buttons.set(action, this.create(action));
 
     input.setHitTest((x, y) => this.hitTest(x, y));
@@ -182,31 +182,35 @@ export class TouchControls {
   }
 
   private drawIcon(b: Button): void {
-    const g = b.container.getData('icon') as Phaser.GameObjects.Graphics;
-    const s = b.radius * 0.5; // icon half-size
-    g.clear();
-    g.fillStyle(STYLES[b.action].icon, 1);
-    const pts = (list: Array<[number, number]>) => list.map(([x, y]) => new Phaser.Math.Vector2(x * s, y * s));
-    switch (b.action) {
-      case 'left':
-        g.fillPoints(pts([[-1, 0], [0.1, -0.9], [0.1, -0.35], [0.9, -0.35], [0.9, 0.35], [0.1, 0.35], [0.1, 0.9]]), true);
-        break;
-      case 'right':
-        g.fillPoints(pts([[1, 0], [-0.1, -0.9], [-0.1, -0.35], [-0.9, -0.35], [-0.9, 0.35], [-0.1, 0.35], [-0.1, 0.9]]), true);
-        break;
-      case 'jump':
-        g.fillPoints(pts([[0, -1], [0.9, 0.1], [0.35, 0.1], [0.35, 0.9], [-0.35, 0.9], [-0.35, 0.1], [-0.9, 0.1]]), true);
-        break;
-      case 'power': {
-        const star: Array<[number, number]> = [];
-        for (let i = 0; i < 10; i++) {
-          const rr = i % 2 === 0 ? 1.05 : 0.45;
-          const a = -Math.PI / 2 + (i * Math.PI) / 5;
-          star.push([rr * Math.cos(a), rr * Math.sin(a) + 0.08]);
-        }
-        g.fillPoints(pts(star), true);
-        break;
+    drawActionIcon(b.container.getData('icon') as Phaser.GameObjects.Graphics, b.action, b.radius);
+  }
+}
+
+/** Draws a button's icon (arrow, jump arrow, star) into a cleared Graphics at the origin; also used by the parent view's preview. */
+export function drawActionIcon(g: Phaser.GameObjects.Graphics, action: Action, radius: number): void {
+  const s = radius * 0.5; // icon half-size
+  g.clear();
+  g.fillStyle(STYLES[action].icon, 1);
+  const pts = (list: Array<[number, number]>) => list.map(([x, y]) => new Phaser.Math.Vector2(x * s, y * s));
+  switch (action) {
+    case 'left':
+      g.fillPoints(pts([[-1, 0], [0.1, -0.9], [0.1, -0.35], [0.9, -0.35], [0.9, 0.35], [0.1, 0.35], [0.1, 0.9]]), true);
+      break;
+    case 'right':
+      g.fillPoints(pts([[1, 0], [-0.1, -0.9], [-0.1, -0.35], [-0.9, -0.35], [-0.9, 0.35], [-0.1, 0.35], [-0.1, 0.9]]), true);
+      break;
+    case 'jump':
+      g.fillPoints(pts([[0, -1], [0.9, 0.1], [0.35, 0.1], [0.35, 0.9], [-0.35, 0.9], [-0.35, 0.1], [-0.9, 0.1]]), true);
+      break;
+    case 'power': {
+      const star: Array<[number, number]> = [];
+      for (let i = 0; i < 10; i++) {
+        const rr = i % 2 === 0 ? 1.05 : 0.45;
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        star.push([rr * Math.cos(a), rr * Math.sin(a) + 0.08]);
       }
+      g.fillPoints(pts(star), true);
+      break;
     }
   }
 }

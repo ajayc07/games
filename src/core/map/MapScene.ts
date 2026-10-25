@@ -15,6 +15,8 @@ import type { LevelTheme } from '../levels/theme';
 import { makeEffectTextures, makeThemeTextures, themeKey } from '../levels/placeholders';
 import { ParallaxBackground } from '../levels/background';
 import { makePaletteButton, starPath } from '../ui/icons';
+import { HoldButton } from '../ui/HoldButton';
+import { PARENT_HOLD_MS } from '../ui/hold';
 import { clampScroll, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
 
@@ -31,6 +33,8 @@ export interface MapSceneData {
   arrival?: { before: DotState[]; from: number };
   onPlay: (levelId: string) => void;
   onPicker: () => void;
+  /** The parent view (Task 010): opened by holding the gear for PARENT_HOLD_MS. Without it there is no gear. */
+  onParent?: () => void;
 }
 
 interface DotView {
@@ -61,6 +65,7 @@ export class MapScene extends Phaser.Scene {
   private dotViews: DotView[] = [];
   private teaserViews: Phaser.GameObjects.Container[] = [];
   private palette!: Phaser.GameObjects.Container;
+  private gear: HoldButton | null = null;
   private driver!: AvatarDriver;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private dots: DotState[] = [];
@@ -130,6 +135,12 @@ export class MapScene extends Phaser.Scene {
     this.world.add(this.sparkle);
 
     this.palette = makePaletteButton(this, PALETTE_R, () => this.openPicker()).setDepth(DEPTH.ui);
+    this.gear = null;
+    if (this.data0.onParent) {
+      // Top-left, far from the palette button and the dots; a 3 s hold (visible ring) or P held 3 s on a keyboard.
+      this.gear = new HoldButton(this, () => this.openParent(), DEPTH.ui, { holdMs: PARENT_HOLD_MS, icon: 'gear', corner: 'top-left', inset: 84, key: 'KeyP', color: 0x6d6258 });
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.gear?.destroy());
+    }
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onDown, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.onMove, this);
@@ -143,6 +154,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   override update(time: number, delta: number): void {
+    this.gear?.update(time);
     const dtMs = Math.min(delta, 50);
     // Hop along the path.
     let grounded = true;
@@ -294,6 +306,7 @@ export class MapScene extends Phaser.Scene {
     this.events.emit('map-layout', l);
     const p = l.anchor('top-right', 84, 84);
     this.palette.setPosition(p.x, p.y);
+    this.gear?.layout(l);
     this.scrollTarget = scrollFor(this.geo.width, l.width, this.pos.x);
     this.scroll = this.scrollTarget;
   }
@@ -302,7 +315,9 @@ export class MapScene extends Phaser.Scene {
 
   private onDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
     if (over.includes(this.palette)) return;
-    const { x } = this.logical(pointer);
+    const at = this.logical(pointer);
+    if (this.gear?.contains(at.x, at.y)) return;
+    const { x } = at;
     this.drag = { x0: x, scroll0: this.scroll, moved: false, id: pointer.id };
   }
 
@@ -410,6 +425,13 @@ export class MapScene extends Phaser.Scene {
     this.tweens.add({ targets: target, x: { from: x0 - 8, to: x0 + 8 }, duration: 70, yoyo: true, repeat: 1, ease: 'Sine.easeInOut', onComplete: () => (target.x = x0) });
   }
 
+  private openParent(): void {
+    if (this.leaving || this.busy) return;
+    this.leaving = true;
+    audio.play('pick');
+    this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onParent?.());
+  }
+
   private openPicker(): void {
     if (this.leaving) return;
     this.leaving = true;
@@ -484,6 +506,7 @@ export class MapScene extends Phaser.Scene {
         teasers: this.geo.teasers.map((t) => ({ x: t.x - this.scroll, y: t.y })),
         avatar: { x: this.pos.x - this.scroll, y: this.pos.y - this.lift },
         palette: { x: this.palette.x, y: this.palette.y, r: PALETTE_R },
+        gear: this.gear?.state ?? null,
         scroll: this.scroll,
         mapWidth: this.geo.width,
         hopping: !!this.hop,

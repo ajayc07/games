@@ -77,6 +77,11 @@ export class LevelScene extends Phaser.Scene {
   /** Levels whose demo already played this session (D-024; persistence decides later). */
   private static demoSeen = new Set<string>();
 
+  /** Parent view "Show again" (Task 010): every level's watch-me demo plays once more this session. */
+  static forgetDemos(): void {
+    LevelScene.demoSeen.clear();
+  }
+
   private data0!: LevelSceneData;
   private level!: LevelData;
   private grid!: GridEntities;

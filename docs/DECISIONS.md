@@ -260,3 +260,21 @@ Physics facts to reuse (Task 008 report): a jump lasts 0.84 s and carries about 
 Accepted risk: a mashing bot biased to the right takes a median of 131 s on Grass 5 (a deliberate child needs about 21 s of walking plus the jumps). If the tablet shows it is too long: use 6 instead of 8 tiles between gaps (saves about 12 tiles) or fewer gaps. Also watch: holding Right only loops fall and float-back until he lets go or presses Jump (no star cost).
 Architect review of the sheets (844x390 Grass 5, map with five dots): buttons match Grass 3 and do not overlap, the gap and coins read clearly, the map holds five dots with two under clouds.
 Task 009 therefore uses shorter safe stretches (7 tiles) and fewer gaps.
+
+## D-046 (2026-10-24) Task 009 review outcomes
+Approved all five deviations: new grid letter `h` for the high bonus bubbles (a small bubble worth 4 coins with no drop; this is the only new bubble kind and it stays); high bubbles at 2.75 tiles (measured shot heights: standing 32-49 px, top of a jump 177-205 px; at 160 px the purple robot was 1 px from missing; at 176 px all 8 colours and both looks pop it from a jump and none from standing); the flag at column 76 so 7 tiles of ground follow the last gap; a large `?buttonScale` shrinks when four buttons would collide (above about 1.2 at 960 wide); the random-mashing pacing miss reported rather than tuned.
+Final layout: Left and Right bottom-left; Jump (larger, 0.26 of the short edge) in the bottom-right corner and Power (0.22) beside it, at least 26 px apart; `?buttons=power` swaps which one is in the corner. The pure `core/ui/buttonLayout.ts` owns placement and the nearest-button hit rule; Grass 1-5 layouts are unchanged (tested).
+Architect review of the sheets (844x390 in both layouts): no overlaps, both right-hand buttons clearly distinct, finger room around the thumb arc, the bubbles near the buttons stay visible.
+Accepted: sliding a thumb from Right to Jump crosses Power on the way and fires one harmless shot; bottom-row bubbles near a screen edge can sit behind the buttons.
+Pacing: random-mashing medians are 131 s (Grass 5) and 126 s (Grass 6) for a bot biased to the right; a child who walks on purpose needs about 22 s plus the jumps. The tablet decides; levers if too long: shorten Grass 6's 20-tile middle stretch, drop a gap, or use 6 tiles between gaps.
+Open for the tablet: which layout is better (`?buttons=jump` vs `?buttons=power`), thumb reach, whether four buttons overwhelm him, whether the high bubbles are fun, pop sounds by ear.
+Parent rule restated: Claude Code does not push (it offered to push `133c5f4`; the answer is no). `.claude/launch.json` and `.claude/settings.local.json` stay uncommitted.
+
+## D-047 (2026-10-25) Parent view design (Task 010)
+Goal: the parent can tune the game for Athiran without code or URL parameters. It is the last task of the original plan (D-043 order).
+- Access: a small gear icon on the map that must be held 3 seconds (visible filling ring, longer than the 1 s level-exit hold) so a 3-year-old cannot open it by accident. `?parent=1` opens it directly (testing). Not reachable from levels, the picker or the win screen.
+- Text is allowed here (the parent reads it); every control is large (at least 80 px) and works with touch and keyboard.
+- Settings (saved in the progress record's `settings`; URL parameters still override for that visit): sound on/off (default on); button size steps 0.8 / 1.0 / 1.2 / 1.4 with a live preview of the real four-button layout; main button when Jump and Power are both shown (Jump or Power, replacing `?buttons=`); robot look (robot or ball); unlock all levels; "show the watch-me demos again".
+- Reset progress: a held button (3 s, ring) that clears stars, best coins and unlocks only; the colour choice, look and settings stay.
+- Precedence everywhere: URL parameter, then saved setting, then default.
+- Not in scope: passcodes or maths gates, accounts, cloud sync, export/import, usage statistics, per-level settings, language options.

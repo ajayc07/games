@@ -1,16 +1,13 @@
 # Progress
 
-_Last updated: 2026-10-25 (Task 009 done)_
+_Last updated: 2026-10-25 (Task 010 done, original plan complete)_
 
 ## Status
-"Robo World" (D-038) has six Grass levels on the world map (Task 009), which completes the control ladder. New: Grass 6
-"Everything", where Left, Right, Jump and Power are all on screen at once. Jump and Power sit side by side bottom-right (Jump in
-the corner and larger by default; `?buttons=power` swaps them) so one thumb reaches both. The level has five gaps (1, 2, 1, 2, 2
-tiles, 7 or more tiles of ground between), 13 small bubbles, one big bubble blocking the path at 60%, and 3 high bonus bubbles
-(4 coins each) that can only be popped by shooting from the air near the top of a jump. 78 coins, stars 38/62 (the high bubbles
-are never needed for 3 stars). A 10 s demo shows Power and Jump presses. On a fresh start Grass 4-6 are under clouds and each
-clear opens the next one (Grass 6 after three clears). Grass 1-5 are unchanged (their button layouts are tested to be identical).
-Next: Task 010 (parent view: sound, button size, unlock-all, reset; it may expose `?buttons=`).
+The original plan is complete (Task 010). The map has a grey gear (top-left) that opens the parent view after a 3 s hold (or `P` held 3 s;
+`?parent=1` opens it directly). It sets sound, button size (four steps with a live preview of the real four-button layout), main button
+(Jump or Power), look, unlock all, shows the watch-me demos again, and resets progress (held 3 s; keeps colour, look and settings).
+Settings resolve URL, then saved, then default through `core/settings/settings.ts`. Next: the architect decides (tablet feedback, replay
+variety D-044, Cave/Sky/Castle).
 
 ## Roadmap (draft, architect may reorder)
 | # | Task | Status |
@@ -28,7 +25,7 @@ Next: Task 010 (parent view: sound, button size, unlock-all, reset; it may expos
 | 007 | Grass 4 "Shoot": Power button gameplay (friendly bubbles/targets that pop into coins) | Done |
 | 008 | Grass 5 "Move and Jump": walking over gaps (D-043) | Done |
 | 009 | Grass 6 "Everything": Left, Right, Jump and Power together (D-043) | Done |
-| 010 | Minimal parent view (sound, button size, unlock-all, reset progress) | Next |
+| 010 | Minimal parent view (sound, button size, unlock-all, reset progress) | Done |
 | later | Cave/Sky/Castle worlds, polish | Later |
 
 ## Done
@@ -78,10 +75,17 @@ Next: Task 010 (parent view: sound, button size, unlock-all, reset; it may expos
   sizes in both orders, nearest-button rule, Grass 6 rules and high-bubble reach). Universe chunk 141,162 -> 143,677 bytes;
   `dist/` 1,398,527 -> 1,401,042 bytes.
 
+- 2026-10-25: Task 010: settings module (URL, saved, default), `buttonsPrimary` in the record, `updateSettings`/`resetProgress`, gear on the map
+  (3 s hold, `P`), `?parent=1`, ParentScene with pure layout, live preview, held Reset, Show demos again, `?sound=` parameter. 292 tests.
+  Universe chunk 143,677 -> 156,583 bytes; `dist/` 1,401,042 -> 1,413,948 bytes.
+
 ## In progress
 _(nothing)_
 
 ## Open questions
+- Parent view (Task 010): headless Chrome 59.8 fps in the parent view. Not checked: a real tablet, a real child on the gear, iOS Safari, real device insets
+  (only the layout unit tests). The shown value of a setting is the saved one; the scene adds a note when the URL pins it.
+- `?sound=0|1` is new (the task wanted a URL form for every key). A Look change in the parent view applies at once and is saved; `?look=` still wins on a visit.
 - Grass 6 (Task 009), to judge on the tablet: can he reach both right-hand buttons? Which layout is better, `?buttons=jump` (Jump in
   the corner, default) or `?buttons=power`? Does he shoot in the air, and are the high bubbles fun or frustrating? Does he get
   overwhelmed by four buttons? Is the level too long (80 tiles)? Numbers in `buttonLayout.ts` (`BUTTON_SIZE`, `RIGHT_GAP`, `ARC_LIFT`),
@@ -192,6 +196,11 @@ _(nothing)_
   `_sources/archive-private/` (not committed) and remain in the public git history until the parent rewrites it (docs/IDEAS.md).
 
 ## Parent action items
+- After pushing Task 010 (tablet, https://ajayc07.github.io/games/, or `?parent=1`):
+  - Can you open the parent view (hold the grey gear top-left of the map for 3 s)? Does Athiran stop at a quick tap or mashing? Does the hold ring read clearly?
+  - Does the button-size preview match the real buttons in Grass 3 and Grass 6? Which size and which main button (Jump or Power) is best for his thumb?
+  - Do sound, look, unlock all and the main button survive closing the app and an offline start? Does Reset (hold 3 s) keep the colour and settings?
+  - Does "Show again" make the demos play again? Is the parent view readable with the tablet's real insets?
 - After pushing Task 009 (tablet, https://ajayc07.github.io/games/, or `?level=grass-6`; `?demo=1` replays the demo; `?buttons=power`
   swaps the two right-hand buttons):
   - Grass 6 opens after three levels are cleared (or `?unlock=all`). Does the cloud over the sixth dot clear?
