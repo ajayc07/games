@@ -17,6 +17,7 @@ import {
   resolveSoundOn,
   resolveUnlockAll,
   resolveWalkAssist,
+  resolveFullscreen,
   settings,
   urlOverrides,
 } from '../../core/settings/settings';
@@ -26,6 +27,7 @@ import { loadLegacyChoice } from '../../core/storage/choice';
 import { ProgressStore } from '../../core/storage/store';
 import type { ProgressRecord } from '../../core/storage/progress';
 import { options } from './options';
+import { enterFullscreen, exitFullscreen, fullscreenAvailable } from '../../core/ui/fullscreen';
 import { levels } from './levels';
 import { themeForWorld } from './themes';
 import { worlds } from './worlds';
@@ -209,6 +211,8 @@ function openParent(s: Session): void {
         look: s.look,
         unlockAll: saved.unlockAll ?? resolveUnlockAll(input),
         walkAssist: saved.walkAssist ?? resolveWalkAssist(input),
+        fullscreen: saved.fullscreen ?? resolveFullscreen(input),
+        fullscreenAvailable: fullscreenAvailable(),
         pinned: urlOverrides(input.search),
       };
     },
@@ -225,6 +229,11 @@ function openParent(s: Session): void {
     },
     setUnlockAll: (on) => store.updateSettings({ unlockAll: on }),
     setWalkAssist: (v) => store.updateSettings({ walkAssist: v }),
+    setFullscreen: (on) => {
+      store.updateSettings({ fullscreen: on });
+      if (on) enterFullscreen();
+      else exitFullscreen();
+    },
     showDemosAgain: () => LevelScene.forgetDemos(),
     resetProgress: async () => {
       s.arrival = null;

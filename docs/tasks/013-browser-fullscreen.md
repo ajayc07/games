@@ -50,9 +50,9 @@ A fullscreen button reachable by the child, re-requesting fullscreen after exit,
 Unit tests plus a short Playwright run (`?fullscreen=1` and `?fullscreen=0`, sizes 844x390 and 1280x800; screenshots only if layout looks off; none required to commit). Per CLAUDE.md sizing this is a small shell task: two sizes, short run. State plainly what could not be checked: real Android/iPad/iPhone behaviour, the orientation lock on devices (Playwright headless often refuses it), how the child reacts.
 
 ## Result (Code fills in at the end)
-- What changed:
-- Files touched:
-- Deviations from plan (and why):
-- How verified:
-- Open issues / risks:
-- Suggested next:
+- What changed: first tap in a browser tab requests fullscreen + landscape lock (once per load); `fullscreen` setting (default on, `?fullscreen=0|1`); parent-view "Full screen" On/Off row in the right column under the size steps, hidden when unsupported or installed. D-052.
+- Files touched: `src/core/ui/fullscreen.ts` (+test), `src/main.ts`, `src/core/settings/settings.ts` (+test), `src/core/storage/progress.ts`, `src/core/parent/{parentLayout,ParentScene,parent.test}`, `src/universes/robo/manifest.ts`, docs (PROGRESS, DECISIONS, settings-storage-pwa, ui-input-audio, this file).
+- Deviations from plan (and why): module is `core/ui/fullscreen.ts`, not `shell/` (the universe's parent-view data must call it and universes may import `core/` only). The row is in the right column (the six left rows already fill the screen at the required gap). The first-tap listener waits until settings are bound so a saved Off is respected. `display-mode: fullscreen` is ignored while API fullscreen is on (it matched and wrongly hid the row; found in the browser run).
+- How verified: `npm run typecheck && npm test` (367 pass) and `npm run build`; Playwright (Chromium, scratchpad install, not a dependency) at 844x390 and 1280x800: first click enters; `?fullscreen=0` does not; after Esc/exit a later tap does not re-enter; rejected request leaves the game up with no errors; parent row On enters, Off exits and persists across reload; no console errors; parent view screenshot checked.
+- Open issues / risks: not checked on real Android/iPad/iPhone; orientation lock untested (headless); a first tap on the parent screen saves Off and enters in the same tap (corner case, only with `?parent=1`).
+- Suggested next: Task 012 (needs the parent's three answers), then the polish bundle (now 014).

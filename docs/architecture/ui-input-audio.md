@@ -58,6 +58,7 @@ The layouts of Grass 1-5 are exactly as before (tested). The Input Lab's mode 4 
 (`popRecipe(step)`, Task 007);
 plus `comboRow` and `combo-0`..`combo-4` (`comboRecipe(step)`, a rising two-note, one step higher per star in the row, Task 011);
 plus the per-option chimes, see "Avatar options and picker").
+The first real tap also asks for browser fullscreen (`core/ui/fullscreen.ts`, `installFullscreenOnFirstGesture`, Task 013), separate from the audio unlock.
 Never throws; a failed file logs one warning. A play request made while audio is still unlocking (the first tap both
 unlocks and jumps) is queued (`pendingQueue.ts`, tested: one per id, at most 4) and played once the context runs if it is
 at most 300 ms old. Per-sound cap of 3 voices and a 40 ms retrigger gap (`voiceLimiter.ts`, unit-tested);

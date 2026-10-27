@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-25 (docs trimmed, D-051; Task 011 done)_
+_Last updated: 2026-10-27 (Task 013 browser fullscreen done, D-052)_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -10,9 +10,9 @@ first visit shows an eight-colour robot picker, then the world map (six Grass le
 Grass 4 Power (pop bubbles into coins), Grass 5 walk and jump over gaps, Grass 6 all four buttons. A teal Practice button
 (bottom-right of the map) opens four icon cards (walk + shoot, jump + shoot, walk + jump, everything): generated 120-tile levels,
 combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey gear (top-left, held 3 s) opens the parent view
-(sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice).
+(sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
-`?demo=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?debug=1` (+ `&open=N`).
+`?demo=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
 Everything through Task 011 and the docs trim is pushed to `origin/main`.
 
 ## Roadmap
@@ -25,14 +25,14 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`.
 | 009 | Grass 6 Everything (four buttons) | Done |
 | 010 | Parent view | Done |
 | 011 | Combo Practice (free play) | Done |
-| next session (parent request 2026-10-25) | Full screen when playing in a browser tab (see "Open issues": Fullscreen); task drafted in `docs/tasks/013-browser-fullscreen.md` | Drafted, not started |
+| 013 | Browser fullscreen (first tap, parent-view toggle) | Done |
 | 012 | Replay variety (shuffle coins and small bubbles on replays, rare rainbow bubble); task drafted in `docs/tasks/012-replay-variety.md` | Drafted, not started |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session (parent, 2026-10-25)
 Tell the parent these first when they ask for pending tasks:
 1. Task 012 replay variety: drafted; needs their answers (when variety starts, rainbow bubble yes/no, Grass 1-2 handling), then it can start.
-2. Browser fullscreen: Task 013 drafted (`docs/tasks/013-browser-fullscreen.md`); ready to build.
+2. Browser fullscreen: done (Task 013).
 3. Optional: Task 014 polish bundle (footsteps, landing thump, idle wave), not drafted.
 
 ## In progress
@@ -40,7 +40,7 @@ _(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers t
 
 ## Open issues and tuning (current)
 - **Not verified on a real device:** chimes, pop and combo sounds by ear; 58+ fps (the headless test machine measures a 52-60 fps blank page);
-  iOS Safari (fullscreen, audio unlock, private-mode storage); device insets (layout unit tests only); a real child on the gear hold;
+  iOS Safari (audio unlock, private-mode storage); device insets (layout unit tests only); a real child on the gear hold;
   the map when dragged by a toddler. Progress is per browser and device.
 - **Tuning numbers (first guesses):** Practice `COMBO` (`navGraceMs` 120, `minGapMs` 400) in `core/practice/combo.ts`, `COACH` (8 s / 2.5 s / 20 s) in `coach.ts`,
   `STICKY.tapMs` 250 in `core/levels/stickyWalk.ts`, `PRACTICE` (120 tiles) in `core/levels/practice.ts`; shots `SHOT` in `core/levels/shots.ts`
@@ -59,9 +59,7 @@ _(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers t
   with origin (0, 0), so scenes scroll by hand and children of screen-fixed containers need `setScrollFactor(0, 0, true)` (docs/architecture/ui-input-audio.md "Screen layout").
   Phaser re-sends queued key events when several keys arrive in one frame; handle repeats in any new key code (the picker does). The picker is not driven by a gamepad.
   The map is about 2185 px wide, so it scrolls; the robot stands on the first open level not yet cleared.
-- **Fullscreen (queued, not built):** today only the installed PWA is fullscreen (`display: fullscreen` in the manifest); in a normal browser tab there is no way into fullscreen, so the address bar and tabs eat screen space.
-  Ideas for the task: call the Fullscreen API (`requestFullscreen`, webkit-prefixed fallback) from a user gesture, e.g. together with the first-tap audio unlock; plus a small fullscreen toggle (parent view row, and/or a held icon so a toddler cannot exit by accident);
-  landscape lock where supported (`screen.orientation.lock`); re-layout on resize/exit (layout is already responsive, D-013/D-017); iPhone Safari has no Fullscreen API for pages (only the home-screen PWA), iPad Safari does; a `?fullscreen=0|1` test hook; settings precedence as in D-047; never block play if the request is refused.
+- **Fullscreen (Task 013, built):** the first tap in a browser tab requests fullscreen + landscape lock (never re-requested after the child leaves it); parent view row "Full screen" On/Off (`?fullscreen=0|1`). Real-device checklist: Android Chrome tablet and phone, iPad Safari, iPhone Safari (no change expected, no row), desktop Chrome/Edge/Firefox; does the orientation lock work; does the layout re-fit.
 - **Public git history** still contains the removed Nintendo files (`docs/IDEAS.md`); rewriting it is a parent decision.
 - **No media files** in the game; the former character images and voice clips are archived in `_sources/archive-private/` (not committed).
 

@@ -32,6 +32,8 @@ export interface ParentLayout {
   /** Caption above the size steps. */
   sizeLabel: Rect;
   sizeSteps: Rect[];
+  /** The Full screen row (Task 013), under the size steps; null when fullscreen is unavailable (row hidden, preview grows). */
+  fullscreen: { rect: Rect; label: Rect; controls: Rect[] } | null;
   /** The preview panel (the mini screen is drawn inside it, see `previewFit`). */
   preview: Rect;
   reset: Rect;
@@ -59,7 +61,7 @@ export const PARENT = {
   previewMinH: 200,
 } as const;
 
-export function parentLayout(width: number, height: number, insets: Insets): ParentLayout {
+export function parentLayout(width: number, height: number, insets: Insets, withFullscreen = false): ParentLayout {
   const P = PARENT;
   const left0 = insets.left + P.margin;
   const top = insets.top + P.margin;
@@ -103,9 +105,25 @@ export function parentLayout(width: number, height: number, insets: Insets): Par
   const bottomY = bottom - P.rowH;
   const back = { x: rightX + rightW - P.backW, y: bottomY, width: P.backW, height: P.rowH };
   const reset = { x: rightX, y: bottomY, width: rightW - P.backW - P.gap, height: P.rowH };
-  const previewY = stepY + P.rowH + P.gap;
+  let fullscreen: ParentLayout['fullscreen'] = null;
+  let previewY = stepY + P.rowH + P.gap;
+  if (withFullscreen) {
+    const y = previewY;
+    const lw = Math.round(Math.max(P.labelMin, Math.min(P.labelMax, rightW * 0.3)));
+    const cx0 = rightX + lw + P.gap;
+    const w = Math.floor((rightW - lw - P.gap * 2) / 2);
+    fullscreen = {
+      rect: { x: rightX, y, width: rightW, height: P.rowH },
+      label: { x: rightX, y, width: lw, height: P.rowH },
+      controls: [
+        { x: cx0, y, width: w, height: P.rowH },
+        { x: cx0 + w + P.gap, y, width: w, height: P.rowH },
+      ],
+    };
+    previewY = y + P.rowH + P.gap;
+  }
   const preview = { x: rightX, y: previewY, width: rightW, height: Math.max(P.previewMinH, bottomY - P.gap - previewY) };
-  return { rows, sizeLabel, sizeSteps, preview, reset, back };
+  return { rows, sizeLabel, sizeSteps, fullscreen, preview, reset, back };
 }
 
 /**

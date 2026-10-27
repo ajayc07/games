@@ -12,6 +12,7 @@ import {
   resolveButtonsPrimary,
   resolveLook,
   resolveSoundOn,
+  resolveFullscreen,
   resolveUnlockAll,
   resolveWalkAssist,
   settings,
@@ -71,6 +72,18 @@ describe('settings precedence: URL, then saved, then default', () => {
     expect(resolveLook(input('', {}, 'nonsense'))).toBe('robot');
   });
 
+  it('fullscreen (Task 013): ?fullscreen=0|1, then the saved value, then on', () => {
+    expect(resolveFullscreen(input())).toBe(true);
+    expect(resolveFullscreen(input('', { fullscreen: false }))).toBe(false);
+    expect(resolveFullscreen(input('?fullscreen=1', { fullscreen: false }))).toBe(true);
+    expect(resolveFullscreen(input('?fullscreen=0', { fullscreen: true }))).toBe(false);
+    expect(resolveFullscreen(input('?fullscreen=off'))).toBe(false);
+    expect(resolveFullscreen(input('?fullscreen=maybe', { fullscreen: false }))).toBe(false); // a bad URL value is ignored
+    expect(urlOverrides('?fullscreen=0').fullscreen).toBe(true);
+    expect(parseRecord(serializeRecord({ ...freshRecord(), settings: { fullscreen: false } })).record.settings.fullscreen).toBe(false);
+    expect(parseRecord('{"version":1,"settings":{"fullscreen":"yes"}}').record.settings.fullscreen).toBeUndefined();
+  });
+
   it('walk assist (Task 011): ?assist=sticky|off, then the saved value, then off', () => {
     expect(resolveWalkAssist(input())).toBe('off');
     expect(resolveWalkAssist(input('', { walkAssist: 'sticky' }))).toBe('sticky');
@@ -88,8 +101,8 @@ describe('settings precedence: URL, then saved, then default', () => {
   });
 
   it('reports which settings the URL pins', () => {
-    expect(urlOverrides('')).toEqual({ buttonScale: false, buttonsPrimary: false, soundOn: false, unlockAll: false, look: false, walkAssist: false });
-    expect(urlOverrides('?buttonScale=1.3&buttons=power&sound=0&unlock=all&look=ball&assist=sticky')).toEqual({ buttonScale: true, buttonsPrimary: true, soundOn: true, unlockAll: true, look: true, walkAssist: true });
+    expect(urlOverrides('')).toEqual({ buttonScale: false, buttonsPrimary: false, soundOn: false, unlockAll: false, look: false, walkAssist: false, fullscreen: false });
+    expect(urlOverrides('?buttonScale=1.3&buttons=power&sound=0&unlock=all&look=ball&assist=sticky')).toEqual({ buttonScale: true, buttonsPrimary: true, soundOn: true, unlockAll: true, look: true, walkAssist: true, fullscreen: false });
     expect(urlOverrides('?assist=maybe').walkAssist).toBe(false);
     expect(urlOverrides('?buttonScale=junk&look=sprite').buttonScale).toBe(false);
     expect(urlOverrides('?look=sprite').look).toBe(false);

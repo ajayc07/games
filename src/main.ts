@@ -5,12 +5,14 @@ import { installBrowserGuards } from './shell/browserGuards';
 import { keepScreenAwake } from './shell/wakeLock';
 import { registerServiceWorker } from './shell/pwa';
 import { audio } from './core/audio/AudioManager';
+import { installFullscreenOnFirstGesture } from './core/ui/fullscreen';
 import { initLayout, LOGICAL_HEIGHT, logicalWidthFor, renderScaleFor } from './core/ui/layout';
 
 installBrowserGuards();
 keepScreenAwake();
 registerServiceWorker();
 audio.installUnlock();
+installFullscreenOnFirstGesture();
 
 const parent = document.getElementById('game')!;
 

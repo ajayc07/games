@@ -43,5 +43,6 @@ page is hidden; `flush()` never rejects. `?debug=1`: `window.__progress` (record
 - GitHub Pages project site, Vite `base: '/games/'`. No router needed yet (scene-based navigation); if URLs are added later, use hash routing since Pages has no SPA fallback.
 - Service worker precaches the shell and caches each universe chunk + assets on first use, so the game works offline after the first visit. Bump version to update.
 - Web app manifest: `display: fullscreen`, `orientation: landscape`, installable to the home screen.
+- Browser fullscreen (Task 013, D-052): `core/ui/fullscreen.ts` (feature-detected, never throws; standard + webkit API; `FsEnv` stub for tests) and the `fullscreen` setting (default on; `?fullscreen=0|1`, then saved, then default). `main.ts` installs one first-gesture listener (pointerup/touchend/mousedown/keydown, not Esc; waits until settings are bound); after one attempt it is gone, so leaving fullscreen is never fought. The parent view's Full screen row is the only control and the only way back in; hidden when unsupported (iPhone Safari has no page Fullscreen API) or installed (`display-mode`/`navigator.standalone`; `display-mode: fullscreen` is ignored while the API is fullscreen). Landscape lock is best effort.
 - Deploy via GitHub Actions on push to `main`.
 - Asset budget: keep each universe under about 15-20 MB.

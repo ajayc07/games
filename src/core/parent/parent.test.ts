@@ -94,3 +94,27 @@ describe('parent view layout', () => {
     expect(Math.min(l.preview.x, l.reset.x, ...l.sizeSteps.map((s) => s.x))).toBeGreaterThan(leftEdge);
   });
 });
+
+describe('parent view Full screen row (Task 013)', () => {
+  it('is hidden by default, and the row sits under the size steps without crowding anything when shown', () => {
+    expect(parentLayout(960, 720, NO_INSETS).fullscreen).toBeNull();
+    for (const [, cw, ch] of SIZES) {
+      for (const insets of [NO_INSETS, NOTCH]) {
+        const w = logicalWidthFor(cw, ch);
+        const l = parentLayout(w, 720, insets, true);
+        const f = l.fullscreen!;
+        expect(f.controls).toHaveLength(2);
+        for (const c of f.controls) {
+          expect(c.width).toBeGreaterThanOrEqual(80);
+          expect(c.height).toBeGreaterThanOrEqual(80);
+          expect(inside(c, w, 720, insets)).toBe(true);
+          expect(overlap(l.preview, c)).toBe(false);
+          for (const s of [...l.sizeSteps, l.reset, l.back]) expect(overlap({ x: c.x - 23, y: c.y - 23, width: c.width + 46, height: c.height + 46 }, s)).toBe(false);
+        }
+        expect(overlap(f.controls[0], f.controls[1])).toBe(false);
+        expect(overlap(l.preview, f.rect)).toBe(false);
+        expect(l.preview.height).toBeGreaterThanOrEqual(PARENT.previewMinH);
+      }
+    }
+  });
+});

@@ -19,8 +19,12 @@ export interface ParentState {
   unlockAll: boolean;
   /** Walk assist in Practice (Task 011). */
   walkAssist: WalkAssist;
+  /** Browser fullscreen on the first tap (Task 013). */
+  fullscreen: boolean;
+  /** Whether this browser can do fullscreen and the app is not installed; the row is hidden otherwise. */
+  fullscreenAvailable: boolean;
   /** Settings the URL pins for this visit (a change is saved but this visit still uses the URL value). */
-  pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean };
+  pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean; fullscreen: boolean };
 }
 
 export interface ParentSceneData {
@@ -31,6 +35,8 @@ export interface ParentSceneData {
   setLook(look: LookName): void;
   setUnlockAll(on: boolean): void;
   setWalkAssist(v: WalkAssist): void;
+  /** Saves the setting and, being a tap, enters or leaves fullscreen right away. */
+  setFullscreen(on: boolean): void;
   showDemosAgain(): void;
   resetProgress(): Promise<void>;
   onBack(): void;
@@ -110,8 +116,8 @@ export class ParentScene extends Phaser.Scene {
     this.previewButtons = [];
     const root = this.add.container(0, 0);
     this.root = root;
-    this.pl = parentLayout(l.width, l.height, l.insets);
     const st = this.data0.read();
+    this.pl = parentLayout(l.width, l.height, l.insets, st.fullscreenAvailable);
     root.add(this.add.graphics().fillStyle(C.bg, 1).fillRect(0, 0, l.width, l.height));
 
     const row = (id: string) => this.pl.rows.find((r) => r.id === id)!;
@@ -133,6 +139,12 @@ export class ParentScene extends Phaser.Scene {
     root.add(this.text('in Practice', ar.label.x, ar.label.y + ar.label.height / 2 + 16, 19, C.soft).setOrigin(0, 0.5));
     this.choice(ar.controls[0], 'Off', st.walkAssist !== 'sticky', () => this.change(() => this.data0.setWalkAssist('off')));
     this.choice(ar.controls[1], 'Sticky', st.walkAssist === 'sticky', () => this.change(() => this.data0.setWalkAssist('sticky')));
+    const fr = this.pl.fullscreen;
+    if (fr) {
+      this.rowLabel(fr, 'Full screen');
+      this.choice(fr.controls[0], 'On', st.fullscreen, () => this.change(() => this.data0.setFullscreen(true)));
+      this.choice(fr.controls[1], 'Off', !st.fullscreen, () => this.change(() => this.data0.setFullscreen(false)));
+    }
     this.rowLabel(row('demos'), 'Demos');
     this.choice(row('demos').controls[0], this.demoTick > 0 ? 'Shown again ✓' : 'Show again', this.demoTick > 0, () => {
       this.data0.showDemosAgain();
@@ -141,7 +153,7 @@ export class ParentScene extends Phaser.Scene {
       this.change(() => undefined);
     }).setFontSize(24);
 
-    const pinned = [st.pinned.soundOn && 'sound', st.pinned.look && 'look', st.pinned.buttonScale && 'button size', st.pinned.buttonsPrimary && 'main button', st.pinned.unlockAll && 'unlock all', st.pinned.walkAssist && 'walk assist'].filter(Boolean);
+    const pinned = [st.pinned.soundOn && 'sound', st.pinned.look && 'look', st.pinned.buttonScale && 'button size', st.pinned.buttonsPrimary && 'main button', st.pinned.unlockAll && 'unlock all', st.pinned.walkAssist && 'walk assist', st.pinned.fullscreen && 'full screen'].filter(Boolean);
     if (pinned.length > 0) {
       const last = row('demos').rect;
       put(this.text(`The web address sets ${pinned.join(', ')} for this visit.`, last.x, last.y + last.height + 14, 17, C.soft).setWordWrapWidth(last.width));

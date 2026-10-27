@@ -19,6 +19,8 @@ export interface ProgressSettings {
   unlockAll?: boolean;
   /** Walk assist in Practice (Task 011): `sticky` = a quick tap on Left/Right keeps walking. Missing = off. */
   walkAssist?: 'off' | 'sticky';
+  /** Browser fullscreen on the first tap (Task 013). Missing = on. */
+  fullscreen?: boolean;
 }
 
 export interface ProgressRecord {
@@ -72,6 +74,7 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
     if (s.buttonsPrimary === 'jump' || s.buttonsPrimary === 'power') record.settings.buttonsPrimary = s.buttonsPrimary;
     if (typeof s.unlockAll === 'boolean') record.settings.unlockAll = s.unlockAll;
     if (s.walkAssist === 'off' || s.walkAssist === 'sticky') record.settings.walkAssist = s.walkAssist;
+    if (typeof s.fullscreen === 'boolean') record.settings.fullscreen = s.fullscreen;
   }
   return { record, status: 'ok' };
 }

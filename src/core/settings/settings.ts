@@ -66,6 +66,14 @@ export function resolveWalkAssist(i: SettingsInput): WalkAssist {
   return i.saved.walkAssist === 'sticky' ? 'sticky' : 'off';
 }
 
+/** `?fullscreen=0|1` (also off/on), else the saved value, else on (Task 013). */
+export function resolveFullscreen(i: SettingsInput): boolean {
+  const url = param(i.search, 'fullscreen')?.toLowerCase();
+  if (url === '0' || url === 'off') return false;
+  if (url === '1' || url === 'on') return true;
+  return i.saved.fullscreen ?? true;
+}
+
 /** `?look=` (a known name), else the saved look, else the robot. (An unknown `?look=` is ignored here; the boot warns.) */
 export function resolveLook(i: SettingsInput): LookName {
   const url = param(i.search, 'look')?.toLowerCase();
@@ -81,11 +89,13 @@ export function urlOverrides(search: string): {
   unlockAll: boolean;
   look: boolean;
   walkAssist: boolean;
+  fullscreen: boolean;
 } {
   const scale = Number(param(search, 'buttonScale'));
   const sound = param(search, 'sound')?.toLowerCase();
   const buttons = param(search, 'buttons');
   const assist = param(search, 'assist')?.toLowerCase();
+  const fs = param(search, 'fullscreen')?.toLowerCase();
   return {
     buttonScale: param(search, 'buttonScale') !== null && Number.isFinite(scale) && scale > 0,
     buttonsPrimary: buttons === 'jump' || buttons === 'power',
@@ -93,6 +103,7 @@ export function urlOverrides(search: string): {
     unlockAll: param(search, 'unlock') === 'all',
     look: isLook(param(search, 'look')?.toLowerCase()),
     walkAssist: assist === 'sticky' || assist === 'off',
+    fullscreen: fs === '0' || fs === 'off' || fs === '1' || fs === 'on',
   };
 }
 
@@ -110,7 +121,13 @@ export function nearestScaleStep(scale: number): number {
 let source: () => SettingsInput = () => ({ search: typeof location === 'undefined' ? '' : location.search, saved: {}, savedLook: null });
 
 /** The universe calls this once at boot with the progress store, so every reader sees live saved values. */
+let bound = false;
+
+/** True once the universe has bound the store (before that, saved values are not known yet). */
+export const settingsBound = (): boolean => bound;
+
 export function bindSettings(read: () => Pick<SettingsInput, 'saved' | 'savedLook'>, search: string = typeof location === 'undefined' ? '' : location.search): void {
+  bound = true;
   source = () => ({ search, ...read() });
 }
 
@@ -121,4 +138,5 @@ export const settings = {
   unlockAll: (): boolean => resolveUnlockAll(source()),
   look: (): LookName => resolveLook(source()),
   walkAssist: (): WalkAssist => resolveWalkAssist(source()),
+  fullscreen: (): boolean => resolveFullscreen(source()),
 };
