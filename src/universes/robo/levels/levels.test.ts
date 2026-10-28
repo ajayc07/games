@@ -20,6 +20,9 @@ import grass6 from './grass-6.json';
 import grass7 from './grass-7.json';
 import night1 from './night-1.json';
 import car1 from './car-1.json';
+import magnet1 from './magnet-1.json';
+import boots1 from './boots-1.json';
+import { MAGNET, bootsPeak, normalPeak } from '../../../core/levels/powerups';
 import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
@@ -358,12 +361,14 @@ describe('Robo World level files', () => {
     expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('the grass world lists grass-1..7, night-1 and car-1: Next goes on in that order and is hidden on car-1', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1']);
+  it('the grass world lists grass-1..7, night-1, car-1, magnet-1 and boots-1: Next goes on in that order and is hidden on boots-1', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1', 'magnet-1', 'boots-1']);
     for (let i = 1; i < 7; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
     expect(nextLevelId(worlds, 'grass-7')).toBe('night-1');
     expect(nextLevelId(worlds, 'night-1')).toBe('car-1');
-    expect(nextLevelId(worlds, 'car-1')).toBeNull();
+    expect(nextLevelId(worlds, 'car-1')).toBe('magnet-1');
+    expect(nextLevelId(worlds, 'magnet-1')).toBe('boots-1');
+    expect(nextLevelId(worlds, 'boots-1')).toBeNull();
   });
 
   it('night-1 "Night Walk" (Task 016, D-060): night world, walking, all four buttons, gaps of 1-2 tiles, small bubbles and arcs', () => {
@@ -481,18 +486,63 @@ describe('Robo World level files', () => {
     expect(level.stars.three).toBeLessThan(e.coins.length);
   });
 
-  it('grass-4, 5, 6 and 7 are under clouds on a fresh start (openAtATime 3); each clear opens the next one', () => {
+  it('magnet-1 "Coin Magnet" (Task 018, D-062): a magnet pickup early, a coin field at many heights, flat ground, no bubbles, no demo', () => {
+    const level = parseLevelOrThrow(magnet1, 'magnet-1');
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump']);
+    expect(level.variety).toBe(false);
+    const e = extractEntities(level.grid);
+    expect(e.pickups.map((p) => p.kind)).toEqual(['magnet']);
+    expect(e.pickups[0].col - e.start.col).toBeGreaterThanOrEqual(3);
+    expect(e.pickups[0].col - e.start.col).toBeLessThanOrEqual(6);
+    expect(e.bubbles.length).toBe(0);
+    expect(e.solid[e.start.row + 1].every(Boolean)).toBe(true);
+    // The field: at least 15 coins after the pickup, over at least 4 different heights.
+    const field = e.coins.filter((c) => c.col > e.pickups[0].col + 2 && c.col < e.goal.col - 6);
+    expect(field.length).toBeGreaterThanOrEqual(15);
+    expect(new Set(field.map((c) => c.row)).size).toBeGreaterThanOrEqual(4);
+    // Every coin is at most as high as a normal jump plus the magnet radius reaches from a jump (so each one can be collected).
+    const feet = (e.start.row + 1) * 64;
+    for (const c of e.coins) expect(c.row * 64 + 32, `coin ${c.col}:${c.row}`).toBeGreaterThanOrEqual(feet - normalPeak() - PHYSICS.body.height - MAGNET.radius);
+    for (const c of e.coins) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThan(e.coins.length);
+  });
+
+  it('boots-1 "Rocket Boots" (Task 018, D-062): a boots pickup early, low coins on the ground, high coins only the boots reach', () => {
+    const level = parseLevelOrThrow(boots1, 'boots-1');
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump']);
+    expect(level.variety).toBe(false);
+    const e = extractEntities(level.grid);
+    expect(e.pickups.map((p) => p.kind)).toEqual(['boots']);
+    expect(e.bubbles.length).toBe(0);
+    expect(e.solid[e.start.row + 1].every(Boolean)).toBe(true);
+    const feet = (e.start.row + 1) * 64;
+    const centre = (row: number) => row * 64 + 32;
+    const normalTop = feet - normalPeak() - PHYSICS.body.height;
+    const bootsTop = feet - bootsPeak() - PHYSICS.body.height;
+    const high = e.coins.filter((c) => centre(c.row) < normalTop - 20);
+    const low = e.coins.filter((c) => centre(c.row) >= normalTop - 20);
+    expect(high.length).toBeGreaterThanOrEqual(6);
+    expect(low.length).toBeGreaterThanOrEqual(12);
+    // Every high coin is within the boots' reach (with a few px to spare); none needs more.
+    for (const c of high) expect(centre(c.row), `coin ${c.col}:${c.row}`).toBeGreaterThanOrEqual(bootsTop + 4);
+    // Two stars never need a high coin; three stars do.
+    expect(level.stars.two).toBeLessThanOrEqual(low.length);
+    expect(level.stars.three).toBeGreaterThan(low.length);
+    expect(level.stars.three).toBeLessThanOrEqual(e.coins.length);
+    for (const c of e.coins) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('every level after the third is under a cloud on a fresh start (openAtATime 3); each clear opens the next one', () => {
     const grass = worlds.find((w) => w.id === 'grass')!;
     const open = (levels: Record<string, { stars: number; bestCoins: number }>) =>
       worldDots(grass, levels, { openAtATime: 3, unlockAll: false }).map((d) => d.open);
     const cleared = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, { stars: 1, bestCoins: 0 }]));
-    expect(open({})).toEqual([true, true, true, false, false, false, false, false, false]);
-    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false, false, false, false]);
-    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false, false, false, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true, false, false, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4'))).toEqual([true, true, true, true, true, true, true, false, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5'))).toEqual([true, true, true, true, true, true, true, true, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6'))).toEqual([true, true, true, true, true, true, true, true, true]);
+    const ids = grass.levels;
+    // Three levels are open at the start; each clear (in order) opens the next one.
+    for (let n = 0; n <= ids.length - 3; n++) {
+      expect(open(cleared(...ids.slice(0, n))), `${n} cleared`).toEqual(ids.map((_, i) => i < 3 + n));
+    }
   });
 });
 

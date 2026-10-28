@@ -16,7 +16,8 @@ import { OBSTACLE_TEX, makeEffectTextures, makeObstacleTextures, makeThemeTextur
 import { PAD, PadTrigger } from './pads';
 import { CAR, CarTimer, carAlpha, touchesPickup } from './car';
 import { CarSprite } from './CarSprite';
-import { makeCarTextures, carTextureKeys } from './placeholders';
+import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS } from './placeholders';
+import { MAGNET, bootsJumpSpeed, inMagnetRange, pullStep, type PickupKind } from './powerups';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
@@ -67,6 +68,8 @@ interface Coin {
   x: number;
   y: number;
   taken: boolean;
+  /** The magnet is pulling it (Task 018): its bob is stopped and it flies. */
+  pulled?: boolean;
 }
 
 const COIN_SIZE = 40;
@@ -197,6 +200,11 @@ export class LevelScene extends Phaser.Scene {
     this.pickups = [];
     this.car = null;
     this.carTimer.stop();
+    this.magnetTimer.stop();
+    this.bootsTimer.stop();
+    this.badge = null;
+    this.field = null;
+    this.flames = [];
     this.blaster = null;
     this.ghostBlaster = null;
     this.ghostPower = false;
@@ -284,6 +292,7 @@ export class LevelScene extends Phaser.Scene {
     else if (this.mode === 'finish') this.updateFinish();
     this.player.updateAvatar(time, dt);
     this.updateCar(time);
+    this.updatePowers(time);
     this.ghost?.updateAvatar(time, dt);
     this.updateShots(time, dt * 1000);
     this.updatePractice(time);
@@ -510,7 +519,7 @@ export class LevelScene extends Phaser.Scene {
 
   // ---------- car power-up (Task 017, D-061) ----------
 
-  private pickups: Array<{ img: Phaser.GameObjects.Image; x: number; y: number; taken: boolean }> = [];
+  private pickups: Array<{ img: Phaser.GameObjects.Image; x: number; y: number; taken: boolean; kind: PickupKind }> = [];
   private car: CarSprite | null = null;
   private readonly carTimer = new CarTimer();
 
@@ -519,14 +528,15 @@ export class LevelScene extends Phaser.Scene {
     if (this.grid.pickups.length === 0) return;
     const pal = resolveAvatar(this.data0.option).palette;
     makeCarTextures(this, pal.accent, pal.joint);
-    this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
-    const orb = carTextureKeys(pal.accent, pal.joint).orb;
+    makePowerOrbTextures(this);
+    if (this.grid.pickups.some((p) => p.kind === 'car')) this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
+    const orbOf = (kind: PickupKind) => (kind === 'car' ? carTextureKeys(pal.accent, pal.joint).orb : POWER_ORB_KEYS[kind]);
     this.pickups = this.grid.pickups.map((c, i) => {
       const { x, y } = this.cellCenter(c);
-      const img = this.add.image(x, y, orb).setDisplaySize(CAR.pickupRadius * 2, CAR.pickupRadius * 2).setDepth(DEPTH.coins + 1);
+      const img = this.add.image(x, y, orbOf(c.kind)).setDisplaySize(CAR.pickupRadius * 2, CAR.pickupRadius * 2).setDepth(DEPTH.coins + 1);
       this.tweens.add({ targets: img, y: y - 8, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: (i % 3) * 200 });
       this.tweens.add({ targets: img, scale: img.scale * 1.12, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      return { img, x, y, taken: false };
+      return { img, x, y, taken: false, kind: c.kind };
     });
   }
 
@@ -537,7 +547,108 @@ export class LevelScene extends Phaser.Scene {
       p.taken = true;
       this.tweens.killTweensOf(p.img);
       this.tweens.add({ targets: p.img, scale: 0, alpha: 0, duration: 260, ease: 'Back.easeIn', onComplete: () => p.img.setVisible(false) });
+      this.startPower(p.kind, now);
+    }
+  }
+
+  // Magnet and rocket boots (Task 018, D-062): timed like the car; the badge above his head shows which one is on.
+  private readonly magnetTimer = new CarTimer();
+  private readonly bootsTimer = new CarTimer();
+  private badge: Phaser.GameObjects.Image | null = null;
+  private field: Phaser.GameObjects.Arc | null = null;
+  private flames: Phaser.GameObjects.Image[] = [];
+  private lastFlameAt = 0;
+
+  private startPower(kind: PickupKind, now: number): void {
+    if (kind === 'car') {
       this.startCar(now);
+      return;
+    }
+    audio.play('transform');
+    const b = this.player.body;
+    this.sparkle.explode(18, b.center.x, b.center.y);
+    this.poof(b.center.x, b.center.y);
+    if (kind === 'magnet') {
+      this.magnetTimer.start(now);
+      this.field ??= this.add.circle(0, 0, MAGNET.radius).setStrokeStyle(4, 0xff5252, 0.45).setDepth(DEPTH.player - 2);
+      this.field.setVisible(true);
+    } else {
+      this.bootsTimer.start(now);
+      this.player.jumpScale = bootsJumpSpeed() / PHYSICS.jumpVelocity;
+      if (this.flames.length === 0) {
+        this.flames = [-9, 9].map(() => this.add.image(0, 0, 'fx-glow').setTint(0xff8a00).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.player - 0.5));
+      }
+      for (const f of this.flames) f.setVisible(true);
+    }
+    this.badge ??= this.add.image(0, 0, kind === 'magnet' ? POWER_ORB_KEYS.magnet : POWER_ORB_KEYS.boots).setDisplaySize(40, 40).setDepth(DEPTH.player + 0.3);
+    this.badge.setTexture(kind === 'magnet' ? POWER_ORB_KEYS.magnet : POWER_ORB_KEYS.boots).setVisible(true);
+  }
+
+  /** Both timed power-ups off (a fall, the goal, or time up). */
+  private endPowers(sound = true): void {
+    const had = this.magnetTimer.active(this.time.now) || this.bootsTimer.active(this.time.now);
+    this.magnetTimer.stop();
+    this.bootsTimer.stop();
+    this.player.jumpScale = 1;
+    this.field?.setVisible(false);
+    for (const f of this.flames) f.setVisible(false);
+    this.badge?.setVisible(false);
+    if (had && sound) audio.play('transformBack');
+  }
+
+  /** Every frame: the badge, the magnet's field ring, the boots' flames, and the end of the time. */
+  private updatePowers(now: number): void {
+    const magnet = this.magnetTimer.active(now);
+    const boots = this.bootsTimer.active(now);
+    if (!magnet && !boots) {
+      if (this.badge?.visible) this.endPowers();
+      return;
+    }
+    const b = this.player.body;
+    const left = Math.min(magnet ? this.magnetTimer.remaining(now) : Infinity, boots ? this.bootsTimer.remaining(now) : Infinity);
+    if (this.badge) {
+      this.badge.setPosition(b.center.x, b.top - 34 + Math.sin(now / 250) * 3).setAlpha(carAlpha(left));
+      if (magnet && !boots) this.badge.setTexture(POWER_ORB_KEYS.magnet);
+      else if (boots && !magnet) this.badge.setTexture(POWER_ORB_KEYS.boots);
+    }
+    if (this.field) {
+      const on = magnet;
+      this.field.setVisible(on);
+      if (on) this.field.setPosition(b.center.x, b.center.y).setAlpha((0.5 + 0.3 * Math.sin(now / 300)) * carAlpha(this.magnetTimer.remaining(now)));
+    }
+    if (!boots && this.flames.length > 0) {
+      this.player.jumpScale = 1;
+      for (const f of this.flames) f.setVisible(false);
+    }
+    if (boots) {
+      const air = !this.player.grounded;
+      this.flames.forEach((f, i) => {
+        const size = (air ? 34 : 20) + Math.sin(now / 60 + i * 2) * 4;
+        f.setVisible(true).setPosition(b.center.x + (i === 0 ? -9 : 9), b.bottom - 2).setDisplaySize(size, size * 1.3).setAlpha((air ? 0.85 : 0.4) * carAlpha(this.bootsTimer.remaining(now)));
+      });
+      if (b.velocity.y < -50 && now - this.lastFlameAt > 70) {
+        this.lastFlameAt = now;
+        this.sparkle.explode(2, b.center.x, b.bottom);
+      }
+    }
+  }
+
+  /** The magnet pulls loose coins within its radius toward his chest; the normal coin test collects them as they arrive. */
+  private pullCoins(now: number, dtMs: number): void {
+    if (!this.magnetTimer.active(now)) return;
+    const b = this.player.body;
+    const target = { x: b.center.x, y: b.center.y };
+    for (const coin of this.coins) {
+      if (coin.taken) continue;
+      if (!coin.pulled) {
+        if (!inMagnetRange(coin, target)) continue;
+        coin.pulled = true;
+        this.tweens.killTweensOf(coin.img);
+      }
+      const next = pullStep(coin, target, dtMs);
+      coin.x = next.x;
+      coin.y = next.y;
+      coin.img.setPosition(next.x, next.y);
     }
   }
 
@@ -812,6 +923,7 @@ export class LevelScene extends Phaser.Scene {
     const r = this.player.step(now, { move, jumpPressed: pressed, walls: this.bubbleWalls(this.player) }, dtMs);
     if (r.jumped) this.onJump();
 
+    this.pullCoins(now, dtMs);
     this.collectCoins();
     this.updatePads(now);
     this.updatePickups(now);
@@ -969,6 +1081,7 @@ export class LevelScene extends Phaser.Scene {
 
   private startRespawn(): void {
     this.endCar(false);
+    this.endPowers(false);
     this.mode = 'respawn';
     this.respawns++;
     this.practice?.cancelLatch(); // the walk assist lets go on a fall (Task 011)
@@ -1013,6 +1126,7 @@ export class LevelScene extends Phaser.Scene {
 
   private reachGoal(): void {
     this.endCar(false);
+    this.endPowers(false);
     this.mode = 'finish';
     this.exitBtn.setEnabled(false);
     this.player.halt();

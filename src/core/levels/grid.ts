@@ -1,6 +1,8 @@
 // Grid -> entities, collision rectangles, respawn spots and stars. Pure and unit-tested.
 // Coordinates here are grid cells: col 0 is the left edge, row 0 is the top row.
 
+import { PICKUP_CHARS, type PickupKind } from './powerups';
+
 export interface Cell {
   col: number;
   row: number;
@@ -30,8 +32,8 @@ export interface GridEntities {
   /** Step blocks (`B`, solid, Task 015) and bounce pads (`^`, not solid). */
   blocks: Cell[];
   pads: Cell[];
-  /** Car pickups (`P`, Task 017). */
-  pickups: Cell[];
+  /** Power-up pickups (Task 017-018): car `P`, magnet `M`, rocket boots `J`. */
+  pickups: Array<Cell & { kind: PickupKind }>;
 }
 
 /** Splits a validated grid into what the scene needs. Assumes parseLevel() accepted it. */
@@ -43,7 +45,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const bubbles: BubbleCell[] = [];
   const blocks: Cell[] = [];
   const pads: Cell[] = [];
-  const pickups: Cell[] = [];
+  const pickups: Array<Cell & { kind: PickupKind }> = [];
   const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
   let goal: Cell = { col: 0, row: 0 };
@@ -54,7 +56,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       line.push(ch === '#' || ch === 'B');
       if (ch === 'B') blocks.push({ col, row });
       else if (ch === '^') pads.push({ col, row });
-      else if (ch === 'P') pickups.push({ col, row });
+      else if (ch === 'P' || ch === 'M' || ch === 'J') pickups.push({ col, row, kind: PICKUP_CHARS[ch] });
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });

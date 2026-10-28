@@ -124,3 +124,13 @@ First non-Grass look: a night stage with stars, fireflies and a soft headlamp gl
 ## D-061 (2026-10-28) Car power-up (Task 017; variety step 3 of D-059, the parent chose a car instead of the ball)
 A glowing orb with a car on it turns the robot into a little car for 10 seconds: a code-drawn car in his colours with his head in the window, 25% faster, rising chime and a poof; a gentle blink for the last 1.6 s, then he changes back by himself (or at once on a fall or at the goal). Cosmetic plus a modest speed-up; hit box, jump, gravity and rules unchanged, no new button, nothing can go wrong because of it. First level: `car-1` "Zoom Car" (after Night Walk in the Grass list). Power is not enabled there, so the shot muzzle stays the robot's. Defaults taken because the parent did not answer: 10 s, x1.25, no bonus coins, a short new level. The polish bundle moves from Task 017 to Task 018.
 - Not checked on the tablet: whether 10 s feels right, whether the faster speed is fun or too fast, whether the pickup is noticed.
+
+## D-062 (2026-10-28) Magnet and rocket boots (Task 018; variety step 4 of D-059)
+Two more glowing pickups, same rules as the car: optional, 10 seconds, ends by itself (or at once on a fall or at the goal), no lose state, no new button.
+- **Magnet** (`M`, red orb): coins within 230 px of the robot fly to him at 560 px/s while it lasts (a soft red ring shows the reach). Coins only; bubbles, hit boxes and rules are unchanged.
+- **Rocket boots** (`J`, orange orb): his jump is 1.3 times as strong (peak about 270 px against 160 px in theory, about 195 px against 140 px measured in Chromium), with little flames at his feet and a badge over his head; he can reach high coins he cannot reach otherwise. Fall speed cap and the screen stay unchanged.
+- Both use the car's timer and blink warning (`CarTimer`, `carAlpha`); pure rules in `core/levels/powerups.ts`. Each has its own timer, so they may overlap with each other or with the car (harmless); a second pickup of the same kind restarts its time.
+- New levels after Zoom Car in the Grass list: `magnet-1` "Coin Magnet" (flat, a field of coins at many heights, magnet at tile 10) and `boots-1` "Rocket Boots" (16 low coins for 2 stars, 8 high coins for the third star, boots at tile 10). Both `variety: false`, Left/Right/Jump only, no demo.
+- Defaults taken because the parent did not answer: 10 s, 230 px, jump x1.3.
+- The polish bundle (footsteps, landing thump, idle wave) moves from Task 018 to Task 019.
+- Not checked on the tablet: whether the pull radius and the red ring are noticed (the ring is faint), whether the boots jump is fun or too floaty, whether 10 s is right.

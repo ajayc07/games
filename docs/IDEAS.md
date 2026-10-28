@@ -7,7 +7,7 @@ Rules for all of these: optional bonus, never needed for stars 1 and 2, no new b
 1. **Step blocks and bounce pads** (Task 015, built: Grass 7).
 2. **Night / cave world** (Task 016, built: night-1 with stars, fireflies and a headlamp; a real cave look with rock walls is still open): a dark stage with a glowing headlamp on the robot, glowing coins and fireflies; keep bubbles and buttons clearly visible. Fits the empty Cave slot.
 3. **Car power-up** (Task 017, built: car-1; the parent chose a car instead of a ball): the robot turns into a car for about 10 s, then changes back. More transformations (ball, rocket) could reuse `CarSprite`'s pattern.
-4. **Magnet** (nearby coins fly to him) and **rocket boots** (higher jump for about 8 s, to reach a bonus coin platform).
+4. **Magnet** (nearby coins fly to him) and **rocket boots** (higher jump for about 10 s, to reach high coins). Done in Task 018 (D-062); a bonus coin platform for the boots is still an idea.
 Later: soft jelly blobs he bounces off, gift boxes that pop coins, slow moving platforms over a gap, boost strips, shield glow, grow mode (same hit boxes), sunset/rain/snow skins, sky world with cloud platforms.
 
 ## 2026-10-25: Learning and variety suggestions (parked, none approved)

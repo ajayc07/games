@@ -61,6 +61,8 @@ export class Player {
   lastGroundedCol = 0;
   /** While set, the picture follows this point instead of the body (cloud ride). */
   ride: { x: number; y: number } | null = null;
+  /** Jump strength multiplier (1 normally; the rocket boots make it about 1.3, Task 018). */
+  jumpScale = 1;
   /** The look's opacity when it is shown (the car power-up hides the robot by setting its alpha to 0). */
   alphaWanted = 1;
   /** Moving speed multiplier (1 normally; the car power-up makes it a little faster, Task 017). */
@@ -155,7 +157,7 @@ export class Player {
     const canJump = !this.jumpUsed && now - this.lastGroundedAt <= PHYSICS.coyoteMs;
     let jumped = false;
     if (now <= this.jumpBufferUntil && canJump) {
-      body.setVelocityY(-PHYSICS.jumpVelocity);
+      body.setVelocityY(-Math.min(1000, PHYSICS.jumpVelocity * this.jumpScale));
       this.jumpUsed = true;
       this.jumpBufferUntil = -1;
       this.jumps++;

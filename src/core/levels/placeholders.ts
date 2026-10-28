@@ -295,6 +295,38 @@ export function makeCarTextures(scene: Phaser.Scene, accent: number, joint: numb
   });
 }
 
+/** Pickup orbs for the magnet and the rocket boots (Task 018): the same glowing orb as the car's, with their own icon. */
+export const POWER_ORB_KEYS = { magnet: 'orb-magnet', boots: 'orb-boots' } as const;
+
+export function makePowerOrbTextures(scene: Phaser.Scene): void {
+  const once = (key: string, paint: (g: Phaser.GameObjects.Graphics) => void) => {
+    if (scene.textures.exists(key)) return;
+    generate(scene, key, 72, 72, (g) => {
+      g.fillStyle(0x80f4ff, 0.22).fillCircle(36, 36, 36);
+      g.fillStyle(0x80f4ff, 0.35).fillCircle(36, 36, 31);
+      g.fillStyle(0xffffff, 0.95).fillCircle(36, 36, 26);
+      g.lineStyle(3, 0x00acc1, 1).strokeCircle(36, 36, 26);
+      paint(g);
+    });
+  };
+  // A red horseshoe magnet with grey tips.
+  once(POWER_ORB_KEYS.magnet, (g) => {
+    g.lineStyle(9, 0xe53935, 1).beginPath().arc(36, 38, 11, 0, Math.PI, false).strokePath();
+    g.lineStyle(9, 0xe53935, 1).lineBetween(25, 38, 25, 26).lineBetween(47, 38, 47, 26);
+    g.fillStyle(0xcfd8dc, 1).fillRect(20.5, 19, 9, 8).fillRect(42.5, 19, 9, 8);
+    g.lineStyle(2, 0x263238, 1).strokeRect(20.5, 19, 9, 8).strokeRect(42.5, 19, 9, 8);
+  });
+  // A little rocket with a flame.
+  once(POWER_ORB_KEYS.boots, (g) => {
+    g.fillStyle(0xff9800, 1).fillTriangle(31, 49, 41, 49, 36, 60);
+    g.fillStyle(0xe53935, 1).fillTriangle(27, 46, 33, 38, 33, 46).fillTriangle(45, 46, 39, 38, 39, 46);
+    g.fillStyle(0xeceff1, 1).fillRoundedRect(30, 22, 12, 27, 5);
+    g.lineStyle(2, 0x263238, 1).strokeRoundedRect(30, 22, 12, 27, 5);
+    g.fillStyle(0xe53935, 1).fillTriangle(30, 24, 42, 24, 36, 12);
+    g.fillStyle(0x4fc3f7, 1).fillCircle(36, 33, 3.5);
+  });
+}
+
 function generate(
   scene: Phaser.Scene,
   key: string,

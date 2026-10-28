@@ -19,6 +19,10 @@ export const LEGEND = {
   r: 'rainbow bubble',
   /** Car pickup (Task 017): a glowing orb with a little car on it; touching it turns the robot into a car for 10 s. Not solid. */
   P: 'car pickup',
+  /** Magnet pickup (Task 018): for 10 s loose coins near him fly to him. Not solid. */
+  M: 'magnet pickup',
+  /** Rocket boots pickup (Task 018): for 10 s his jump is about 1.3 times as strong, with flames at his feet. Not solid. */
+  J: 'rocket boots pickup',
   /** Step block (Task 015): a solid one-tile toy block, stacked at most 2 high; he jumps up onto it. */
   B: 'step block',
   /** Bounce pad (Task 015): a springy plate on the ground (not solid); stepping on it launches him high. */
