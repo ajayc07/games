@@ -61,6 +61,10 @@ export class Player {
   lastGroundedCol = 0;
   /** While set, the picture follows this point instead of the body (cloud ride). */
   ride: { x: number; y: number } | null = null;
+  /** The look's opacity when it is shown (the car power-up hides the robot by setting its alpha to 0). */
+  alphaWanted = 1;
+  /** Moving speed multiplier (1 normally; the car power-up makes it a little faster, Task 017). */
+  speedScale = 1;
   /** Picture raised above the body's feet (px): standing on the goal pad. */
   lift = 0;
 
@@ -91,6 +95,7 @@ export class Player {
     this.body.setCollideWorldBounds(true);
     scene.physics.add.collider(this.zone, opts.colliders);
 
+    this.alphaWanted = opts.alpha ?? 1;
     this.avatar = new AvatarDriver(scene, {
       look: opts.look,
       x: opts.x,
@@ -134,8 +139,9 @@ export class Player {
     }
 
     // Walk mode ramps (D-029: about 60 ms up, 80 ms down, no sliding); auto-run sets the speed at once.
-    const target = intent.move * this.speed;
-    this.walkV = this.ramp ? rampSpeed(this.walkV, target, dtMs, this.speed, PHYSICS.walkRampUpMs, PHYSICS.walkRampDownMs) : target;
+    const speed = this.speed * this.speedScale;
+    const target = intent.move * speed;
+    this.walkV = this.ramp ? rampSpeed(this.walkV, target, dtMs, speed, PHYSICS.walkRampUpMs, PHYSICS.walkRampDownMs) : target;
     const minX = Math.max(this.minX, intent.walls?.minX ?? -Infinity);
     const maxX = Math.min(this.maxX, intent.walls?.maxX ?? Infinity);
     body.setVelocityX(edgeLimit(body.center.x, this.walkV, minX, maxX));

@@ -17,6 +17,8 @@ export const LEGEND = {
   h: 'high bubble',
   /** Rainbow bubble (Task 012): a small bubble with a rainbow sheen worth 8 coins. Never in the JSON files; replay variety makes one. */
   r: 'rainbow bubble',
+  /** Car pickup (Task 017): a glowing orb with a little car on it; touching it turns the robot into a car for 10 s. Not solid. */
+  P: 'car pickup',
   /** Step block (Task 015): a solid one-tile toy block, stacked at most 2 high; he jumps up onto it. */
   B: 'step block',
   /** Bounce pad (Task 015): a springy plate on the ground (not solid); stepping on it launches him high. */

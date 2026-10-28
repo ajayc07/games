@@ -25,6 +25,23 @@ export function recipeDuration(r: SynthRecipe): number {
 export const DEFAULT_RECIPES = {
   tap: { tones: [{ freq: 880, dur: 0.06, type: 'sine', gain: 0.5 }] },
   jump: { tones: [{ freq: 420, to: 840, dur: 0.16, type: 'triangle' }] },
+  // Transform into a car (Task 017): a quick rising arpeggio with a bright sparkle on top; and the way back, falling.
+  transform: {
+    tones: [
+      { freq: 392, dur: 0.1, type: 'triangle' },
+      { freq: 523, at: 0.08, dur: 0.1, type: 'triangle' },
+      { freq: 659, at: 0.16, dur: 0.1, type: 'triangle' },
+      { freq: 784, at: 0.24, dur: 0.1, type: 'triangle' },
+      { freq: 1568, at: 0.3, dur: 0.22, type: 'sine', gain: 0.5 },
+    ],
+  },
+  transformBack: {
+    tones: [
+      { freq: 784, dur: 0.1, type: 'triangle', gain: 0.8 },
+      { freq: 523, at: 0.09, dur: 0.1, type: 'triangle', gain: 0.8 },
+      { freq: 392, at: 0.18, dur: 0.16, type: 'triangle', gain: 0.8 },
+    ],
+  },
   // Springy "boing" for a bounce pad (Task 015): a quick rising glide with a bright tail.
   boing: {
     tones: [

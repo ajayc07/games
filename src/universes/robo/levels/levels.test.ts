@@ -19,6 +19,7 @@ import grass5 from './grass-5.json';
 import grass6 from './grass-6.json';
 import grass7 from './grass-7.json';
 import night1 from './night-1.json';
+import car1 from './car-1.json';
 import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
@@ -357,11 +358,12 @@ describe('Robo World level files', () => {
     expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('the grass world lists grass-1..7 and then night-1: Next goes on in that order and is hidden on night-1', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1']);
+  it('the grass world lists grass-1..7, night-1 and car-1: Next goes on in that order and is hidden on car-1', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1']);
     for (let i = 1; i < 7; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
     expect(nextLevelId(worlds, 'grass-7')).toBe('night-1');
-    expect(nextLevelId(worlds, 'night-1')).toBeNull();
+    expect(nextLevelId(worlds, 'night-1')).toBe('car-1');
+    expect(nextLevelId(worlds, 'car-1')).toBeNull();
   });
 
   it('night-1 "Night Walk" (Task 016, D-060): night world, walking, all four buttons, gaps of 1-2 tiles, small bubbles and arcs', () => {
@@ -449,17 +451,48 @@ describe('Robo World level files', () => {
     expect(level.variety).toBe(false);
   });
 
+  it('car-1 "Zoom Car" (Task 017, D-061): a car pickup, a long coin trail, small gaps and two hurdles, no bubbles, no demo', () => {
+    const level = parseLevelOrThrow(car1, 'car-1');
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump']);
+    expect(level.variety).toBe(false);
+    const e = extractEntities(level.grid);
+    expect(e.pickups.length).toBe(1);
+    expect(e.bubbles.length).toBe(0);
+    expect(e.blocks.length).toBe(2);
+    // The pickup is early (a few tiles after the start) and on the ground, so everyone finds it.
+    const p = e.pickups[0];
+    expect(p.col - e.start.col).toBeGreaterThanOrEqual(3);
+    expect(p.col - e.start.col).toBeLessThanOrEqual(6);
+    expect(e.solid[p.row + 1][p.col]).toBe(true);
+    // The coin trail after it is long enough to collect with the car (the car covers about 10 s x 275 px/s = 43 tiles).
+    const trail = e.coins.filter((c) => c.col > p.col + 2 && c.row === e.start.row - 1);
+    expect(trail.length).toBeGreaterThanOrEqual(15);
+    // Gaps are 1 tile (a car jumps farther, but so does the robot), far from the pickup, blocks and the goal.
+    const gaps = e.solid[e.start.row + 1].flatMap((s, c) => (s ? [] : [c]));
+    expect(gaps.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < gaps.length; i++) expect(gaps[i] - gaps[i - 1]).toBeGreaterThan(1);
+    for (const g of gaps) {
+      expect(Math.abs(g - p.col)).toBeGreaterThanOrEqual(8);
+      for (const b of e.blocks) expect(Math.abs(g - b.col)).toBeGreaterThanOrEqual(4);
+    }
+    for (const c of e.coins) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    for (const c of e.coins) expect(e.solid[c.row][c.col]).toBe(false);
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThan(e.coins.length);
+  });
+
   it('grass-4, 5, 6 and 7 are under clouds on a fresh start (openAtATime 3); each clear opens the next one', () => {
     const grass = worlds.find((w) => w.id === 'grass')!;
     const open = (levels: Record<string, { stars: number; bestCoins: number }>) =>
       worldDots(grass, levels, { openAtATime: 3, unlockAll: false }).map((d) => d.open);
     const cleared = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, { stars: 1, bestCoins: 0 }]));
-    expect(open({})).toEqual([true, true, true, false, false, false, false, false]);
-    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false, false, false]);
-    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false, false, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true, false, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4'))).toEqual([true, true, true, true, true, true, true, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5'))).toEqual([true, true, true, true, true, true, true, true]);
+    expect(open({})).toEqual([true, true, true, false, false, false, false, false, false]);
+    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false, false, false, false]);
+    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false, false, false, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true, false, false, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4'))).toEqual([true, true, true, true, true, true, true, false, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5'))).toEqual([true, true, true, true, true, true, true, true, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6'))).toEqual([true, true, true, true, true, true, true, true, true]);
   });
 });
 

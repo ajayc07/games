@@ -2,6 +2,7 @@
 // Drawn at TEX_RES pixels per logical unit so they stay crisp on high-DPI screens; display them
 // with setDisplaySize / tileScale = 1 / TEX_RES.
 import Phaser from 'phaser';
+import { CAR } from './car';
 import { GOAL, bulbSize, columnSize } from './goal';
 import type { LevelTheme, ThemeTexture } from './theme';
 
@@ -240,6 +241,57 @@ export function makeObstacleTextures(scene: Phaser.Scene, tile: number, padW: nu
     g.fillStyle(0x3b3b4f, 1).fillRect(0, 0, w, h);
     g.fillStyle(0xb8c0d8, 1);
     for (let y = 2; y < h - 2; y += 5) g.fillRect(2, y, w - 4, 2);
+  });
+}
+
+/** Car textures (Task 017): the body in the robot's colours with its head in the window, a wheel, and the pickup orb. */
+export function carTextureKeys(accent: number, joint: number) {
+  return { body: `car-body-${accent}-${joint}`, wheel: 'car-wheel', orb: 'car-orb' };
+}
+
+export function makeCarTextures(scene: Phaser.Scene, accent: number, joint: number): void {
+  const k = carTextureKeys(accent, joint);
+  const once = (key: string, w: number, h: number, paint: (g: Phaser.GameObjects.Graphics, w: number, h: number) => void) => {
+    if (!scene.textures.exists(key)) generate(scene, key, w, h, paint);
+  };
+  once(k.body, CAR.size.w, CAR.size.h, (g) => {
+    // Lower body and cabin, each with a dark rim.
+    g.fillStyle(joint, 1).fillRoundedRect(4, 28, 104, 26, 10);
+    g.fillStyle(accent, 1).fillRoundedRect(6, 30, 100, 22, 8);
+    g.fillStyle(joint, 1).fillRoundedRect(28, 5, 62, 32, 11);
+    g.fillStyle(accent, 1).fillRoundedRect(30, 7, 58, 28, 9);
+    // Window with the robot's head looking out.
+    g.fillStyle(0xcfefff, 1).fillRoundedRect(35, 11, 48, 19, 6);
+    g.fillStyle(0xffffff, 1).fillRoundedRect(51, 13, 26, 16, 6);
+    g.fillStyle(0x263238, 1).fillRoundedRect(56, 18, 5, 6, 2).fillRoundedRect(67, 18, 5, 6, 2);
+    // A light stripe, headlight and tail light.
+    g.fillStyle(0xffffff, 0.5).fillRoundedRect(12, 36, 88, 4, 2);
+    g.fillStyle(0xfff176, 1).fillCircle(104, 40, 6);
+    g.lineStyle(2, joint, 1).strokeCircle(104, 40, 6);
+    g.fillStyle(0xff5252, 1).fillCircle(8, 40, 4);
+  });
+  once(k.wheel, CAR.wheel.r * 2, CAR.wheel.r * 2, (g, w) => {
+    const c = w / 2;
+    g.fillStyle(0x263238, 1).fillCircle(c, c, c);
+    g.fillStyle(0xcfd8dc, 1).fillCircle(c, c, c * 0.55);
+    g.lineStyle(3, 0x263238, 1);
+    for (let i = 0; i < 3; i++) {
+      const a = (i * Math.PI) / 3;
+      g.lineBetween(c - Math.cos(a) * c * 0.5, c - Math.sin(a) * c * 0.5, c + Math.cos(a) * c * 0.5, c + Math.sin(a) * c * 0.5);
+    }
+    g.fillStyle(0x263238, 1).fillCircle(c, c, c * 0.14);
+  });
+  // The pickup: a glowing orb with a little blue car on it.
+  once(k.orb, 72, 72, (g) => {
+    g.fillStyle(0x80f4ff, 0.22).fillCircle(36, 36, 36);
+    g.fillStyle(0x80f4ff, 0.35).fillCircle(36, 36, 31);
+    g.fillStyle(0xffffff, 0.95).fillCircle(36, 36, 26);
+    g.lineStyle(3, 0x00acc1, 1).strokeCircle(36, 36, 26);
+    g.fillStyle(0x1e88e5, 1).fillRoundedRect(17, 37, 38, 13, 5);
+    g.fillStyle(0x1e88e5, 1).fillRoundedRect(25, 27, 22, 13, 5);
+    g.fillStyle(0xcfefff, 1).fillRoundedRect(28, 30, 16, 7, 3);
+    g.fillStyle(0x263238, 1).fillCircle(26, 51, 5).fillCircle(46, 51, 5);
+    g.fillStyle(0xcfd8dc, 1).fillCircle(26, 51, 2).fillCircle(46, 51, 2);
   });
 }
 

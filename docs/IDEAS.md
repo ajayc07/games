@@ -6,7 +6,7 @@ Ideas that are not part of the current plan. Do not build these unless the paren
 Rules for all of these: optional bonus, never needed for stars 1 and 2, no new button, no lose state, ends by itself, first play of Grass 1-6 unchanged, one new idea per level.
 1. **Step blocks and bounce pads** (Task 015, built: Grass 7).
 2. **Night / cave world** (Task 016, built: night-1 with stars, fireflies and a headlamp; a real cave look with rock walls is still open): a dark stage with a glowing headlamp on the robot, glowing coins and fireflies; keep bubbles and buttons clearly visible. Fits the empty Cave slot.
-3. **Ball-mode pickup:** the robot rolls into a ball for about 10 s (faster rolling, other sound), then changes back; mostly visual.
+3. **Car power-up** (Task 017, built: car-1; the parent chose a car instead of a ball): the robot turns into a car for about 10 s, then changes back. More transformations (ball, rocket) could reuse `CarSprite`'s pattern.
 4. **Magnet** (nearby coins fly to him) and **rocket boots** (higher jump for about 8 s, to reach a bonus coin platform).
 Later: soft jelly blobs he bounces off, gift boxes that pop coins, slow moving platforms over a gap, boost strips, shield glow, grow mode (same hit boxes), sunset/rain/snow skins, sky world with cloud platforms.
 

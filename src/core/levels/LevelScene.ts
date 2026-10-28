@@ -14,6 +14,9 @@ import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
 import { OBSTACLE_TEX, makeEffectTextures, makeObstacleTextures, makeThemeTextures, themeKey } from './placeholders';
 import { PAD, PadTrigger } from './pads';
+import { CAR, CarTimer, carAlpha, touchesPickup } from './car';
+import { CarSprite } from './CarSprite';
+import { makeCarTextures, carTextureKeys } from './placeholders';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
@@ -191,6 +194,9 @@ export class LevelScene extends Phaser.Scene {
     this.hint = null;
     this.coins = [];
     this.pads = [];
+    this.pickups = [];
+    this.car = null;
+    this.carTimer.stop();
     this.blaster = null;
     this.ghostBlaster = null;
     this.ghostPower = false;
@@ -225,6 +231,7 @@ export class LevelScene extends Phaser.Scene {
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
     this.buildNight();
+    this.buildPickups();
     this.bubbles = new BubbleField(this, {
       cells: this.grid.bubbles,
       solid: this.grid.solid,
@@ -276,6 +283,7 @@ export class LevelScene extends Phaser.Scene {
     else if (this.mode === 'play') this.updatePlay(time, dt * 1000);
     else if (this.mode === 'finish') this.updateFinish();
     this.player.updateAvatar(time, dt);
+    this.updateCar(time);
     this.ghost?.updateAvatar(time, dt);
     this.updateShots(time, dt * 1000);
     this.updatePractice(time);
@@ -500,6 +508,96 @@ export class LevelScene extends Phaser.Scene {
     return this.gridTop + (this.grid.start.row + 1) * this.tile;
   }
 
+  // ---------- car power-up (Task 017, D-061) ----------
+
+  private pickups: Array<{ img: Phaser.GameObjects.Image; x: number; y: number; taken: boolean }> = [];
+  private car: CarSprite | null = null;
+  private readonly carTimer = new CarTimer();
+
+  /** Glowing orbs with a little car on them; touching one turns the robot into a car for a while. */
+  private buildPickups(): void {
+    if (this.grid.pickups.length === 0) return;
+    const pal = resolveAvatar(this.data0.option).palette;
+    makeCarTextures(this, pal.accent, pal.joint);
+    this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
+    const orb = carTextureKeys(pal.accent, pal.joint).orb;
+    this.pickups = this.grid.pickups.map((c, i) => {
+      const { x, y } = this.cellCenter(c);
+      const img = this.add.image(x, y, orb).setDisplaySize(CAR.pickupRadius * 2, CAR.pickupRadius * 2).setDepth(DEPTH.coins + 1);
+      this.tweens.add({ targets: img, y: y - 8, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: (i % 3) * 200 });
+      this.tweens.add({ targets: img, scale: img.scale * 1.12, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      return { img, x, y, taken: false };
+    });
+  }
+
+  private updatePickups(now: number): void {
+    const b = this.player.body;
+    for (const p of this.pickups) {
+      if (p.taken || !touchesPickup(b, p.x, p.y)) continue;
+      p.taken = true;
+      this.tweens.killTweensOf(p.img);
+      this.tweens.add({ targets: p.img, scale: 0, alpha: 0, duration: 260, ease: 'Back.easeIn', onComplete: () => p.img.setVisible(false) });
+      this.startCar(now);
+    }
+  }
+
+  private carOn(): boolean {
+    return this.car !== null && this.car.root.visible;
+  }
+
+  /** Robot to car: a poof of sparkles, a rising chime, a little faster. A second pickup just restarts the time. */
+  private startCar(now: number): void {
+    const car = this.car;
+    if (!car) return;
+    const wasCar = this.carOn();
+    this.carTimer.start(now);
+    if (wasCar) {
+      audio.play('transform');
+      return;
+    }
+    const body = this.player.body;
+    car.reset(body.center.x);
+    car.setVisible(true);
+    this.player.look.setAlpha(0);
+    this.player.speedScale = CAR.speedScale;
+    audio.play('transform');
+    this.sparkle.explode(26, body.center.x, body.bottom - 30);
+    this.poof(body.center.x, body.bottom - 30);
+  }
+
+  /** Car to robot (time is up, a fall, or the goal): a small poof, and the soft chime when `sound`. */
+  private endCar(sound = true): void {
+    this.carTimer.stop();
+    this.player.speedScale = 1;
+    if (!this.carOn()) return;
+    this.car!.setVisible(false);
+    this.player.look.setAlpha(this.player.alphaWanted);
+    if (sound) audio.play('transformBack');
+    const body = this.player.body;
+    this.sparkle.explode(16, body.center.x, body.bottom - 30);
+    this.poof(body.center.x, body.bottom - 30);
+  }
+
+  /** A quick ring of white puffs. */
+  private poof(x: number, y: number): void {
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const puff = this.add.circle(x, y, 12, 0xffffff, 0.85).setDepth(DEPTH.fx);
+      this.tweens.add({ targets: puff, x: x + Math.cos(a) * 46, y: y + Math.sin(a) * 36, scale: 0.2, alpha: 0, duration: 380, ease: 'Quad.easeOut', onComplete: () => puff.destroy() });
+    }
+  }
+
+  /** Every frame: the car follows the body; the time ends it (with a gentle blink first). */
+  private updateCar(now: number): void {
+    if (!this.carOn()) return;
+    if (!this.carTimer.active(now)) {
+      this.endCar();
+      return;
+    }
+    const b = this.player.body;
+    this.car!.update(now, b.center.x, b.bottom - this.player.lift, this.player.facing, b.velocity.x, b.velocity.y, this.player.grounded, carAlpha(this.carTimer.remaining(now)));
+  }
+
   /** The headlamp glow that follows the player (night worlds only, Task 016). */
   private lamp: Phaser.GameObjects.Image | null = null;
 
@@ -716,6 +814,7 @@ export class LevelScene extends Phaser.Scene {
 
     this.collectCoins();
     this.updatePads(now);
+    this.updatePickups(now);
 
     const body = this.player.body;
     if (body.center.x >= this.goalX - PHYSICS.body.width / 2) this.reachGoal();
@@ -869,6 +968,7 @@ export class LevelScene extends Phaser.Scene {
   // ---------- falling (D-019) ----------
 
   private startRespawn(): void {
+    this.endCar(false);
     this.mode = 'respawn';
     this.respawns++;
     this.practice?.cancelLatch(); // the walk assist lets go on a fall (Task 011)
@@ -912,6 +1012,7 @@ export class LevelScene extends Phaser.Scene {
   // ---------- goal pad and result ----------
 
   private reachGoal(): void {
+    this.endCar(false);
     this.mode = 'finish';
     this.exitBtn.setEnabled(false);
     this.player.halt();
