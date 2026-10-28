@@ -14,7 +14,7 @@ export interface SolidRect extends Cell {
 
 /** A bubble in the grid (Task 007). Small: one cell. Big: a 2x2 block whose top-left cell is (col, row). */
 export interface BubbleCell extends Cell {
-  kind: 'small' | 'big' | 'high';
+  kind: 'small' | 'big' | 'high' | 'rainbow';
 }
 
 export interface GridEntities {
@@ -47,6 +47,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });
+      else if (ch === 'r') bubbles.push({ kind: 'rainbow', col, row });
       else if (ch === 'O' && !bigTaken.has(`${row}:${col}`)) {
         // parseLevel checked that every O is part of a whole 2x2 block.
         bubbles.push({ kind: 'big', col, row });

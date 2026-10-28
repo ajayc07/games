@@ -7,7 +7,7 @@ export type BubbleKind = BubbleCell['kind'];
 
 export const BUBBLE = {
   /** Picture radius as a fraction of the tile: small = about 1 tile across, big = 2 tiles wide and tall. */
-  radius: { small: 0.47, big: 1, high: 0.47 },
+  radius: { small: 0.47, big: 1, high: 0.47, rainbow: 0.47 },
   /**
    * A small bubble floats this many tiles below its cell centre (on the cell's bottom edge), but never lower
    * than resting on the ground. The shot leaves the muzzle 26-78 px above the feet (look, colour and ?size=),
@@ -22,11 +22,12 @@ export const BUBBLE = {
    * for the biggest option at the peak with the bubble's bob (at exactly 160 px the purple robot was 1 px from missing).
    */
   highRise: 0.25,
-  coins: { small: 3, big: 6, high: 4 },
+  /** A rainbow bubble (Task 012, D-053) is a small one worth 8. */
+  coins: { small: 3, big: 6, high: 4, rainbow: 8 },
   /** Hit circle = picture radius x this (generous). */
   hitScale: 1.3,
   /** Gentle bob: a few px, slow, each bubble with its own phase. The big one bobs less (it sits on the ground). */
-  bobPx: { small: 4, big: 2, high: 4 },
+  bobPx: { small: 4, big: 2, high: 4, rainbow: 4 },
   bobMs: 2200,
   /** Pop: scale up and fade (ms). */
   popMs: 220,
@@ -73,7 +74,7 @@ export function bubbleSpecs(
     const r = BUBBLE.radius[c.kind] * tile;
     let y = gridTop + (c.row + size / 2) * tile;
     if (c.kind === 'high') y -= BUBBLE.highRise * tile;
-    if (c.kind === 'small') {
+    if (c.kind === 'small' || c.kind === 'rainbow') {
       y += BUBBLE.smallDrop * tile;
       let ground = c.row + 1;
       while (ground < solid.length && !solid[ground]?.[c.col]) ground++;

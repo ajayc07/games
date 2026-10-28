@@ -15,6 +15,8 @@ export const LEGEND = {
   O: 'big bubble',
   /** High bubble (Task 009): a small bubble worth 4 coins, centred in its cell (not dropped), meant to be 2.5 tiles up. */
   h: 'high bubble',
+  /** Rainbow bubble (Task 012): a small bubble with a rainbow sheen worth 8 coins. Never in the JSON files; replay variety makes one. */
+  r: 'rainbow bubble',
 } as const;
 
 export type LegendChar = keyof typeof LEGEND;
@@ -84,6 +86,8 @@ export interface LevelData {
    * combo stars. Absent on the normal levels.
    */
   practice?: true;
+  /** `false` keeps the level's coins and bubbles where they are on replays (Task 012). Absent = replays may shuffle them. */
+  variety?: false;
 }
 
 export type ParseResult = { ok: true; level: LevelData } | { ok: false; errors: string[] };
@@ -107,6 +111,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
   if (raw.runSpeed !== undefined && !isPositive(raw.runSpeed)) err('"runSpeed" must be a positive number');
   if (raw.walkSpeed !== undefined && !isPositive(raw.walkSpeed)) err('"walkSpeed" must be a positive number');
   if (raw.practice !== undefined && typeof raw.practice !== 'boolean') err('"practice" must be true or false');
+  if (raw.variety !== undefined && typeof raw.variety !== 'boolean') err('"variety" must be true or false');
 
   // controls
   const c = raw.controls;
@@ -201,6 +206,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       stars: { two: (s as { two: number }).two, three: (s as { three: number }).three },
       grid: [...(g as string[])],
       ...(raw.practice === true ? { practice: true as const } : {}),
+      ...(raw.variety === false ? { variety: false as const } : {}),
     },
   };
 }

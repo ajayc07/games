@@ -9,6 +9,7 @@ import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene
 import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
 import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
 import { parseLevelOrThrow } from '../../core/levels/format';
+import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
 import {
   bindSettings,
@@ -25,7 +26,7 @@ import { colorFromSearch, findOption, validateOptions } from '../../core/avatar/
 import { parseLook, type LookName } from '../../core/avatar/config';
 import { loadLegacyChoice } from '../../core/storage/choice';
 import { ProgressStore } from '../../core/storage/store';
-import type { ProgressRecord } from '../../core/storage/progress';
+import { starsOf, type ProgressRecord } from '../../core/storage/progress';
 import { options } from './options';
 import { enterFullscreen, exitFullscreen, fullscreenAvailable } from '../../core/ui/fullscreen';
 import { levels } from './levels';
@@ -245,7 +246,8 @@ function openParent(s: Session): void {
   startOnly(s.game, ParentScene.KEY, ParentScene, data);
 }
 
-function openLevel(s: Session, levelId: string): void {
+/** `replay`: a Replay from the win screen (a cleared level by definition, even if the record could not be saved). */
+function openLevel(s: Session, levelId: string, replay = false): void {
   const firstId = worlds.find((w) => w.levels.length > 0)?.levels[0];
   let level = levels.get(levelId);
   if (!level) console.warn(`${TAG} unknown level "${levelId}", opening ${firstId}`);
@@ -254,8 +256,16 @@ function openLevel(s: Session, levelId: string): void {
   s.arrival = null;
   const here = level.id;
   const nextId = nextLevelId(worlds, here);
+  // Replay variety (Task 012, D-053): the first play and any play with a demo use the level as written; a replay of a
+  // cleared level gets its coins and small bubbles shuffled (and maybe a rainbow bubble) with a fresh seed, kept in memory only.
+  const varied = useVariety({
+    mode: varietyModeFrom(location.search),
+    cleared: replay || starsOf(s.store.record, here) >= 1,
+    demoPlays: LevelScene.demoWillPlay(level),
+  });
   const data: LevelSceneData = {
-    level,
+    level: varied ? varyLevel(level, varietySeedFrom(location.search)) : level,
+    onReplay: () => openLevel(s, here, true),
     theme: themeForWorld(level.world),
     option: currentOption(s),
     look: s.look,

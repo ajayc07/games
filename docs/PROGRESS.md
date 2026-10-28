@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-27 (Task 013 browser fullscreen done, D-052)_
+_Last updated: 2026-10-28 (Task 012 replay variety done, D-053)_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -12,8 +12,8 @@ Grass 4 Power (pop bubbles into coins), Grass 5 walk and jump over gaps, Grass 6
 combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey gear (top-left, held 3 s) opens the parent view
 (sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
-`?demo=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
-Everything through Task 011 and the docs trim is pushed to `origin/main`.
+`?demo=0|1`, `?variety=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
+Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-013 are committed locally.
 
 ## Roadmap
 | # | Task | Status |
@@ -26,17 +26,15 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`.
 | 010 | Parent view | Done |
 | 011 | Combo Practice (free play) | Done |
 | 013 | Browser fullscreen (first tap, parent-view toggle) | Done |
-| 012 | Replay variety (shuffle coins and small bubbles on replays, rare rainbow bubble); task drafted in `docs/tasks/012-replay-variety.md` | Drafted, not started |
+| 012 | Replay variety (shuffle coins and small bubbles on replays after a first clear, rare rainbow bubble), D-053 | Done |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
-## Pending for next session (parent, 2026-10-25)
-Tell the parent these first when they ask for pending tasks:
-1. Task 012 replay variety: drafted; needs their answers (when variety starts, rainbow bubble yes/no, Grass 1-2 handling), then it can start.
-2. Browser fullscreen: done (Task 013).
-3. Optional: Task 014 polish bundle (footsteps, landing thump, idle wave), not drafted.
+## Pending for next session
+1. Optional: Task 014 polish bundle (footsteps, landing thump, idle wave), not drafted.
+2. Real-device checks of Task 012 (see the tablet checklist) and of Task 013 fullscreen.
 
 ## In progress
-_(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers to its three open questions: when variety starts, rainbow bubble yes/no, Grass 1-2 handling)_
+_(nothing)_
 
 ## Open issues and tuning (current)
 - **Not verified on a real device:** chimes, pop and combo sounds by ear; 58+ fps (the headless test machine measures a 52-60 fps blank page);
@@ -66,6 +64,8 @@ _(nothing; Task 012 is drafted and waits for the parent's go-ahead and answers t
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Replay variety (012)** (`?level=grass-4&variety=1&demo=0` forces it; `&seed=1` always gives a rainbow bubble in Grass 4 and 6): does a replay feel different to him? Does he notice and enjoy the rainbow bubble (about 1 in 3
+    replays of Grass 4 and 6; 8 coins, rising chime, coloured rings; the chime is not yet heard by ear)? Does any level feel unfair, too empty or too crowded after shuffling (coins and small bubbles only; arcs, gaps, big and high bubbles stay)?
   - **Practice (011)** (`?practice=walk-shoot` etc. jump straight in): does he find the teal Practice button and understand the four cards? Does he make combos (an arrow held while
     tapping the star or the up arrow)? Does the ghost hand help? Is walk assist needed (parent view, Sticky)? Is a run (about 35 s) too long or short? Does he enjoy the star row and celebration?
     Are the combo sounds pleasant? Does a new layout on each Replay keep it fresh?

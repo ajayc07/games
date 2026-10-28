@@ -56,7 +56,7 @@ export class BubbleField {
   ) {
     const specs = bubbleSpecs(opts.cells, opts.tile, opts.gridTop, opts.solid);
     this.views = specs.map((spec) => {
-      const key = bubbleTexture(scene, spec.r);
+      const key = bubbleTexture(scene, spec.r, spec.kind === 'rainbow');
       const img = scene.add.image(spec.x, spec.y, key).setScale(1 / TEX_RES).setDepth(opts.depth.bubbles);
       return { spec, img, popped: false, x: spec.x, y: spec.y };
     });
@@ -151,7 +151,9 @@ export class BubbleField {
     v.popped = true;
     this.pops++;
     const s = this.scene;
-    audio.play(popSoundId(this.pitch.next(now)));
+    const rainbow = v.spec.kind === 'rainbow';
+    // A rainbow bubble has its own rising chime (and does not step the pop pitch).
+    audio.play(rainbow ? 'rainbow' : popSoundId(this.pitch.next(now)));
     // Quick scale-up and fade.
     s.tweens.killTweensOf(v.img);
     s.tweens.add({
@@ -165,13 +167,30 @@ export class BubbleField {
     // A ring and a burst of sparkles.
     const ring = s.add.circle(v.x, v.y, v.spec.r).setStrokeStyle(6, 0xffffff, 0.9).setDepth(this.opts.depth.coins);
     s.tweens.add({ targets: ring, scale: 1.6, alpha: 0, duration: 360, ease: 'Sine.easeOut', onComplete: () => ring.destroy() });
-    this.opts.sparkle.explode(v.spec.kind === 'big' ? 22 : 12, v.x, v.y);
+    this.opts.sparkle.explode(v.spec.kind === 'big' ? 22 : rainbow ? 30 : 12, v.x, v.y);
+    if (rainbow) this.rainbowRings(v);
     // The coins appear in a little arc above the bubble.
     for (const c of this.flow.pop(now, v.x, v.y - v.spec.r * 0.3, v.spec.coins, counted)) {
       const img = s.add.image(c.x, c.y, this.opts.coinTexture).setDisplaySize(4, 4).setDepth(this.opts.depth.coins);
       s.tweens.add({ targets: img, displayWidth: COIN_SIZE, displayHeight: COIN_SIZE, duration: 220, ease: 'Back.easeOut' });
       this.coinViews.set(c.id, img);
     }
+  }
+
+  /** Three soft coloured rings spreading out after the white one: the rainbow burst (Task 012). */
+  private rainbowRings(v: BubbleView): void {
+    RAINBOW.slice(0, 5).forEach((color, i) => {
+      const ring = this.scene.add.circle(v.x, v.y, v.spec.r * (0.8 + i * 0.12)).setStrokeStyle(5, color, 0.85).setDepth(this.opts.depth.coins);
+      this.scene.tweens.add({
+        targets: ring,
+        scale: 2.2 + i * 0.25,
+        alpha: 0,
+        delay: i * 60,
+        duration: 520,
+        ease: 'Sine.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+    });
   }
 
   private landCoin(c: FlyingCoin): void {
@@ -184,9 +203,12 @@ export class BubbleField {
   }
 }
 
-/** A translucent soft blue/white bubble of radius `r` (logical px), drawn once and cached by size. */
-function bubbleTexture(scene: Phaser.Scene, r: number): string {
-  const key = `bubble-${Math.round(r)}`;
+/** Soft rainbow colours (red to violet) for the sheen and the burst. */
+const RAINBOW = [0xff8a80, 0xffb74d, 0xfff176, 0x81c784, 0x64b5f6, 0xba68c8];
+
+/** A translucent soft blue/white bubble of radius `r` (logical px), drawn once and cached by size. `rainbow` adds a soft rainbow sheen. */
+function bubbleTexture(scene: Phaser.Scene, r: number, rainbow = false): string {
+  const key = `bubble${rainbow ? '-rainbow' : ''}-${Math.round(r)}`;
   if (scene.textures.exists(key)) return key;
   const pad = 4;
   const size = Math.ceil((r + pad) * 2 * TEX_RES);
@@ -216,6 +238,19 @@ function bubbleTexture(scene: Phaser.Scene, r: number): string {
     ctx.beginPath();
     ctx.arc(c, c, r * 0.86, Math.PI * 0.1, Math.PI * 0.55);
     ctx.stroke();
+    if (rainbow) {
+      // Concentric soft bands of the rainbow just inside the rim, across the lower right (like soap film).
+      ctx.lineCap = 'butt';
+      RAINBOW.forEach((color, i) => {
+        ctx.lineWidth = Math.max(2.5, r * 0.085);
+        ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(c, c, r * (0.8 - i * 0.07), Math.PI * 0.05, Math.PI * 0.95);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
     // Highlight: a curved streak and a dot at the top left.
     ctx.lineCap = 'round';
     ctx.lineWidth = Math.max(3, r * 0.11);

@@ -37,6 +37,11 @@ Part of the architecture docs; the index is `docs/ARCHITECTURE.md`.
   (bubble 30 x 1.3 = 39 px, shot 14 px, bob 4 px) the bubble is hit by a shot fired from the top half of a jump and never by a
   standing shot, even at `?size=1.6` (78 px). A bubble 160 px up was 1 px from missing for the biggest option at the peak, hence
   the raise. The unit test and the bot (`?level=grass-6`, 16 option/look combinations) both check this.
+- **Rainbow bubble** (`r`, Task 012, D-053): a small bubble (same size, drop, hit circle, bob) with a soft rainbow sheen drawn in code
+  (`bubble-rainbow-<r>` texture), worth 8 coins (`BUBBLE.coins.rainbow`) instead of 3. Never written in the level JSON: replay variety
+  turns exactly one small bubble `o` into `r` (see levels.md "Replay variety"). The pop plays the `rainbow` synth recipe (a rising
+  three-note chime, instead of the stepping `pop-<n>` sound), 30 sparkles and five coloured rings after the white one, then the 8 coins
+  fly in like any others. The extra 5 coins only help the stars.
 - **Power button**: `TouchControls` shows Power only when enabled. Without Jump it takes Jump's bottom-right slot at the solo size
   (0.28 of the screen height), purple with a yellow star; with Jump see "Input" (four-button layout).
 - `?debug=1`: `__level.state()` adds `shots` (`inFlight`, `fired`, `visible`, `flying`), `ghostShots`, `bubbles` (kind, x, y, r,

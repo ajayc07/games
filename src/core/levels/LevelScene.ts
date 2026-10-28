@@ -84,6 +84,11 @@ export class LevelScene extends Phaser.Scene {
   /** Levels whose demo already played this session (D-024; persistence decides later). */
   private static demoSeen = new Set<string>();
 
+  /** Would this level's "watch me" demo play now (it then always runs on the canonical grid, Task 012)? */
+  static demoWillPlay(level: LevelData): boolean {
+    return shouldPlayDemo(level.controls.demo, LevelScene.demoSeen.has(level.id), demoOverrideFrom(location.search));
+  }
+
   /** Parent view "Show again" (Task 010): every level's watch-me demo plays once more this session. */
   static forgetDemos(): void {
     LevelScene.demoSeen.clear();
@@ -862,6 +867,7 @@ export class LevelScene extends Phaser.Scene {
       controls: this.touch,
       state: () => ({
         level: this.level.id,
+        grid: this.level.grid,
         mode: this.mode,
         x: this.player.body.center.x,
         bottom: this.player.body.bottom,

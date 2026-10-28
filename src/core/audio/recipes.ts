@@ -91,6 +91,15 @@ export const DEFAULT_RECIPES = {
       { freq: 600, to: 1800, at: 0.04, dur: 0.24, type: 'sine', gain: 0.4 },
     ],
   },
+  // Rainbow bubble (Task 012): a rising three-note chime, softer than the win jingle.
+  rainbow: {
+    tones: [
+      { freq: 784, dur: 0.12, type: 'triangle', gain: 0.5 },
+      { freq: 988, at: 0.1, dur: 0.12, type: 'triangle', gain: 0.5 },
+      { freq: 1319, at: 0.2, dur: 0.34, type: 'sine', gain: 0.55 },
+      { freq: 2637, at: 0.22, dur: 0.22, type: 'sine', gain: 0.1 },
+    ],
+  },
   // Combo Practice (Task 011): the star row is full. A quick happy run up and a sparkly top note (not the win jingle).
   comboRow: {
     tones: [

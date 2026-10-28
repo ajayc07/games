@@ -40,7 +40,8 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 ```
 - `grid`: equal-length rows, top row first. Legend: `#` ground, `.` empty, `c` coin, `S` start, `F` flag (pole stands in
   that cell), `o` small bubble, `O` big bubble (a whole 2x2 block of `O`; a broken block is an error naming its first cell),
-  `h` high bubble (Task 009: the small picture, 4 coins, centred in its cell and raised a quarter tile, never solid).
+  `h` high bubble (Task 009: the small picture, 4 coins, centred in its cell and raised a quarter tile, never solid),
+  `r` rainbow bubble (Task 012: made by replay variety, never written in the JSON).
   Gaps are missing ground. Bubbles are not ground. New tile kinds get new legend entries in `core/levels/format.ts`.
 - **Vertical placement:** the grid's bottom row sits on the bottom of the 720-high screen; rows above the top of the grid
   are sky. Grass 1 uses 11 rows of 64 (704 px), so the top 16 px are sky. Grids taller than 720 extend above the screen.
@@ -48,6 +49,7 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
   actions (none with `tapAnywhereJumps`). `autoRun` runs right at `runSpeed`; otherwise Left/Right move and release stops.
 - `practice` (optional, Task 011): `true` marks a generated Combo Practice level (no progress saved, combo stars on the win
   screen); any other non-boolean value is an error. Absent on Grass 1-6.
+- `variety` (optional, Task 012): `false` keeps the level's coins and bubbles where they are on replays; absent = they may be shuffled.
 - `stars` (D-020): finishing = 1, `two` and `three` are coin thresholds. `runSpeed` is optional (default in physics.ts).
 - `demo` (D-024, D-030): `false`, or one of two forms (mixing them is an error):
   - Tile form `{ "tiles": N, "jumpsAtTiles": [..] }` (auto-run levels). Both are grid columns, 0-based from the left edge
@@ -75,6 +77,23 @@ appears at the character instead. The "your turn" pulse goes to the first button
 demo; a tap or key after 1.5 s skips it. At the end the ghost fades, the camera glides back to the start, then the
 "your turn" cue (bouncing arrow over the character, ripples at its feet, a button pulse and the soft `yourTurn` sound)
 and the real run starts. Plays once per session per level (static set in LevelScene); `?demo=1` forces, `?demo=0` skips.
+
+### Replay variety (Task 012, D-053)
+`core/levels/variety.ts` (pure, seeded with `makeRng`, tested): `varyLevel(level, seed)` returns the level with a shuffled grid; same level and
+seed = same grid. Only loose coins and small bubbles move, sideways, along their own ground stretch (between gaps, the start and the flag, so
+an item stays on its side of the start); rows never change. Never moved: `S`, `F`, `#`, big `O` and high `h` bubbles, any coin within 2
+columns of a gap (`VARIETY.arcReach`, the arcs over gaps), and in tile-demo levels (Grass 1-2) coins within 3 columns of a `jumpsAtTiles`
+column. Coins move as rigid clusters (touching coins, so arcs keep their shape). Spacing: a moved item keeps 3 columns from any gap column
+(`VARIETY.clear`) and from the start and flag (2 when it has no other place: `tightClear`), no coin touches a bubble or another coin
+(diagonals count), no bubble is within 1 tile of another bubble (big-bubble cells included). Counts and kinds are preserved, so `stars`
+stay valid. Shots reach a moved bubble because its row is unchanged (D-042 rows). A level can write `"variety": false` to opt out; practice
+levels never vary. Over 200 seeds each of Grass 1-6 differs from the written grid in 199-200 of them.
+Rainbow: `rainbowPick(smallBubbles, seed)` = 1 in 3, only with 4+ small bubbles (Grass 4 and 6; Grass 5 has none), picks which `o`
+becomes `r`; the legend char `r` is never used in the JSON files. See shooting-bubbles.md.
+When it applies (`useVariety`, `openLevel` in `universes/robo/manifest.ts`): the first play of a level (no stars yet) is the grid as written;
+any play after a clear, and the win screen's Replay (`onReplay`), gets a fresh random seed kept in memory only (nothing saved, progress
+records unchanged). A level whose watch-me demo is about to play (`LevelScene.demoWillPlay`) is always canonical, even with `?variety=1`.
+`?variety=1` forces varied, `?variety=0` canonical, `?seed=<n>` fixes the seed (then Replay repeats the same grid). `?debug=1` state has `grid`.
 
 `core/levels/` (all universe-agnostic):
 - `format.ts`: types, `parseLevel` (readable errors: row lengths, unknown characters with position, exactly one S/F,
@@ -109,3 +128,4 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 - `progression.ts`: `nextLevelId(worlds, id)` = the next level in the same world or null (tested). The universe passes
   `onNext` from it; Next keeps the chosen option.
 - `shots.ts`, `Blaster.ts`, `bubbles.ts`, `BubbleField.ts`: shooting and bubbles (Task 007), see below.
+- `variety.ts`: replay variety (Task 012), see "Replay variety" above. `testBot.ts`: the kinematic test bot shared by the practice and variety tests.
