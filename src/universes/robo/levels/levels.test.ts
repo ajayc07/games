@@ -20,8 +20,7 @@ import grass6 from './grass-6.json';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
 import { shotHitsBubble } from '../../../core/levels/bubbles';
-import { GOAL, arrivalExtraMs, goalX, padHeight } from '../../../core/levels/goal';
-import { worldDots } from '../../../core/map/unlock';
+import { GOAL, arrivalExtraMs, bulbSize, columnSize, goalX, padHeight, padReachCols } from '../../../core/levels/goal';import { worldDots } from '../../../core/map/unlock';
 
 /**
  * How far a jump carries at walk speed (px), for the gap check (Task 008). The jump lands level after 2 v / g seconds.
@@ -469,7 +468,32 @@ describe('Charging pad goal (Task 014, D-055)', () => {
     expect(GOAL.ringPulses).toBe(2);
     expect(arrivalExtraMs()).toBeLessThanOrEqual(300);
     expect(arrivalExtraMs()).toBeGreaterThanOrEqual(0);
-    expect(padHeight(64)).toBeCloseTo(19.2);
+  });
+  it('the pad is chunky: about 3 tiles wide and 0.45 tall, a thick short column and a big bulb (Task 014b)', () => {
+    expect(GOAL.padTiles).toEqual({ w: 3, h: 0.45 });
+    expect(padHeight(64)).toBeCloseTo(28.8);
+    expect(columnSize(64)).toEqual({ w: 32, h: 89.6 });
+    expect(columnSize(64).h / columnSize(64).w).toBeLessThan(3.2); // stubby, not a pole
+    expect(bulbSize(64)).toBeCloseTo(57.6);
+    expect(bulbSize(64)).toBeGreaterThan(40 * 1.3); // clearly bigger than a coin (40 px) or a small bubble's picture
+    expect(GOAL.lightTiles).toBe(4);
+    expect(GOAL.padTiles.w * 64).toBe(192);
+  });
+  it('the robot settles on the same spot as before: the pad centre x and the top face lift', () => {
+    expect(goalX({ col: 10, row: 3 }, 64)).toBe(672);
+    expect(padHeight(64)).toBeLessThan(0.5 * 64); // a low step, the settle stays a short ease
+    expect(padReachCols()).toBe(1);
+  });
+  it('no coin or bubble sits in the pad footprint or beside it, in any level (reports instead of editing)', () => {
+    for (const lvl of [grass1, grass2, grass3, grass4, grass5, grass6]) {
+      const goal = extractEntities(parseLevelOrThrow(lvl).grid).goal;
+      lvl.grid.forEach((row: string, r: number) => {
+        [...row].forEach((ch, c) => {
+          if (!'coOhr'.includes(ch)) return;
+          expect(Math.abs(c - goal.col), `${lvl.id} ${ch} at ${r},${c}`).toBeGreaterThanOrEqual(padReachCols() + 1);
+        });
+      });
+    }
   });
   it('the legend calls F the goal and the parser still accepts it', () => {
     expect(LEGEND.F).toBe('goal');

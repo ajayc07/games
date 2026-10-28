@@ -8,8 +8,8 @@ import { unlockFromSearch, worldDots, type UnlockOptions } from '../../core/map/
 import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene';
 import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
 import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
-import { parseLevelOrThrow } from '../../core/levels/format';
-import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel } from '../../core/levels/variety';
+import { parseLevelOrThrow, type LevelData } from '../../core/levels/format';
+import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowHook } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
 import {
   bindSettings,
@@ -183,7 +183,11 @@ function openPracticeSelect(s: Session): void {
 function openPractice(s: Session, mode: PracticeMode, seed: number): void {
   s.arrival = null;
   s.practiceMode = mode;
-  const level = parseLevelOrThrow(generatePractice(mode, seed, 'grass').config, `practice ${mode} ${seed}`);
+  const level = withRainbowHook(parseLevelOrThrow(generatePractice(mode, seed, 'grass').config, `practice ${mode} ${seed}`), {
+    search: location.search,
+    varied: true,
+    seed,
+  });
   const data: LevelSceneData = {
     level,
     theme: themeForWorld(level.world),
@@ -247,6 +251,10 @@ function openParent(s: Session): void {
 }
 
 /** `replay`: a Replay from the win screen (a cleared level by definition, even if the record could not be saved). */
+/** A varied run: shuffled by the seed, plus the `?rainbow=1` test hook (Task 014b). */
+const varyForRun = (level: LevelData, seed: number): LevelData =>
+  withRainbowHook(varyLevel(level, seed), { search: location.search, varied: true, seed });
+
 function openLevel(s: Session, levelId: string, replay = false): void {
   const firstId = worlds.find((w) => w.levels.length > 0)?.levels[0];
   let level = levels.get(levelId);
@@ -264,7 +272,7 @@ function openLevel(s: Session, levelId: string, replay = false): void {
     demoPlays: LevelScene.demoWillPlay(level),
   });
   const data: LevelSceneData = {
-    level: varied ? varyLevel(level, varietySeedFrom(location.search)) : level,
+    level: varied ? varyForRun(level, varietySeedFrom(location.search)) : level,
     onReplay: () => openLevel(s, here, true),
     theme: themeForWorld(level.world),
     option: currentOption(s),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseLevelOrThrow, type LevelData } from './format';
 import { extractEntities } from './grid';
 import { runBot } from './testBot';
-import { rainbowPick, useVariety, varietyModeFrom, varietySeedFrom, varyLevel, VARIETY } from './variety';
+import { rainbowHookFrom, rainbowPick, useVariety, varietyModeFrom, varietySeedFrom, varyLevel, VARIETY, withRainbowHook } from './variety';
 
 const files = import.meta.glob<unknown>('../../universes/robo/levels/grass-*.json', { eager: true, import: 'default' });
 const LEVELS: LevelData[] = Object.entries(files)
@@ -162,6 +162,46 @@ describe('varyLevel (Task 012)', () => {
     expect(varietyModeFrom('?level=grass-2')).toBe('auto');
     expect(varietySeedFrom('?seed=77')).toBe(77);
     expect(varietySeedFrom('?seed=x')).toBeGreaterThanOrEqual(0);
+  });
+
+  it('?rainbow=1 (Task 014b): forces exactly one rainbow bubble, but only on a varied run', () => {
+    expect(rainbowHookFrom('?rainbow=1')).toBe(true);
+    expect(rainbowHookFrom('?rainbow=0')).toBe(false);
+    expect(rainbowHookFrom('?level=grass-4')).toBe(false);
+    for (const id of ['grass-4', 'grass-6']) {
+      const l = LEVELS.find((x) => x.id === id)!;
+      for (const seed of SEEDS.slice(0, 40)) {
+        const v = varyLevel(l, seed);
+        const forced = withRainbowHook(v, { search: '?rainbow=1', varied: true, seed });
+        expect(count(forced.grid, 'r'), `${id} ${seed}`).toBe(1);
+        expect(count(forced.grid, 'o') + 1).toBe(count(v.grid, 'o') + count(v.grid, 'r'));
+        expect(forced.grid.map((r) => r.replace('r', 'o'))).toEqual(v.grid.map((r) => r.replace('r', 'o')));
+        // A canonical first play never changes, with or without the parameter.
+        expect(withRainbowHook(l, { search: '?rainbow=1', varied: false, seed })).toBe(l);
+        expect(withRainbowHook(v, { search: '', varied: true, seed })).toBe(v);
+      }
+    }
+    // Levels without small bubbles stay as they are; a rainbow already there is kept.
+    const g5 = LEVELS.find((l) => l.id === 'grass-5')!;
+    expect(withRainbowHook(g5, { search: '?rainbow=1', varied: true, seed: 1 })).toBe(g5);
+    const g4 = LEVELS.find((l) => l.id === 'grass-4')!;
+    const seed = SEEDS.find((s) => count(varyLevel(g4, s).grid, 'r') === 1)!;
+    const already = varyLevel(g4, seed);
+    expect(withRainbowHook(already, { search: '?rainbow=1', varied: true, seed })).toBe(already);
+  });
+
+  it('varied grids keep coins and bubbles out of the wider pad footprint', () => {
+    for (const l of LEVELS) {
+      for (const seed of SEEDS) {
+        const g = varyLevel(l, seed).grid;
+        const goal = extractEntities(g).goal.col;
+        g.forEach((row, r) =>
+          [...row].forEach((ch, c) => {
+            if ('coOhr'.includes(ch)) expect(Math.abs(c - goal), `${l.id} seed ${seed} ${ch} at ${r},${c}`).toBeGreaterThanOrEqual(2);
+          }),
+        );
+      }
+    }
   });
 
   for (const id of ['grass-3', 'grass-4', 'grass-5', 'grass-6']) {

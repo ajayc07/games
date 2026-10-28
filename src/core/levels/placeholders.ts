@@ -2,6 +2,7 @@
 // Drawn at TEX_RES pixels per logical unit so they stay crisp on high-DPI screens; display them
 // with setDisplaySize / tileScale = 1 / TEX_RES.
 import Phaser from 'phaser';
+import { GOAL, bulbSize, columnSize } from './goal';
 import type { LevelTheme, ThemeTexture } from './theme';
 
 export const TEX_RES = 2;
@@ -15,13 +16,15 @@ export function themeTextureSize(name: ThemeTexture, tile: number): { w: number;
     case 'coin':
       return { w: 40, h: 40 };
     case 'goal-pad':
-      return { w: tile * 2, h: Math.ceil(tile * 0.3) + 4 };
+      return { w: tile * GOAL.padTiles.w, h: Math.ceil(tile * GOAL.padTiles.h) + 4 };
     case 'goal-ring':
-      return { w: tile * 1.5, h: 18 };
+      return { w: tile * 2.2, h: 24 };
     case 'goal-post':
-      return { w: 30, h: tile * 2.5 };
-    case 'goal-beacon':
-      return { w: 48, h: 48 };
+      return columnSize(tile);
+    case 'goal-beacon': {
+      const d = bulbSize(tile);
+      return { w: d, h: d };
+    }
     case 'hills-far':
       return { w: 1024, h: 300 };
     case 'hills-near':
@@ -83,26 +86,41 @@ export function makeThemeTextures(scene: Phaser.Scene, theme: LevelTheme, tile: 
   });
 
   draw('goal-pad', (g, w, h) => {
-    // Rounded slab: dark rim all round, lighter top face inset, a darker front strip below it.
+    // Chunky slab: a dark rim all round, a lighter top face inset, rivets along the dark front strip.
     g.fillStyle(goal.rim, 1).fillRoundedRect(0, 0, w, h, h / 2);
-    g.fillStyle(goal.top, 1).fillRoundedRect(4, 3, w - 8, h * 0.55, (h * 0.55) / 2);
+    const topH = h * 0.58;
+    g.fillStyle(goal.top, 1).fillRoundedRect(6, 4, w - 12, topH, topH / 2);
+    g.fillStyle(0xffffff, 0.45).fillRoundedRect(w * 0.12, 7, w * 0.3, 4, 2);
+    g.fillStyle(goal.top, 0.85);
+    for (let i = 0; i < 7; i++) g.fillCircle(w * (0.14 + i * 0.12), h - 6, 2.2);
   });
 
   draw('goal-ring', (g, w, h) => {
-    g.lineStyle(5, goal.glow, 0.55).strokeEllipse(w / 2, h / 2, w - 6, h - 4);
-    g.lineStyle(2.5, goal.ring, 1).strokeEllipse(w / 2, h / 2, w - 6, h - 4);
+    g.lineStyle(7, goal.glow, 0.55).strokeEllipse(w / 2, h / 2, w - 8, h - 6);
+    g.lineStyle(3.5, goal.ring, 1).strokeEllipse(w / 2, h / 2, w - 8, h - 6);
   });
 
+  // The charger column: a short thick rounded cylinder with a light stripe, grooves and a hex-nut emblem (no thin pole).
   draw('goal-post', (g, w, h) => {
-    g.fillStyle(goal.rim, 1).fillRoundedRect(w / 2 - 5, h * 0.3, 10, h * 0.7, 3);
-    g.fillStyle(goal.post, 1).fillRoundedRect(w / 2 - 3, h * 0.3 + 2, 6, h * 0.7 - 2, 2);
-    g.fillStyle(goal.rim, 1).fillRect(w / 2 - 1.5, 0, 3, h * 0.32);
+    g.fillStyle(goal.rim, 1).fillRoundedRect(0, 0, w, h, 9);
+    g.fillStyle(goal.post, 1).fillRoundedRect(3.5, 3.5, w - 7, h - 7, 6);
+    g.fillStyle(0xffffff, 0.8).fillRoundedRect(7, 8, w * 0.17, h - 16, 3);
+    // A cyan charge band under the top, a dark groove near the foot, and the emblem between.
+    g.fillStyle(goal.rim, 1).fillRect(3.5, h * 0.14, w - 7, h * 0.14 + 4);
+    g.fillStyle(goal.ring, 1).fillRect(3.5, h * 0.14 + 2, w - 7, h * 0.14);
+    g.fillStyle(goal.rim, 0.4).fillRect(3.5, h * 0.84, w - 7, 3);
+    const cx = w / 2 + 2;
+    const cy = h * 0.58;
+    const r = w * 0.24;
+    const hex = Array.from({ length: 6 }, (_, i) => new Phaser.Geom.Point(cx + Math.cos((i * Math.PI) / 3) * r, cy + Math.sin((i * Math.PI) / 3) * r));
+    g.fillStyle(goal.rim, 1).fillPoints(hex, true);
+    g.fillStyle(goal.post, 1).fillCircle(cx, cy, r * 0.4);
   });
 
   draw('goal-beacon', (g, w) => {
     g.fillStyle(goal.beaconRim, 1).fillCircle(w / 2, w / 2, w / 2);
-    g.fillStyle(goal.beacon, 1).fillCircle(w / 2, w / 2, w / 2 - 3.5);
-    g.fillStyle(0xffffff, 0.9).fillCircle(w * 0.38, w * 0.36, w * 0.1);
+    g.fillStyle(goal.beacon, 1).fillCircle(w / 2, w / 2, w / 2 - 4.5);
+    g.fillStyle(0xffffff, 0.9).fillCircle(w * 0.36, w * 0.34, w * 0.1);
   });
 
   const hillStrip = (color: number, shade: number, bumps: Array<[number, number, number]>) =>
@@ -158,6 +176,17 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
     for (let i = 0; i < 5; i++) {
       const inset = (i / 5) * (w / 2 - 4);
       g.fillStyle(0xffffff, 0.16).fillRoundedRect(inset, 0, w - inset * 2, h, 10);
+    }
+  });
+  // Idle light column of the goal pad: soft bands, brightest at the bottom, fading to nothing at the top.
+  once('fx-lightcol', 64, 256, (g, w, h) => {
+    const rows = 128;
+    for (let r = 0; r < rows; r++) {
+      const a = ((r + 1) / rows) ** 1.1; // brightest at the bottom
+      for (let i = 0; i < 4; i++) {
+        const inset = (i / 4) * (w / 2 - 2);
+        g.fillStyle(0xffffff, a * 0.45).fillRect(inset, r * (h / rows), w - inset * 2, h / rows);
+      }
     }
   });
   once('fx-bolt', 20, 28, (g) => {

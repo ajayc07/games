@@ -42,6 +42,9 @@ Part of the architecture docs; the index is `docs/ARCHITECTURE.md`.
   turns exactly one small bubble `o` into `r` (see levels.md "Replay variety"). The pop plays the `rainbow` synth recipe (a rising
   three-note chime, instead of the stepping `pop-<n>` sound), 30 sparkles and five coloured rings after the white one, then the 8 coins
   fly in like any others. The extra 5 coins only help the stars.
+  Test hook `?rainbow=1` (Task 014b, `withRainbowHook` in `variety.ts`): forces exactly one `o` to `r` (picked from the seed) on a varied run only (a replay of a cleared level, or `?variety=1`;
+  a Practice run counts as varied), so a first canonical play never changes; a level without small bubbles, or one that already has a rainbow bubble, is unchanged. Use with `?level=grass-4&rainbow=1&variety=1&demo=0&seed=5`
+  or `?practice=walk-shoot&rainbow=1`. Task 014b only strengthened the twinkle (sparkle scale 0.5-1.8 instead of 0.3-1.2) and closed a small notch in the bands at 3 o'clock; size, hit circle, value and sound are unchanged.
 - **Power button**: `TouchControls` shows Power only when enabled. Without Jump it takes Jump's bottom-right slot at the solo size
   (0.28 of the screen height), purple with a yellow star; with Jump see "Input" (four-button layout).
 - `?debug=1`: `__level.state()` adds `shots` (`inFlight`, `fired`, `visible`, `flying`), `ghostShots`, `bubbles` (kind, x, y, r,

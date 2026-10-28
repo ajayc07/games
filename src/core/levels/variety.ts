@@ -88,6 +88,31 @@ export function rainbowPick(smallBubbles: number, seed: number): number | null {
   return Math.floor(rng() * smallBubbles);
 }
 
+/** `?rainbow=1` (test hook, Task 014b): force one rainbow bubble in a varied run. */
+export function rainbowHookFrom(search: string): boolean {
+  return new URLSearchParams(search).get('rainbow') === '1';
+}
+
+/**
+ * The `?rainbow=1` hook: turns one small bubble into a rainbow one (picked from the seed) unless the level already has
+ * one. Only for a varied run (`varied`: replay variety applies, or `?variety=1`; a Practice run counts as varied), so a first
+ * canonical play never changes. A level without small bubbles comes back unchanged.
+ */
+export function withRainbowHook(level: LevelData, opts: { search: string; varied: boolean; seed: number }): LevelData {
+  if (!opts.varied || !rainbowHookFrom(opts.search)) return level;
+  const rows = level.grid.map((r) => [...r]);
+  const small: Cell[] = [];
+  rows.forEach((r, row) => r.forEach((ch, col) => ch === 'r' && small.push({ row, col })));
+  if (small.length > 0) return level;
+  rows.forEach((r, row) => r.forEach((ch, col) => ch === 'o' && small.push({ row, col })));
+  if (small.length === 0) return level;
+  const rng = makeRng((opts.seed ^ 0x51ed270b) >>> 0);
+  rng();
+  const pick = small[Math.floor(rng() * small.length)];
+  rows[pick.row][pick.col] = 'r';
+  return { ...level, grid: rows.map((r) => r.join('')) };
+}
+
 function shuffle<T>(a: T[], rng: () => number): void {
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));

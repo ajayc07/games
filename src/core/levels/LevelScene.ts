@@ -2,7 +2,7 @@
 // specific universe; the universe passes everything in through LevelSceneData.
 import Phaser from 'phaser';
 import type { Action, AvatarOptionDef } from '../types';
-import { GOAL, goalX, padHeight, arrivalTotalMs } from './goal';
+import { GOAL, goalX, padHeight, arrivalTotalMs, bulbSize, columnSize } from './goal';
 import { INPUT_EVENTS, InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { getLayout, type Layout } from '../ui/layout';
@@ -351,15 +351,24 @@ export class LevelScene extends Phaser.Scene {
     const padW = GOAL.padTiles.w * T;
     this.padTopY = base - padH;
     const padImg = this.add.image(this.goalX, base + 2, themeKey(theme, 'goal-pad')).setOrigin(0.5, 1).setDisplaySize(padW, padH + 4).setDepth(DEPTH.goal);
-    const postH = GOAL.postTiles * T;
-    const postX = this.goalX + padW * 0.34;
-    this.add.image(postX, base - padH * 0.5, themeKey(theme, 'goal-post')).setOrigin(0.5, 1).setDisplaySize(30, postH).setDepth(DEPTH.goal - 0.1);
-    this.beaconY = base - padH * 0.5 - postH * 0.7 - 8;
-    this.beaconHalo = this.add.image(postX, this.beaconY, 'fx-dust').setDisplaySize(120, 120).setTint(theme.goal.beacon).setAlpha(0.45).setBlendMode('ADD').setDepth(DEPTH.goal - 0.05);
-    this.beacon = this.add.image(postX, this.beaconY, themeKey(theme, 'goal-beacon')).setDisplaySize(48, 48).setDepth(DEPTH.goal);
-    this.beaconBlink = this.tweens.add({ targets: this.beacon, alpha: { from: 1, to: 0.3 }, duration: GOAL.idleBlinkMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.tweens.add({ targets: this.beaconHalo, alpha: { from: 0.55, to: 0.1 }, duration: GOAL.idleBlinkMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.goalRing = this.add.image(this.goalX, this.padTopY + 7, themeKey(theme, 'goal-ring')).setDisplaySize(T * 1.5, 18).setDepth(DEPTH.goal + 0.1);
+    const col = columnSize(T);
+    const bulb = bulbSize(T);
+    const postX = this.goalX + padW * 0.3;
+    this.add.image(postX, base - padH * 0.5, themeKey(theme, 'goal-post')).setOrigin(0.5, 1).setDisplaySize(col.w, col.h).setDepth(DEPTH.goal - 0.1);
+    this.beaconY = base - padH * 0.5 - col.h - bulb * 0.3;
+    // A faint tall light column from the bulb: the goal can be found above the buttons from far away.
+    const light = this.add
+      .image(postX, this.beaconY, 'fx-lightcol')
+      .setOrigin(0.5, 1)
+      .setDisplaySize(GOAL.lightWidthTiles * T, GOAL.lightTiles * T)
+      .setTint(theme.goal.beacon)
+      .setDepth(DEPTH.goal - 0.6);
+    this.tweens.add({ targets: light, alpha: { from: 1, to: 0.55 }, duration: GOAL.lightBreatheMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.beaconHalo = this.add.image(postX, this.beaconY, 'fx-dust').setDisplaySize(bulb * 1.7, bulb * 1.7).setTint(theme.goal.beacon).setAlpha(0.3).setBlendMode('ADD').setDepth(DEPTH.goal - 0.05);
+    this.beacon = this.add.image(postX, this.beaconY, themeKey(theme, 'goal-beacon')).setDisplaySize(bulb, bulb).setDepth(DEPTH.goal);
+    this.beaconBlink = this.tweens.add({ targets: this.beacon, alpha: { from: 1, to: 0.55 }, duration: GOAL.idleBlinkMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: this.beaconHalo, alpha: { from: 0.35, to: 0.05 }, duration: GOAL.idleBlinkMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.goalRing = this.add.image(this.goalX, this.padTopY + 8, themeKey(theme, 'goal-ring')).setDisplaySize(T * 2.2, 24).setDepth(DEPTH.goal + 0.1);
     this.tweens.add({ targets: this.goalRing, alpha: { from: 1, to: 0.45 }, scaleX: this.goalRing.scaleX * 1.06, duration: GOAL.idleRingMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.add
       .particles(this.goalX, this.padTopY, 'fx-sparkle', {
@@ -889,13 +898,14 @@ export class LevelScene extends Phaser.Scene {
     this.beacon.setAlpha(1);
     this.tweens.killTweensOf(this.beaconHalo);
     this.beaconHalo.setAlpha(0.8);
-    this.tweens.add({ targets: this.beacon, displayWidth: 62, displayHeight: 62, duration: 200, yoyo: true });
+    const bulb = bulbSize(T);
+    this.tweens.add({ targets: this.beacon, displayWidth: bulb * 1.25, displayHeight: bulb * 1.25, duration: 200, yoyo: true });
     for (let i = 0; i < GOAL.ringPulses; i++) {
-      const ring = this.add.image(this.goalX, this.padTopY + 7, themeKey(theme, 'goal-ring')).setDisplaySize(T * 1.5, 18).setDepth(DEPTH.goal + 0.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+      const ring = this.add.image(this.goalX, this.padTopY + 8, themeKey(theme, 'goal-ring')).setDisplaySize(T * 2.2, 24).setDepth(DEPTH.goal + 0.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({ targets: ring, scaleX: ring.scaleX * 1.8, scaleY: ring.scaleY * 1.8, alpha: { from: 1, to: 0 }, duration: GOAL.ringPulseMs, delay: i * GOAL.ringPulseMs * 0.8, onComplete: () => ring.destroy() });
     }
     const beamH = GOAL.beamTiles * T;
-    const beam = this.add.image(this.goalX, this.padTopY, 'fx-beam').setOrigin(0.5, 1).setDisplaySize(64, 1).setTint(theme.goal.glow).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.goal - 0.5);
+    const beam = this.add.image(this.goalX, this.padTopY, 'fx-beam').setOrigin(0.5, 1).setDisplaySize(T * 1.4, 1).setTint(theme.goal.glow).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.goal - 0.5);
     this.tweens.add({ targets: beam, displayHeight: beamH, duration: 180, ease: 'Quad.easeOut' });
     this.tweens.add({ targets: beam, alpha: 0, delay: GOAL.beamMs * 0.6, duration: GOAL.beamMs * 0.4, onComplete: () => beam.destroy() });
     this.sparkle.explode(22, this.goalX, this.padTopY - 4);

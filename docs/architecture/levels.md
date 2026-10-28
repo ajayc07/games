@@ -80,11 +80,13 @@ and the real run starts. Plays once per session per level (static set in LevelSc
 
 ### Goal pad (Task 014, D-055)
 The stage end is an original robot charging pad, the same on every level and in Practice (grid letter `F`, `LEGEND.F` = "goal"; level JSON untouched).
-`core/levels/goal.ts` (pure, tested): `GOAL` numbers (pad 2 tiles wide, 0.3 tile tall, post 2.5 tiles, `settleMs` 250, `beamMs` 1000, `beamTiles` 3, `ringPulses` 2,
-`resultDelayMs` 1100), `goalX(cell, tile)` (middle of the `F` column, the same trigger x as the old flag), `padHeight`, `arrivalTotalMs` (settle + 1100, so 250 ms
-longer than before). Look, all generated from `theme.goal` colours (`goal-pad`, `goal-ring`, `goal-post`, `goal-beacon` textures, `fx-beam`, `fx-bolt` effects): a slab with a dark raspberry
-rim (3:1 against hills and sky, unit-tested, like the beacon outline) and a gold top face, a cyan glowing ring on the top, a post at the back with a beacon ball and halo.
-Idle: ring and halo pulse softly, beacon blinks every 1 s, a few sparkles rise slowly (tweens and one emitter; no per-frame work).
+`core/levels/goal.ts` (pure, tested): `GOAL` numbers (Task 014b sizes: pad 3 tiles wide and 0.45 tall, charger column 0.5 x 1.4 tiles, beacon bulb 0.9 tile across, idle light column 4 tiles tall and 1 wide; `settleMs` 250, `beamMs` 1000, `beamTiles` 3, `ringPulses` 2,
+`resultDelayMs` 1100), `columnSize`, `bulbSize`, `padReachCols` (1: the pad covers the `F` column and one column each side), `goalX(cell, tile)` (middle of the `F` column, the same trigger x as the old flag), `padHeight`, `arrivalTotalMs` (settle + 1100, so 250 ms
+longer than before). Look, all generated from `theme.goal` colours (`goal-pad`, `goal-ring`, `goal-post`, `goal-beacon` textures, `fx-beam`, `fx-bolt` effects): a chunky slab with a dark raspberry
+rim (3:1 against hills and sky, unit-tested, like the beacon outline), a gold top face and rivets, a cyan glowing ring on the top, and at the back a short thick **charger column** (rounded,
+light stripe, cyan band, hex-nut emblem; texture key `goal-post`) topped by a big outlined yellow bulb (`goal-beacon`) with a halo. No thin pole anywhere.
+Idle: ring and halo pulse softly, the bulb blinks every 1 s (alpha 1 to 0.55), a few sparkles rise slowly, and a faint tall **light column** (`fx-lightcol`, 4 tiles, translucent, breathing every 2.6 s)
+rises from the bulb so the goal can be found above the buttons from far away (tweens and one emitter; no per-frame work). Clearance: levels and varied grids keep coins and bubbles at least 2 columns from `F` (tested), so the pad never covers one.
 Arrival (`LevelScene.reachGoal` unchanged trigger, then `updateFinish` once grounded): `settleOnPad` eases the body to the pad centre in 250 ms (`body.reset` each tick) while
 `Player.lift` raises the picture onto the top face; `chargePad` then plays the option's win chime and the `win` clip (hop), makes the beacon solid, pulses the ring twice, rises a beam
 3 tiles for about 1 s, bursts sparkles, flashes the body and throws a few accent-coloured bolts, then confetti; the result screen follows 1100 ms after the charge starts.

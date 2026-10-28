@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-28 (Task 014 charging pad done, D-055)_
+_Last updated: 2026-10-28 (Task 014b bigger charging pad done, D-055, D-056)_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -12,8 +12,8 @@ Grass 4 Power (pop bubbles into coins), Grass 5 walk and jump over gaps, Grass 6
 combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey gear (top-left, held 3 s) opens the parent view
 (sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
-`?demo=0|1`, `?variety=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
-Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-014 are committed locally.
+`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
+Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-014 are pushed; 014b is committed locally.
 
 ## Roadmap
 | # | Task | Status |
@@ -28,12 +28,14 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 013 | Browser fullscreen (first tap, parent-view toggle) | Done |
 | 012 | Replay variety (shuffle coins and small bubbles on replays after a first clear, rare rainbow bubble), D-053 | Done |
 | 014 | Charging pad instead of the flag, stronger rainbow bubble, robot hex-nut coin face (D-054, D-055) | Done |
+| 014b | Bigger, unmistakable charging pad (chunky pad, charger column, big bulb, light column); `?rainbow=1` proof of the rainbow bubble (D-056) | Done |
 | 015 | Polish bundle (footsteps, landing thump, idle wave), not drafted | Optional |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
-1. Task 014 is done (committed locally, not pushed). Optional next: Task 015 polish bundle (footsteps, landing thump, idle wave), not drafted.
-   Parent housekeeping: stop the Vite dev server Claude Code left running on port 5173 (D-054).
+1. Task 014 (charging pad, hex-nut coin, rainbow rim) is done and pushed (D-056). Task 014b (bigger pad with a light column, `?rainbow=1` proof) is done, committed locally, not pushed.
+   Optional next: Task 015 polish bundle (footsteps, landing thump, idle wave), not drafted.
+   Parent housekeeping: stop the Vite dev server still running on port 5173 (D-054, D-056).
 2. Real-device checks of Task 012 (see the tablet checklist) and of Task 013 fullscreen.
 
 ## In progress

@@ -83,7 +83,7 @@ export class BubbleField {
         // A slow sparkle: grows and fades over the first 0.45 s of every 1.5 s (offset per bubble position).
         const phase = ((now + v.spec.x * 3) % TWINKLE_MS) / TWINKLE_MS;
         const k = phase < 0.3 ? Math.sin((phase / 0.3) * Math.PI) : 0;
-        v.twinkle.setPosition(v.x - v.spec.r * 0.35, v.y - v.spec.r * 0.4).setAlpha(k).setScale(0.3 + 0.9 * k).setAngle(phase * 90);
+        v.twinkle.setPosition(v.x - v.spec.r * 0.35, v.y - v.spec.r * 0.4).setAlpha(k).setScale(0.5 + 1.3 * k).setAngle(phase * 90);
       }
     }
     for (const c of this.flow.coins) {
@@ -260,7 +260,7 @@ function bubbleTexture(scene: Phaser.Scene, r: number, rainbow = false): string 
         ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
         ctx.globalAlpha = 1;
         ctx.beginPath();
-        ctx.arc(c, c, r * (0.86 - i * 0.1), Math.PI * 0.02, Math.PI * 1.98);
+        ctx.arc(c, c, r * (0.86 - i * 0.1), 0, Math.PI * 2);
         ctx.stroke();
       });
       ctx.globalAlpha = 1;
