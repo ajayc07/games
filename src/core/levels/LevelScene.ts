@@ -224,6 +224,7 @@ export class LevelScene extends Phaser.Scene {
     this.motionFx = new MotionFx(this, DEPTH.player - 1, this.size);
     this.player = this.makePlayer(DEPTH.player, 1, true);
     this.buildEffects();
+    this.buildNight();
     this.bubbles = new BubbleField(this, {
       cells: this.grid.bubbles,
       solid: this.grid.solid,
@@ -282,6 +283,7 @@ export class LevelScene extends Phaser.Scene {
     this.demoCues?.update();
     this.updateCamera(dt);
     this.bg.update(this.camX, dt);
+    if (this.lamp) this.lamp.setPosition(this.player.body.center.x + this.player.facing * 30, this.player.body.center.y - 8);
     if (this.hint) this.hint.setPosition(this.player.body.center.x + 80, this.player.body.bottom - 150);
   }
 
@@ -496,6 +498,39 @@ export class LevelScene extends Phaser.Scene {
 
   private startFeet(): number {
     return this.gridTop + (this.grid.start.row + 1) * this.tile;
+  }
+
+  /** The headlamp glow that follows the player (night worlds only, Task 016). */
+  private lamp: Phaser.GameObjects.Image | null = null;
+
+  /** Night worlds (Task 016, D-060): headlamp glow around the player and a few fireflies drifting over the level. Cosmetic only. */
+  private buildNight(): void {
+    this.lamp = null;
+    const night = this.data0.theme.night;
+    if (!night) return;
+    const p = this.player.body;
+    this.lamp = this.add
+      .image(p.center.x, p.center.y, 'fx-glow')
+      .setDisplaySize(night.lampSize, night.lampSize)
+      .setTint(night.lamp)
+      .setAlpha(night.lampAlpha)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(DEPTH.player - 1);
+    const rnd = new Phaser.Math.RandomDataGenerator(['fireflies', this.level.id]);
+    for (let i = 0; i < night.fireflies; i++) {
+      const x = rnd.between(0, this.worldW);
+      const y = rnd.between(this.layout.height * 0.18, this.layout.height * 0.7);
+      const size = rnd.between(18, 30);
+      const fly = this.add
+        .image(x, y, 'fx-glow')
+        .setDisplaySize(size, size)
+        .setTint(night.firefly)
+        .setAlpha(0)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(DEPTH.coins - 1);
+      this.tweens.add({ targets: fly, alpha: { from: 0.1, to: 0.9 }, duration: rnd.between(900, 1700), yoyo: true, repeat: -1, delay: rnd.between(0, 1500), ease: 'Sine.easeInOut' });
+      this.tweens.add({ targets: fly, x: x + rnd.between(-60, 60), y: y + rnd.between(-40, 40), duration: rnd.between(2600, 4200), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
   }
 
   private buildEffects(): void {

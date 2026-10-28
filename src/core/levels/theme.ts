@@ -27,6 +27,11 @@ export interface LevelTheme {
   coin: { fill: number; edge: number; shine: number };
   /** Charging pad: `rim` and `beaconRim` are dark enough to stand out from sky and hills (unit-tested, 3:1). */
   goal: { rim: number; top: number; ring: number; glow: number; beacon: number; beaconRim: number; post: number };
+  /**
+   * A night world (Task 016, D-060): twinkling stars in the sky, fireflies drifting over the level and a soft headlamp
+   * glow that follows the player. Purely cosmetic; nothing in the level changes. Absent = a daytime world.
+   */
+  night?: { stars: number; fireflies: number; lamp: number; lampAlpha: number; lampSize: number; firefly: number };
   /** Image files (URLs) that replace generated placeholders. Drop a file into the universe assets and list it here. */
   images?: Partial<Record<ThemeTexture, string>>;
 }

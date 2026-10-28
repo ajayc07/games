@@ -116,3 +116,7 @@ The parent asked for more variety without disturbing the play: obstacles to jump
 - **Grass 7 "Blocks and Bounce"** is a flat 70-tile level (no gaps, no falls), Left/Right/Jump, no demo, `variety: false`.
 - The polish bundle (footsteps, landing thump, idle wave) moves from Task 015 to Task 016.
 - Not tested on the tablet: how he copes with climbing blocks and whether the pad launch feels fun or too much.
+
+## D-060 (2026-10-28) Night world (Task 016; variety step 2 of D-059)
+First non-Grass look: a night stage with stars, fireflies and a soft headlamp glow that follows the robot. Cosmetic only (no change to physics, hit boxes or rules), generated in code, driven by an optional `night` block on the theme. The new level `night-1` "Night Walk" (world id `night`) is listed after Grass 7 in the Grass world on the map; it uses only controls he already knows. The hills are kept pale so the robot options stay readable (3:1 tested). The polish bundle (footsteps, landing thump, idle wave) moves from Task 016 to Task 017.
+- Not checked on the tablet: whether the night level is too dark or the glow too busy, whether bubbles read well on the pale hills.

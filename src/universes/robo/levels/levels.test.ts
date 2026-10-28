@@ -8,7 +8,7 @@ import { options } from '../options';
 import { validateOptions } from '../../../core/avatar/options';
 import { resolveAvatar } from '../../../core/avatar/config';
 import { chimeRecipe, chimeRootHz } from '../../../core/audio/chimes';
-import { grassTheme } from '../themes';
+import { grassTheme, nightTheme, themeForWorld } from '../themes';
 import { UNIVERSE_ID, UNIVERSE_TITLE } from '../universe';
 import { worlds } from '../worlds';
 import grass1 from './grass-1.json';
@@ -18,6 +18,7 @@ import grass4 from './grass-4.json';
 import grass5 from './grass-5.json';
 import grass6 from './grass-6.json';
 import grass7 from './grass-7.json';
+import night1 from './night-1.json';
 import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
@@ -356,10 +357,45 @@ describe('Robo World level files', () => {
     expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('the grass world lists grass-1..7: Next goes 1 -> 2 -> ... -> 7 and is hidden on 7', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7']);
+  it('the grass world lists grass-1..7 and then night-1: Next goes on in that order and is hidden on night-1', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1']);
     for (let i = 1; i < 7; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
-    expect(nextLevelId(worlds, 'grass-7')).toBeNull();
+    expect(nextLevelId(worlds, 'grass-7')).toBe('night-1');
+    expect(nextLevelId(worlds, 'night-1')).toBeNull();
+  });
+
+  it('night-1 "Night Walk" (Task 016, D-060): night world, walking, all four buttons, gaps of 1-2 tiles, small bubbles and arcs', () => {
+    const level = parseLevelOrThrow(night1, 'night-1');
+    expect(level.world).toBe('night');
+    expect(themeForWorld(level.world)).toBe(nightTheme);
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump', 'power']);
+    expect(level.controls.autoRun).toBe(false);
+    const e = extractEntities(level.grid);
+    expect(e.start.col).toBe(6);
+    expect(e.bubbles.filter((b) => b.kind !== 'small').length).toBe(0);
+    expect(e.bubbles.length).toBeGreaterThanOrEqual(10);
+    const bottom = e.solid[e.start.row + 1];
+    const gaps: number[][] = [];
+    bottom.forEach((solid, c) => {
+      if (solid) return;
+      const last = gaps[gaps.length - 1];
+      if (last && last[last.length - 1] === c - 1) last.push(c);
+      else gaps.push([c]);
+    });
+    expect(gaps.length).toBeGreaterThanOrEqual(3);
+    const reach = walkingJumpReach(PHYSICS.walkSpeed);
+    for (const g of gaps) {
+      expect(g.length).toBeLessThanOrEqual(2);
+      expect(reach.standing, `gap of ${g.length}`).toBeGreaterThanOrEqual(gapNeed(g.length) + 40);
+    }
+    for (let i = 1; i < gaps.length; i++) expect(gaps[i][0] - gaps[i - 1][gaps[i - 1].length - 1] - 1).toBeGreaterThanOrEqual(8);
+    // Everything is on the two shot-reachable rows (on the ground or one tile up) and 2+ columns from the goal.
+    for (const b of e.bubbles) expect([e.start.row, e.start.row - 1]).toContain(b.row);
+    for (const c of [...e.coins, ...e.bubbles]) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    const total = e.coins.length + 3 * e.bubbles.length;
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
+    expect(level.stars.two).toBeGreaterThanOrEqual(Math.round(total * 0.4));
   });
 
   it('grass-7 "Blocks and Bounce" (Task 015, D-059): flat ground, step blocks 1-2 high, bounce pads with coins in the air, no bubbles', () => {
@@ -418,11 +454,12 @@ describe('Robo World level files', () => {
     const open = (levels: Record<string, { stars: number; bestCoins: number }>) =>
       worldDots(grass, levels, { openAtATime: 3, unlockAll: false }).map((d) => d.open);
     const cleared = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, { stars: 1, bestCoins: 0 }]));
-    expect(open({})).toEqual([true, true, true, false, false, false, false]);
-    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false, false]);
-    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4'))).toEqual([true, true, true, true, true, true, true]);
+    expect(open({})).toEqual([true, true, true, false, false, false, false, false]);
+    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false, false, false]);
+    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false, false, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true, false, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4'))).toEqual([true, true, true, true, true, true, true, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5'))).toEqual([true, true, true, true, true, true, true, true]);
   });
 });
 
@@ -552,5 +589,40 @@ describe('Charging pad goal (Task 014, D-055)', () => {
   it('the legend calls F the goal and the parser still accepts it', () => {
     expect(LEGEND.F).toBe('goal');
     expect(parseLevel({ ...grass1, controls: { ...grass1.controls, demo: false }, stars: { two: 1, three: 2 }, grid: ['S.F', '###'] }).ok).toBe(true);
+  });
+});
+
+describe('Night theme (Task 016, D-060)', () => {
+  const t = nightTheme;
+  it('is a night world with stars, fireflies and a headlamp, and daytime worlds are unchanged', () => {
+    expect(t.night).toBeDefined();
+    expect(t.night!.stars).toBeGreaterThan(20);
+    expect(t.night!.fireflies).toBeGreaterThan(5);
+    expect(t.night!.lampAlpha).toBeGreaterThan(0.3);
+    expect(t.night!.lampAlpha).toBeLessThanOrEqual(0.7);
+    expect(grassTheme.night).toBeUndefined();
+    expect(themeForWorld('grass')).toBe(grassTheme);
+    expect(t.id).not.toBe(grassTheme.id);
+    expect(Object.values(t.images ?? {}).filter(Boolean)).toEqual([]);
+  });
+  it('the robot options stay readable: dark joints stand out (3:1) on the moonlit hills', () => {
+    for (const o of options) {
+      const p = resolveAvatar(o).palette;
+      expect(contrast(p.joint, t.hills.near), o.id).toBeGreaterThanOrEqual(3);
+      expect(contrast(p.joint, t.hills.far), o.id).toBeGreaterThanOrEqual(3);
+    }
+  });
+  it('the pad rim and beacon outline stand out (3:1) from the hills, and the top face is bright against its rim', () => {
+    for (const bg of [t.hills.far, t.hills.near]) {
+      expect(contrast(t.goal.rim, bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(t.goal.beaconRim, bg)).toBeGreaterThanOrEqual(3);
+    }
+    expect(contrast(t.goal.top, t.goal.rim)).toBeGreaterThanOrEqual(3);
+    expect(contrast(t.goal.beacon, t.goal.beaconRim)).toBeGreaterThanOrEqual(3);
+  });
+  it('coins and the ground grass stand out from the hills and the sky', () => {
+    for (const bg of [t.hills.far, t.hills.near, t.sky.top, t.sky.bottom]) expect(contrast(t.coin.fill, bg)).toBeGreaterThanOrEqual(1.5);
+    expect(contrast(t.ground.grass, t.hills.near)).toBeGreaterThanOrEqual(1.5);
+    expect(contrast(t.sky.top, t.sky.bottom)).toBeLessThan(6); // a soft gradient, not a black void
   });
 });

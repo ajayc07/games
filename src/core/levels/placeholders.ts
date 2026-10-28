@@ -189,6 +189,15 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
       }
     }
   });
+  // Soft round glow (night headlamp and fireflies, Task 016): stacked circles, brightest in the middle. Tinted and blended by the scene.
+  once('fx-glow', 128, 128, (g, w) => {
+    const c = w / 2;
+    const steps = 32;
+    for (let i = 0; i < steps; i++) {
+      const k = i / steps;
+      g.fillStyle(0xffffff, 0.045).fillCircle(c, c, c * (1 - k));
+    }
+  });
   once('fx-bolt', 20, 28, (g) => {
     g.fillStyle(0xffffff, 1).fillTriangle(12, 0, 2, 16, 11, 16).fillTriangle(8, 12, 18, 12, 6, 28);
   });

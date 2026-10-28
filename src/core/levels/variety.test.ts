@@ -9,6 +9,7 @@ const LEVELS: LevelData[] = Object.entries(files)
   .map(([path, raw]) => parseLevelOrThrow(raw, path))
   .sort((a, b) => a.id.localeCompare(b.id));
 const rawOf = (id: string) => Object.entries(files).find(([p]) => p.includes(`${id}.json`))![1] as { grid: string[] };
+const nightFiles = import.meta.glob<unknown>('../../universes/robo/levels/night-*.json', { eager: true, import: 'default' });
 const SEEDS = Array.from({ length: 200 }, (_, i) => i * 7919 + 13);
 
 const count = (grid: string[], ch: string) => grid.join('').split(ch).length - 1;
@@ -221,4 +222,19 @@ describe('varyLevel (Task 012)', () => {
       }
     });
   }
+
+  it('night-1: a scripted bot collects every coin and pops every bubble on 200 varied grids, and a rainbow bubble is always there', () => {
+    const night = parseLevelOrThrow(Object.values(nightFiles)[0], 'night-1');
+    const canonical = runBot(extractEntities(night.grid), { jumpForCoins: true });
+    expect(canonical.finished).toBe(true);
+    for (const seed of SEEDS) {
+      const grid = varyLevel(night, seed).grid;
+      const r = runBot(extractEntities(grid), { jumpForCoins: true });
+      expect(r.fell, `seed ${seed}: fell at ${r.x}`).toBe(false);
+      expect(r.finished, `seed ${seed}: stopped at ${r.x}`).toBe(true);
+      expect(r.coinsLeft, `seed ${seed}`).toBe(canonical.coinsLeft);
+      expect(r.bubblesLeft, `seed ${seed}`).toBe(canonical.bubblesLeft);
+      expect(count(grid, 'r'), `seed ${seed}`).toBe(1);
+    }
+  });
 });

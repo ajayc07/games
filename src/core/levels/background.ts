@@ -24,6 +24,9 @@ export class ParallaxBackground {
   private readonly clouds: Phaser.GameObjects.Image[] = [];
   private width = 0;
   private drift = 0;
+  /** Night worlds: fixed stars (Task 016), a faint layer and a twinkling layer. */
+  private readonly starsFaint: Phaser.GameObjects.Graphics | null;
+  private readonly starsTwinkle: Phaser.GameObjects.Graphics | null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -32,6 +35,9 @@ export class ParallaxBackground {
     private readonly horizonY: number,
   ) {
     this.sky = scene.add.graphics().setScrollFactor(0).setDepth(-100);
+    this.starsFaint = theme.night ? scene.add.graphics().setScrollFactor(0).setDepth(-99) : null;
+    this.starsTwinkle = theme.night ? scene.add.graphics().setScrollFactor(0).setDepth(-99) : null;
+    if (this.starsTwinkle) scene.tweens.add({ targets: this.starsTwinkle, alpha: 0.25, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     for (const c of CLOUDS) {
       const img = scene.add.image(0, c.y, themeKey(theme, 'cloud')).setScrollFactor(0).setDepth(-95).setAlpha(0.95);
       img.setDisplaySize(170 * c.scale, 84 * c.scale);
@@ -48,6 +54,24 @@ export class ParallaxBackground {
     this.sky.fillGradientStyle(top, top, bottom, bottom, 1);
     this.sky.fillRect(0, 0, l.width, l.height);
     for (const s of [this.far, this.near]) s.setSize(l.width, s.height);
+    this.drawStars(l);
+  }
+
+  /** Night only: a fixed field of small stars in the upper half of the sky, the same for every screen size ratio. */
+  private drawStars(l: Layout): void {
+    const n = this.theme.night?.stars ?? 0;
+    if (!this.starsFaint || !this.starsTwinkle || n === 0) return;
+    this.starsFaint.clear();
+    this.starsTwinkle.clear();
+    let seed = 12345;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let i = 0; i < n; i++) {
+      const x = rnd() * l.width;
+      const y = rnd() * l.height * 0.5;
+      const r = 1.2 + rnd() * 1.8;
+      const g = i % 3 === 0 ? this.starsTwinkle : this.starsFaint;
+      g.fillStyle(0xffffff, g === this.starsTwinkle ? 0.95 : 0.6).fillCircle(x, y, r);
+    }
   }
 
   /** Call every frame with the camera's horizontal scroll (logical px). */
