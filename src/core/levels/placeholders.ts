@@ -203,6 +203,37 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
   });
 }
 
+/** Step block and bounce pad textures (Task 015): fixed bright toy colours with dark rims, readable on every world. */
+export const OBSTACLE_TEX = { block: 'obs-block', pad: 'obs-pad', padSpring: 'obs-pad-spring' } as const;
+
+export function makeObstacleTextures(scene: Phaser.Scene, tile: number, padW: number, padH: number): void {
+  const once = (key: string, w: number, h: number, paint: (g: Phaser.GameObjects.Graphics, w: number, h: number) => void) => {
+    if (!scene.textures.exists(key)) generate(scene, key, w, h, paint);
+  };
+  // A toy block: warm orange, bevelled, a dark rim and a pale star-ish stud in the middle.
+  once(`${OBSTACLE_TEX.block}-${tile}`, tile, tile, (g, w, h) => {
+    g.fillStyle(0x7a3300, 1).fillRoundedRect(0, 0, w, h, 8);
+    g.fillStyle(0xff9f1c, 1).fillRoundedRect(3, 3, w - 6, h - 6, 6);
+    g.fillStyle(0xffc857, 1).fillRoundedRect(6, 6, w - 12, (h - 12) * 0.42, 5);
+    g.fillStyle(0xe67e00, 1).fillRoundedRect(6, h * 0.62, w - 12, h * 0.3, 5);
+    g.fillStyle(0xfff3c4, 1).fillCircle(w / 2, h / 2, w * 0.16);
+    g.lineStyle(2, 0x7a3300, 1).strokeCircle(w / 2, h / 2, w * 0.16);
+  });
+  // The pad plate: magenta with pale stripes and a dark rim.
+  once(`${OBSTACLE_TEX.pad}-${tile}`, padW, padH, (g, w, h) => {
+    g.fillStyle(0x6d1239, 1).fillRoundedRect(0, 0, w, h, h / 2.2);
+    g.fillStyle(0xff4d94, 1).fillRoundedRect(2, 2, w - 4, h - 4, h / 2.6);
+    g.fillStyle(0xffffff, 0.85);
+    for (let x = w * 0.16; x < w * 0.86; x += w * 0.2) g.fillRoundedRect(x, h * 0.3, w * 0.09, h * 0.4, 2);
+  });
+  // The spring under the plate: a dark coil with bright gaps, drawn as a stack of short bars.
+  once(`${OBSTACLE_TEX.padSpring}-${tile}`, padW * 0.5, 14, (g, w, h) => {
+    g.fillStyle(0x3b3b4f, 1).fillRect(0, 0, w, h);
+    g.fillStyle(0xb8c0d8, 1);
+    for (let y = 2; y < h - 2; y += 5) g.fillRect(2, y, w - 4, 2);
+  });
+}
+
 function generate(
   scene: Phaser.Scene,
   key: string,

@@ -17,8 +17,8 @@ const cellsOf = (grid: string[], chars: string) =>
 const gapCols = (grid: string[]) => [...grid[grid.length - 1]].flatMap((ch, c) => (ch === '#' ? [] : [c]));
 
 describe('varyLevel (Task 012)', () => {
-  it('there are six levels, and the JSON files never use the rainbow character', () => {
-    expect(LEVELS.map((l) => l.id)).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6']);
+  it('there are seven levels, and the JSON files never use the rainbow character', () => {
+    expect(LEVELS.map((l) => l.id)).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7']);
     for (const l of LEVELS) expect(count(l.grid, 'r'), l.id).toBe(0);
   });
 
@@ -29,6 +29,11 @@ describe('varyLevel (Task 012)', () => {
   it('same seed, same grid; different seeds differ in most levels', () => {
     for (const l of LEVELS) {
       expect(varyLevel(l, 5).grid).toEqual(varyLevel(l, 5).grid);
+      if (l.variety === false) {
+        // Grass 7 (blocks and pads, Task 015) keeps its coin arcs over the pads and blocks exactly where they are.
+        expect(varyLevel(l, 99), l.id).toBe(l);
+        continue;
+      }
       const grids = new Set(SEEDS.map((s) => varyLevel(l, s).grid.join('\n')));
       expect(grids.size, l.id).toBeGreaterThan(30);
       const differing = SEEDS.filter((s) => varyLevel(l, s).grid.join('\n') !== l.grid.join('\n')).length;

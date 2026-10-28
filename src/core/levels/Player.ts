@@ -159,6 +159,14 @@ export class Player {
     return { jumped, landed };
   }
 
+  /** A bounce pad fired (Task 015): up at `speed` px/s by itself, like a jump that is already used. */
+  launch(now: number, speed: number): void {
+    this.body.setVelocityY(-speed);
+    this.jumpUsed = true;
+    this.jumpBufferUntil = -1;
+    this.avatar.takeoff(now);
+  }
+
   /** Happy hop at the goal. */
   hop(now: number): void {
     this.body.setVelocityY(-PHYSICS.jumpVelocity * 0.7);

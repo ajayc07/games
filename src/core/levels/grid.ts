@@ -27,6 +27,9 @@ export interface GridEntities {
   bubbles: BubbleCell[];
   start: Cell;
   goal: Cell;
+  /** Step blocks (`B`, solid, Task 015) and bounce pads (`^`, not solid). */
+  blocks: Cell[];
+  pads: Cell[];
 }
 
 /** Splits a validated grid into what the scene needs. Assumes parseLevel() accepted it. */
@@ -36,6 +39,8 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const solid: boolean[][] = [];
   const coins: Cell[] = [];
   const bubbles: BubbleCell[] = [];
+  const blocks: Cell[] = [];
+  const pads: Cell[] = [];
   const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
   let goal: Cell = { col: 0, row: 0 };
@@ -43,7 +48,9 @@ export function extractEntities(grid: readonly string[]): GridEntities {
     const line: boolean[] = [];
     for (let col = 0; col < cols; col++) {
       const ch = grid[row][col];
-      line.push(ch === '#');
+      line.push(ch === '#' || ch === 'B');
+      if (ch === 'B') blocks.push({ col, row });
+      else if (ch === '^') pads.push({ col, row });
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });
@@ -58,7 +65,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
     }
     solid.push(line);
   }
-  return { cols, rows, solid, coins, bubbles, start, goal };
+  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads };
 }
 
 /**

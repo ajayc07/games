@@ -12,7 +12,8 @@ import type { DemoConfig, LevelData } from './format';
 import { extractEntities, findRespawn, mergeSolids, starsFor, type Cell, type GridEntities } from './grid';
 import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
-import { makeEffectTextures, makeThemeTextures, themeKey } from './placeholders';
+import { OBSTACLE_TEX, makeEffectTextures, makeObstacleTextures, makeThemeTextures, themeKey } from './placeholders';
+import { PAD, PadTrigger } from './pads';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
@@ -189,6 +190,7 @@ export class LevelScene extends Phaser.Scene {
     this.result = null;
     this.hint = null;
     this.coins = [];
+    this.pads = [];
     this.blaster = null;
     this.ghostBlaster = null;
     this.ghostPower = false;
@@ -214,6 +216,7 @@ export class LevelScene extends Phaser.Scene {
     const surfaceY = this.gridTop + (this.grid.start.row + 1) * this.tile;
     this.bg = new ParallaxBackground(this, theme, surfaceY);
     this.buildGround();
+    this.buildObstacles();
     this.buildCoins();
     this.buildGoal();
     this.lookName = this.data0.look ?? lookFromUrl();
@@ -288,9 +291,11 @@ export class LevelScene extends Phaser.Scene {
     const T = this.tile;
     const { solid, cols, rows } = this.grid;
     const theme = this.data0.theme;
+    // Step blocks (Task 015) are solid but drawn as their own toy blocks (buildObstacles), not as ground.
+    const isBlock = new Set(this.grid.blocks.map((b) => `${b.row}:${b.col}`));
     const kindAt = (row: number, col: number): 'top' | 'fill' | null => {
-      if (!solid[row][col]) return null;
-      return row > 0 && solid[row - 1][col] ? 'fill' : 'top';
+      if (!solid[row][col] || isBlock.has(`${row}:${col}`)) return null;
+      return row > 0 && solid[row - 1][col] && !isBlock.has(`${row - 1}:${col}`) ? 'fill' : 'top';
     };
     const strip = (kind: 'top' | 'fill', x: number, y: number, w: number) => {
       const key = themeKey(theme, kind === 'top' ? 'ground-top' : 'ground-fill');
@@ -329,6 +334,55 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private groundBodies: Phaser.GameObjects.Zone[] = [];
+
+  /** Bounce pads (Task 015): the plate and its spring, the trigger state, and where the plate is. */
+  private pads: Array<{ plate: Phaser.GameObjects.Image; spring: Phaser.GameObjects.Image; trigger: PadTrigger; x: number; top: number; width: number }> = [];
+
+  /** Step blocks and bounce pads (Task 015, D-059): generated toy textures, behind the player. */
+  private buildObstacles(): void {
+    const T = this.tile;
+    const { blocks, pads } = this.grid;
+    if (blocks.length === 0 && pads.length === 0) return;
+    const plateW = Math.round(T * PAD.widthTiles);
+    const totalH = T * PAD.heightTiles;
+    const plateH = Math.round(totalH * 0.6);
+    makeObstacleTextures(this, T, plateW, plateH);
+    for (const b of blocks) {
+      this.add.image(b.col * T + T / 2, this.gridTop + b.row * T + T / 2, `${OBSTACLE_TEX.block}-${T}`).setDisplaySize(T, T).setDepth(DEPTH.ground + 0.5);
+    }
+    for (const p of pads) {
+      const x = p.col * T + T / 2;
+      const groundTop = this.gridTop + (p.row + 1) * T;
+      const top = groundTop - totalH;
+      const spring = this.add
+        .image(x, groundTop - (totalH - plateH) / 2, `${OBSTACLE_TEX.padSpring}-${T}`)
+        .setDisplaySize(plateW * 0.5, totalH - plateH + 1)
+        .setDepth(DEPTH.goal);
+      const plate = this.add.image(x, top + plateH / 2, `${OBSTACLE_TEX.pad}-${T}`).setDisplaySize(plateW, plateH).setDepth(DEPTH.goal + 0.1);
+      this.pads.push({ plate, spring, trigger: new PadTrigger(), x, top, width: plateW });
+    }
+  }
+
+  /** A pad under the player's feet fires: launch, squash the plate, sound and sparkles. Only the real player (not the demo ghost). */
+  private updatePads(now: number): void {
+    const body = this.player.body;
+    for (const pad of this.pads) {
+      const fired = pad.trigger.update(
+        now,
+        { left: body.left, right: body.right, bottom: body.bottom, vy: body.velocity.y },
+        { x: pad.x, width: pad.width, top: pad.top },
+        this.player.grounded,
+      );
+      if (!fired) continue;
+      this.player.launch(now, PAD.launch);
+      audio.play('boing');
+      this.sparkle.explode(10, pad.x, pad.top);
+      this.tweens.killTweensOf(pad.plate);
+      const baseY = pad.plate.y;
+      pad.plate.setY(baseY + pad.plate.displayHeight * 0.35);
+      this.tweens.add({ targets: pad.plate, y: baseY, duration: PAD.squashMs, ease: 'Back.easeOut' });
+    }
+  }
 
   private buildCoins(): void {
     const key = themeKey(this.data0.theme, 'coin');
@@ -626,6 +680,7 @@ export class LevelScene extends Phaser.Scene {
     if (r.jumped) this.onJump();
 
     this.collectCoins();
+    this.updatePads(now);
 
     const body = this.player.body;
     if (body.center.x >= this.goalX - PHYSICS.body.width / 2) this.reachGoal();

@@ -17,6 +17,8 @@ import grass3 from './grass-3.json';
 import grass4 from './grass-4.json';
 import grass5 from './grass-5.json';
 import grass6 from './grass-6.json';
+import grass7 from './grass-7.json';
+import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
 import { shotHitsBubble } from '../../../core/levels/bubbles';
@@ -354,21 +356,73 @@ describe('Robo World level files', () => {
     expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('the grass world lists grass-1..6: Next goes 1 -> 2 -> ... -> 6 and is hidden on 6', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6']);
-    for (let i = 1; i < 6; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
-    expect(nextLevelId(worlds, 'grass-6')).toBeNull();
+  it('the grass world lists grass-1..7: Next goes 1 -> 2 -> ... -> 7 and is hidden on 7', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7']);
+    for (let i = 1; i < 7; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
+    expect(nextLevelId(worlds, 'grass-7')).toBeNull();
   });
 
-  it('grass-4, 5 and 6 are under clouds on a fresh start (openAtATime 3); each clear opens the next one', () => {
+  it('grass-7 "Blocks and Bounce" (Task 015, D-059): flat ground, step blocks 1-2 high, bounce pads with coins in the air, no bubbles', () => {
+    const { controls } = grass7 as unknown as { controls: { enabled: string[]; demo: unknown } };
+    expect(controls.enabled).toEqual(['left', 'right', 'jump']);
+    const level = parseLevelOrThrow(grass7, 'grass-7');
+    const e = extractEntities(level.grid);
+    expect(e.start.col).toBe(6);
+    expect(e.bubbles.length).toBe(0);
+    expect(e.blocks.length).toBeGreaterThanOrEqual(8);
+    expect(e.pads.length).toBe(2);
+    // No gaps: the ground row under the start is solid all along.
+    expect(e.solid[e.start.row + 1].every(Boolean)).toBe(true);
+    // Every block rests on the ground or another block, and no stack is taller than BLOCK_MAX_TILES.
+    for (const b of e.blocks) {
+      expect(e.solid[b.row + 1][b.col], `block ${b.col}:${b.row} has support`).toBe(true);
+      let height = 0;
+      for (let r = b.row; r < e.rows && e.blocks.some((x) => x.col === b.col && x.row === r); r++) height++;
+      expect(height).toBeLessThanOrEqual(BLOCK_MAX_TILES);
+    }
+    // No step between neighbouring columns is taller than BLOCK_MAX_TILES (a jump peaks 2.5 tiles), so every stair can be climbed.
+    const top = (col: number) => e.solid.findIndex((row) => row[col]);
+    for (let c = 1; c < e.cols; c++) expect(Math.abs(top(c) - top(c - 1)), `step at column ${c}`).toBeLessThanOrEqual(BLOCK_MAX_TILES);
+    // Pads sit on flat ground (not on a block), 4+ tiles from every block, and from each other.
+    for (const p of e.pads) {
+      expect(e.solid[p.row + 1][p.col]).toBe(true);
+      expect(e.blocks.some((b) => b.col === p.col)).toBe(false);
+      for (const b of e.blocks) expect(Math.abs(b.col - p.col), `pad ${p.col} vs block ${b.col}`).toBeGreaterThanOrEqual(4);
+    }
+    // Coins above a pad: all within a launch's reach (the body's head reaches `body.height` above the feet at the peak), and some
+    // higher than a normal jump reaches, so the pad matters.
+    const T = 64;
+    const feet = (e.start.row + 1) * T;
+    const centre = (row: number) => row * T + T / 2;
+    const launchTop = feet - padPeak() - PHYSICS.body.height;
+    const jumpTop = feet - jumpPeak(PHYSICS.jumpVelocity, PHYSICS.gravity) - PHYSICS.body.height;
+    for (const p of e.pads) {
+      const above = e.coins.filter((c) => Math.abs(c.col - p.col) <= 1 && c.row < p.row);
+      expect(above.length).toBeGreaterThanOrEqual(5);
+      for (const c of above) expect(centre(c.row), `coin ${c.col}:${c.row} within a launch`).toBeGreaterThanOrEqual(launchTop);
+      expect(above.some((c) => centre(c.row) < jumpTop)).toBe(true);
+    }
+    // No coin inside a block, on the pad cell, or within 2 columns of the goal.
+    for (const c of e.coins) {
+      expect(e.solid[c.row][c.col], `coin ${c.col}:${c.row} in a block`).toBe(false);
+      expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    }
+    // Stars: one star for finishing, 2 and 3 need coins that need blocks and pads, but 3 never needs every coin.
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThan(e.coins.length);
+    expect(level.variety).toBe(false);
+  });
+
+  it('grass-4, 5, 6 and 7 are under clouds on a fresh start (openAtATime 3); each clear opens the next one', () => {
     const grass = worlds.find((w) => w.id === 'grass')!;
     const open = (levels: Record<string, { stars: number; bestCoins: number }>) =>
       worldDots(grass, levels, { openAtATime: 3, unlockAll: false }).map((d) => d.open);
     const cleared = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, { stars: 1, bestCoins: 0 }]));
-    expect(open({})).toEqual([true, true, true, false, false, false]);
-    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false]);
-    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false]);
-    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true]);
+    expect(open({})).toEqual([true, true, true, false, false, false, false]);
+    expect(open(cleared('grass-1'))).toEqual([true, true, true, true, false, false, false]);
+    expect(open(cleared('grass-1', 'grass-2'))).toEqual([true, true, true, true, true, false, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3'))).toEqual([true, true, true, true, true, true, false]);
+    expect(open(cleared('grass-1', 'grass-2', 'grass-3', 'grass-4'))).toEqual([true, true, true, true, true, true, true]);
   });
 });
 

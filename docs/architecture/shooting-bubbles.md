@@ -23,7 +23,7 @@ Part of the architecture docs; the index is `docs/ARCHITECTURE.md`.
   overlap vertically), `coinArc`, `CoinFlow` (coins appear in an arc, wait 400 ms, leave 70 ms apart, fly 380 ms to the player's
   chest, count on arrival; the coin sound at most every 140 ms; `flushAll` at the flag; demo coins `counted: false`), `PopPitch`
   (each pop within 1 s goes one step up `POP_STEPS` (pentatonic), capped at the top, then starts again).
-- **`BubbleField.ts`** (Phaser): bubbles drawn once per size with Canvas 2D (translucent soft blue/white, white rim, a pink soap-film
+- **`BubbleField.ts`** (Phaser; a big bubble takes `BUBBLE.bigHits` = 3 shots and shrinks with each one, D-058, see the update at the end): bubbles drawn once per size with Canvas 2D (translucent soft blue/white, white rim, a pink soap-film
   sheen, highlight streak and dot, no faces), behind the player. `tryHit` pops the first unpopped bubble a shot touches (scale-up and
   fade, a white ring, sparkles, `pop-<step>` sound), then its coins. `walls(body)` gives the player's extra soft walls.
 - **LevelScene**: `Player.step` takes `walls` (the big bubble's soft wall, same `edgeLimit` stop as the level ends). `updateShots`
@@ -38,8 +38,8 @@ Part of the architecture docs; the index is `docs/ARCHITECTURE.md`.
   standing shot, even at `?size=1.6` (78 px). A bubble 160 px up was 1 px from missing for the biggest option at the peak, hence
   the raise. The unit test and the bot (`?level=grass-6`, 16 option/look combinations) both check this.
 - **Rainbow bubble** (`r`, Task 012, D-053): a small bubble (same size, drop, hit circle, bob) with a strong rainbow look drawn in code (Task 014, D-054: six thick saturated bands round the whole bubble and a slow sparkle twinkle every 1.5 s; size, hit circle, value and sound unchanged)
-  (`bubble-rainbow-<r>` texture), worth 8 coins (`BUBBLE.coins.rainbow`) instead of 3. Never written in the level JSON: replay variety
-  turns exactly one small bubble `o` into `r` (see levels.md "Replay variety"). The pop plays the `rainbow` synth recipe (a rising
+  (`bubble-rainbow-<r>` texture), worth 8 coins (`BUBBLE.coins.rainbow`) instead of 3. Never written in the level JSON: `withRainbowBubble`
+  turns exactly one small bubble `o` into `r` on every play (D-058; see levels.md "Replay variety"). The pop plays the `rainbow` synth recipe (a rising
   three-note chime, instead of the stepping `pop-<n>` sound), 30 sparkles and five coloured rings after the white one, then the 8 coins
   fly in like any others. The extra 5 coins only help the stars.
   Test hook `?rainbow=1` (Task 014b, `withRainbowHook` in `variety.ts`): forces exactly one `o` to `r` (picked from the seed) on a varied run only (a replay of a cleared level, or `?variety=1`;
@@ -98,4 +98,4 @@ walking over without a jump falls too. All six gaps were crossed from a standing
 with Right and Jump pressed together. Holding Right only: he falls at the first gap, floats back (about 160 px behind the gap),
 walks on and falls again, in a loop (7 falls in 24 s) that is never a soft lock: a Jump at the edge crosses it at any time.
 
-**Update (2026-10-28, after tablet play).** (1) Rainbow bubble: every play of a level with 4+ small bubbles now has exactly one (`withRainbowBubble` in `variety.ts`, called from `openLevel` and `openPractice`; `VARIETY.rainbowChance` is 1), including the first play and the demo grid (fixed seed 0), because 1-in-3 on replays only meant it was almost never seen. Still never written in the level JSON. (2) Big bubble: takes `BUBBLE.bigHits` (3) shots. Each hit that does not burst it shrinks it (`BUBBLE.bigScales` 1 / 0.72 / 0.48, bottom stays on the ground, hit circle and the soft wall shrink with it) with a ring, sparkles and a pop sound; the 3rd hit bursts it into the 6 coins. `bubbleScale` and `hitBursts` are pure helpers in `bubbles.ts`; the test bot counts hits too. A demo restore regrows it to full size.
+**Update (2026-10-28, after tablet play, D-058).** (1) Rainbow bubble: every play of a level with 4+ small bubbles now has exactly one (`withRainbowBubble` in `variety.ts`, called from `openLevel` and `openPractice`; `VARIETY.rainbowChance` is 1), including the first play and the demo grid (fixed seed 0), because 1-in-3 on replays only meant it was almost never seen. Still never written in the level JSON. (2) Big bubble: takes `BUBBLE.bigHits` (3) shots. Each hit that does not burst it shrinks it (`BUBBLE.bigScales` 1 / 0.72 / 0.48, bottom stays on the ground, hit circle and the soft wall shrink with it) with a ring, sparkles and a pop sound; the 3rd hit bursts it into the 6 coins. `bubbleScale` and `hitBursts` are pure helpers in `bubbles.ts`; the test bot counts hits too. A demo restore regrows it to full size.

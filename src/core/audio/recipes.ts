@@ -25,6 +25,13 @@ export function recipeDuration(r: SynthRecipe): number {
 export const DEFAULT_RECIPES = {
   tap: { tones: [{ freq: 880, dur: 0.06, type: 'sine', gain: 0.5 }] },
   jump: { tones: [{ freq: 420, to: 840, dur: 0.16, type: 'triangle' }] },
+  // Springy "boing" for a bounce pad (Task 015): a quick rising glide with a bright tail.
+  boing: {
+    tones: [
+      { freq: 260, to: 700, dur: 0.18, type: 'sine' },
+      { freq: 700, to: 1100, at: 0.12, dur: 0.22, type: 'triangle', gain: 0.7 },
+    ],
+  },
   coin: {
     tones: [
       { freq: 988, dur: 0.08, type: 'triangle' },

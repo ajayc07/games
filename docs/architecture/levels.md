@@ -41,7 +41,9 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
 - `grid`: equal-length rows, top row first. Legend: `#` ground, `.` empty, `c` coin, `S` start, `F` goal (the charging pad stands in
   that cell), `o` small bubble, `O` big bubble (a whole 2x2 block of `O`; a broken block is an error naming its first cell),
   `h` high bubble (Task 009: the small picture, 4 coins, centred in its cell and raised a quarter tile, never solid),
-  `r` rainbow bubble (Task 012: made by replay variety, never written in the JSON).
+  `r` rainbow bubble (Task 012: added to every play by `withRainbowBubble`, never written in the JSON),
+  `B` step block (Task 015: a solid one-tile toy block, stacked at most 2 high, drawn as its own orange block, not as ground),
+  `^` bounce pad (Task 015: a low pink springy plate on the ground, not solid; stepping on it launches him).
   Gaps are missing ground. Bubbles are not ground. New tile kinds get new legend entries in `core/levels/format.ts`.
 - **Vertical placement:** the grid's bottom row sits on the bottom of the 720-high screen; rows above the top of the grid
   are sky. Grass 1 uses 11 rows of 64 (704 px), so the top 16 px are sky. Grids taller than 720 extend above the screen.
@@ -101,9 +103,11 @@ column. Coins move as rigid clusters (touching coins, so arcs keep their shape).
 (diagonals count), no bubble is within 1 tile of another bubble (big-bubble cells included). Counts and kinds are preserved, so `stars`
 stay valid. Shots reach a moved bubble because its row is unchanged (D-042 rows). A level can write `"variety": false` to opt out; practice
 levels never vary. Over 200 seeds each of Grass 1-6 differs from the written grid in 199-200 of them.
-Rainbow: `rainbowPick(smallBubbles, seed)` = 1 in 3, only with 4+ small bubbles (Grass 4 and 6; Grass 5 has none), picks which `o`
-becomes `r`; the legend char `r` is never used in the JSON files. See shooting-bubbles.md.
-When it applies (`useVariety`, `openLevel` in `universes/robo/manifest.ts`): the first play of a level (no stars yet) is the grid as written;
+Rainbow (D-058): every play has exactly one, so it is no longer a replay-only surprise. `withRainbowBubble(level, seed = 0)` turns one `o`
+into `r` when the level has 4+ small bubbles (Grass 4 and 6; Grass 5 has none) and no `r` yet; `openLevel` applies it to the canonical grid
+too (fixed seed 0, so the demo and a first play agree), and `openPractice` applies it with the practice seed. `varyLevel` still picks with
+`rainbowPick` (`VARIETY.rainbowChance` = 1). The legend char `r` is never used in the JSON files. See shooting-bubbles.md.
+When it applies (`useVariety`, `openLevel` in `universes/robo/manifest.ts`): the first play of a level (no stars yet) is the grid as written (apart from the rainbow bubble, D-058);
 any play after a clear, and the win screen's Replay (`onReplay`), gets a fresh random seed kept in memory only (nothing saved, progress
 records unchanged). A level whose watch-me demo is about to play (`LevelScene.demoWillPlay`) is always canonical, even with `?variety=1`.
 `?variety=1` forces varied, `?variety=0` canonical, `?seed=<n>` fixes the seed (then Replay repeats the same grid). `?debug=1` state has `grid`.
@@ -141,4 +145,11 @@ records unchanged). A level whose watch-me demo is about to play (`LevelScene.de
 - `progression.ts`: `nextLevelId(worlds, id)` = the next level in the same world or null (tested). The universe passes
   `onNext` from it; Next keeps the chosen option.
 - `shots.ts`, `Blaster.ts`, `bubbles.ts`, `BubbleField.ts`: shooting and bubbles (Task 007), see below.
-- `variety.ts`: replay variety (Task 012), see "Replay variety" above. `testBot.ts`: the kinematic test bot shared by the practice and variety tests.
+- `pads.ts`: bounce pads and step blocks (Task 015, D-059), see "Blocks and bounce pads" below. `variety.ts`: replay variety (Task 012), see "Replay variety" above. `testBot.ts`: the kinematic test bot shared by the practice and variety tests.
+
+### Blocks and bounce pads (Task 015, D-059)
+`core/levels/pads.ts` (pure, tested): `PAD` numbers (launch 1000 px/s = the body's vertical speed cap, peak `padPeak()` about 277 px = 4.3 tiles against a normal jump's 160 px; plate 1 tile wide and 0.4 tile tall; `edge` 8 px; `rearmMs` 700; squash 320 ms), `BLOCK_MAX_TILES` = 2 (a jump peaks 2.5 tiles), `padAirMs()`, and `PadTrigger.update(now, body, plate, grounded)`:
+a pad fires once when his feet reach the plate while he is not rising and the body overlaps the plate by at least 8 px; it re-arms when he steps off, or after he has stood on it 700 ms (so landing back on it never loops, standing on it for a while bounces again).
+- **Step block `B`:** solid like ground (`extractEntities` puts it in `solid` and in `blocks`), so collision, shadows and respawn need no change; `LevelScene.buildGround` skips drawing it as ground and `buildObstacles` draws a toy block texture (`obs-block-<tile>`) at depth just above the ground. A block must rest on ground or another block; no step between neighbouring columns is taller than 2 tiles (tested).
+- **Bounce pad `^`:** not solid (the cell above the ground); `buildObstacles` draws a spring and a plate (`obs-pad-<tile>`, `obs-pad-spring-<tile>`) behind the player, `updatePads` (play mode only, never the demo ghost) calls `Player.launch(now, PAD.launch)` (sets the upward speed and counts as a used jump, so no double jump), plays the `boing` sound recipe, a sparkle burst and a plate squash tween. No new button; a pad only ever helps him reach coins.
+- **Grass 7 "Blocks and Bounce"** (`grass-7.json`): 70 tiles, flat (no gaps), Left/Right/Jump, no Power, no bubbles, start column 6, goal column 66, no demo, `"variety": false` (its coin arcs over blocks and pads must stay put). Features: a 1-block at 14, stairs at 20-21 (heights 1 then 2), a bounce pad at 30, two hurdles at 38 and 40, a bounce pad at 48, a small pyramid at 56-58 (heights 1, 2, 1). 34 coins: 15 at head height (walking), 9 on top of blocks, 10 above the pads (5 each, rows 3 to 5; the pad launch reaches up to row 3). Stars 20/28: finishing = 1; 20 needs the block coins; 28 needs a pad or two as well. Level tests check supports, stack height, spacing, coin reach and that no coin sits inside a block.
