@@ -159,6 +159,8 @@ export interface FlyingCoin {
   arrived: boolean;
   /** False for the demo ghost's pops: shown, never counted. */
   counted: boolean;
+  /** Popped from a rainbow bubble: a special rainbow coin (Task 024). */
+  rainbow: boolean;
 }
 
 /**
@@ -171,7 +173,7 @@ export class CoinFlow {
   private lastSoundAt = -Infinity;
 
   /** A bubble popped at `now` at (x, y): its coins appear in an arc. Returns the new coins. */
-  pop(now: number, x: number, y: number, n: number, counted = true): FlyingCoin[] {
+  pop(now: number, x: number, y: number, n: number, counted = true, rainbow = false): FlyingCoin[] {
     const made = coinArc(x, y, n).map((p, i) => ({
       id: this.nextId++,
       x: p.x,
@@ -179,6 +181,7 @@ export class CoinFlow {
       leaveAt: now + POP_COINS.delayMs + i * POP_COINS.staggerMs,
       arrived: false,
       counted,
+      rainbow,
     }));
     this.coins.push(...made);
     return made;

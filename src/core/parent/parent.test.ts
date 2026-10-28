@@ -118,3 +118,30 @@ describe('parent view Full screen row (Task 013)', () => {
     }
   });
 });
+
+describe('parent view second page (Task 025)', () => {
+  it('Day / night and Vibration fit on the whole width at every size, with three big controls each, and the More button is clear of the steps', () => {
+    for (const [, cw, ch] of SIZES) {
+      for (const insets of [NO_INSETS, NOTCH]) {
+        const w = logicalWidthFor(cw, ch);
+        const l = parentLayout(w, 720, insets);
+        const ctrls = l.page2.rows.flatMap((r) => r.controls);
+        expect(ctrls).toHaveLength(6);
+        for (const c of ctrls) {
+          expect(c.width).toBeGreaterThanOrEqual(80);
+          expect(c.height).toBeGreaterThanOrEqual(80);
+          expect(inside(c, w, 720, insets)).toBe(true);
+          expect(overlap(c, l.back)).toBe(false);
+        }
+        for (const [i, a] of ctrls.entries()) for (const b of ctrls.slice(i + 1)) expect(overlap({ x: a.x - 23, y: a.y - 23, width: a.width + 46, height: a.height + 46 }, b)).toBe(false);
+        expect(inside(l.more, w, 720, insets)).toBe(true);
+        for (const s of l.sizeSteps) expect(overlap(l.more, s)).toBe(false);
+        expect(overlap(l.more, l.back)).toBe(false);
+        expect(inside(l.page2.note, w, 720, insets)).toBe(true);
+        for (const r of l.page2.rows) expect(overlap(l.page2.note, r.rect)).toBe(false);
+        expect(overlap(l.page2.note, l.back)).toBe(false);
+      }
+    }
+  });
+});
+

@@ -4,6 +4,7 @@
 // real play (the ghost just gets no dust). Physics and the hit box never depend on the look.
 import type Phaser from 'phaser';
 import { PHYSICS } from './physics';
+import { flightVelocity } from './powerups';
 import { edgeLimit, nextFacing, rampSpeed, type FacingState } from './walk';
 import { RunHold, totalScale } from './runHold';
 import { AvatarDriver } from '../avatar/AvatarDriver';
@@ -18,6 +19,8 @@ export interface PlayerIntent {
   move: -1 | 0 | 1;
   /** Jump was pressed this frame (buffered and coyote-timed, D-021). */
   jumpPressed: boolean;
+  /** Jump is held (the rocket boots fly while it is, Task 023). */
+  jumpHeld?: boolean;
   /** Extra soft walls this frame (a big bubble, Task 007), on top of the level ends. Same soft stop. */
   walls?: { minX: number; maxX: number };
 }
@@ -66,6 +69,8 @@ export class Player {
   ride: { x: number; y: number } | null = null;
   /** Jump strength multiplier (1 normally; the rocket boots make it about 1.3, Task 018). */
   jumpScale = 1;
+  /** Rocket boots on: hold Jump in the air to fly (Task 023). Set by the scene with the ceiling (world y of the highest body top). */
+  flight: { ceilTop: number } | null = null;
   /** The look's opacity when it is shown (the car power-up hides the robot by setting its alpha to 0). */
   alphaWanted = 1;
   /** Moving speed multiplier (1 normally; the car power-up makes it a little faster, Task 017). */
@@ -175,6 +180,12 @@ export class Player {
       this.avatar.takeoff(now);
       jumped = true;
     }
+    const fl = this.flight;
+    if (fl) {
+      const flying = !this.grounded && !!intent.jumpHeld;
+      body.setVelocityY(flightVelocity(body.velocity.y, flying, dtMs, body.top, fl.ceilTop));
+      this.avatar.flying = flying;
+    } else if (this.avatar.flying) this.avatar.flying = false;
     return { jumped, landed };
   }
 
@@ -226,6 +237,7 @@ export class Player {
     this.body.prev.x += dx;
     this.body.prevFrame.x += dx;
     this.body.updateCenter();
+    this.lastGroundedCol += dx / this.tile;
   }
 
   /** Hidden and frozen (the real player during the demo). */

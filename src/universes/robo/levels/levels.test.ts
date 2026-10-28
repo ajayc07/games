@@ -522,10 +522,15 @@ describe('Robo World level files', () => {
     const bootsTop = feet - bootsPeak() - PHYSICS.body.height;
     const high = e.coins.filter((c) => centre(c.row) < normalTop - 20);
     const low = e.coins.filter((c) => centre(c.row) >= normalTop - 20);
-    expect(high.length).toBeGreaterThanOrEqual(6);
+    // Sky coins (rows 1-2, Task 023) need flying: held Jump lifts him up to just under the top of the grid.
+    const sky = high.filter((c) => c.row <= 2);
+    const jumpHigh = high.filter((c) => c.row > 2);
+    expect(jumpHigh.length).toBeGreaterThanOrEqual(6);
+    expect(sky.length).toBeGreaterThanOrEqual(6);
     expect(low.length).toBeGreaterThanOrEqual(12);
-    // Every high coin is within the boots' reach (with a few px to spare); none needs more.
-    for (const c of high) expect(centre(c.row), `coin ${c.col}:${c.row}`).toBeGreaterThanOrEqual(bootsTop + 4);
+    // Every high coin is within the boots' jump (with a few px to spare); the sky coins are below the flight ceiling.
+    for (const c of jumpHigh) expect(centre(c.row), `coin ${c.col}:${c.row}`).toBeGreaterThanOrEqual(bootsTop + 4);
+    for (const c of sky) expect(c.row, `coin ${c.col}:${c.row}`).toBeGreaterThanOrEqual(1);
     // Two stars never need a high coin; three stars do.
     expect(level.stars.two).toBeLessThanOrEqual(low.length);
     expect(level.stars.three).toBeGreaterThan(low.length);

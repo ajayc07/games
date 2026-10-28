@@ -36,6 +36,8 @@ interface BubbleView {
 }
 
 const COIN_SIZE = 36;
+/** Rainbow coins are a little bigger (Task 024). */
+const RAINBOW_COIN_SIZE = 46;
 const COIN_LIFT = 70;
 const TWINKLE_MS = 1500;
 
@@ -101,7 +103,9 @@ export class BubbleField {
       const e = t * t * (3 - 2 * t);
       const x = c.x + (target.x - c.x) * e;
       const y = c.y + (target.y - c.y) * e - Math.sin(Math.PI * t) * COIN_LIFT;
-      img.setPosition(x, y).setDisplaySize(COIN_SIZE * (1 - 0.35 * t), COIN_SIZE * (1 - 0.35 * t));
+      const size = c.rainbow ? RAINBOW_COIN_SIZE : COIN_SIZE;
+      img.setPosition(x, y).setDisplaySize(size * (1 - 0.35 * t), size * (1 - 0.35 * t));
+      if (c.rainbow) img.setAngle(t * 360); // a rainbow coin spins on its way
     }
   }
 
@@ -116,11 +120,12 @@ export class BubbleField {
   }
 
   /** Coins that arrived this frame: how many count, and whether to play the (throttled) coin sound. */
-  collect(now: number): { counted: number; arrived: number } {
+  collect(now: number): { counted: number; arrived: number; rainbow: number } {
     const r = this.flow.collect(now);
     for (const c of r.arrived) this.landCoin(c);
-    if (r.sound) audio.play('coin');
-    return { counted: r.counted, arrived: r.arrived.length };
+    const rainbow = r.arrived.filter((c) => c.rainbow && c.counted).length;
+    if (r.sound) audio.play(r.arrived.some((c) => c.rainbow) ? 'rainbowCoin' : 'coin');
+    return { counted: r.counted, arrived: r.arrived.length, rainbow };
   }
 
   /** Lands every coin still flying (the flag is reached); returns how many of them count. */
@@ -224,9 +229,10 @@ export class BubbleField {
     this.opts.sparkle.explode(v.spec.kind === 'big' ? 22 : rainbow ? 30 : 12, v.x, v.y);
     if (rainbow) this.rainbowRings(v);
     // The coins appear in a little arc above the bubble.
-    for (const c of this.flow.pop(now, v.x, v.y - v.spec.r * 0.3, v.spec.coins, counted)) {
-      const img = s.add.image(c.x, c.y, this.opts.coinTexture).setDisplaySize(4, 4).setDepth(this.opts.depth.coins);
-      s.tweens.add({ targets: img, displayWidth: COIN_SIZE, displayHeight: COIN_SIZE, duration: 220, ease: 'Back.easeOut' });
+    for (const c of this.flow.pop(now, v.x, v.y - v.spec.r * 0.3, v.spec.coins, counted, rainbow)) {
+      const img = s.add.image(c.x, c.y, rainbow ? rainbowCoinTexture(s) : this.opts.coinTexture).setDisplaySize(4, 4).setDepth(this.opts.depth.coins);
+      const size = rainbow ? RAINBOW_COIN_SIZE : COIN_SIZE;
+      s.tweens.add({ targets: img, displayWidth: size, displayHeight: size, duration: 220, ease: 'Back.easeOut' });
       this.coinViews.set(c.id, img);
     }
   }
@@ -252,13 +258,60 @@ export class BubbleField {
     if (!img) return;
     this.coinViews.delete(c.id);
     this.scene.tweens.killTweensOf(img);
-    this.opts.sparkle.explode(4, img.x, img.y);
+    this.opts.sparkle.explode(c.rainbow ? 9 : 4, img.x, img.y);
+    if (c.rainbow) {
+      const ring = this.scene.add.circle(img.x, img.y, 14).setStrokeStyle(4, RAINBOW[c.id % RAINBOW.length], 0.9).setDepth(this.opts.depth.coins);
+      this.scene.tweens.add({ targets: ring, scale: 2.4, alpha: 0, duration: 320, ease: 'Sine.easeOut', onComplete: () => ring.destroy() });
+    }
     img.destroy();
   }
 }
 
 /** Soft rainbow colours (red to violet) for the sheen and the burst. */
 const RAINBOW = [0xff5252, 0xffa726, 0xffee58, 0x4caf50, 0x2196f3, 0xab47bc];
+
+/** A rainbow coin (Task 024): a gold coin in a ring of rainbow colours with a white star, drawn once. */
+function rainbowCoinTexture(scene: Phaser.Scene): string {
+  const key = 'coin-rainbow';
+  if (scene.textures.exists(key)) return key;
+  const size = 96;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const c = size / 2;
+    const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+    // The ring: six coloured arcs.
+    ctx.lineWidth = 13;
+    ctx.lineCap = 'butt';
+    RAINBOW.forEach((color, i) => {
+      ctx.beginPath();
+      ctx.strokeStyle = hex(color);
+      ctx.arc(c, c, 40, (i / RAINBOW.length) * Math.PI * 2, ((i + 1) / RAINBOW.length) * Math.PI * 2 + 0.02);
+      ctx.stroke();
+    });
+    // The gold face.
+    const g = ctx.createRadialGradient(c - 8, c - 10, 4, c, c, 34);
+    g.addColorStop(0, '#fff3b0');
+    g.addColorStop(1, '#ffb300');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(c, c, 33, 0, Math.PI * 2);
+    ctx.fill();
+    // A white star.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const r = i % 2 === 0 ? 20 : 8.5;
+      ctx.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
 
 /** A translucent soft blue/white bubble of radius `r` (logical px), drawn once and cached by size. `rainbow` adds a soft rainbow sheen. */
 function bubbleTexture(scene: Phaser.Scene, r: number, rainbow = false): string {

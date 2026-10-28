@@ -23,6 +23,36 @@ export const BOOTS = {
   maxSpeed: 1000,
 } as const;
 
+/**
+ * Flying with the boots (Task 023, D-066): hold Jump in the air to rise like Iron Man, let go to glide down gently. The top
+ * of the climb is below the coin counter's row so the sky coins in rows 1-2 are in reach but he never leaves the screen.
+ */
+export const FLIGHT = {
+  /** The most upward speed the thrust gives (px/s). */
+  climbSpeed: 430,
+  /** Upward acceleration while held (px/s^2), on top of beating gravity. */
+  thrust: 4600,
+  /** The fastest he falls with the boots on (px/s): a slow, safe glide. */
+  glideFall: 320,
+  /** The highest his body top may go, below the top of the level grid (px). */
+  ceilingBelowGrid: 40,
+} as const;
+
+/**
+ * One frame of boots flight: the new vertical speed (px/s, up is negative). `held` is Jump held in the air. A boost already
+ * faster than the climb (the 1.3x jump) is never slowed. `top` and `ceilTop` are the body's top and the highest it may go.
+ */
+export function flightVelocity(vy: number, held: boolean, dtMs: number, top: number, ceilTop: number): number {
+  let v = vy;
+  if (held) {
+    if (v > -FLIGHT.climbSpeed) v = Math.max(-FLIGHT.climbSpeed, v - (FLIGHT.thrust * Math.max(0, dtMs)) / 1000);
+  } else if (v > FLIGHT.glideFall) {
+    v = FLIGHT.glideFall;
+  }
+  if (top <= ceilTop && v < 0) v = 0;
+  return v;
+}
+
 /** Jump speed with the boots on (px/s), never more than the body's speed limit. */
 export const bootsJumpSpeed = (base: number = PHYSICS.jumpVelocity): number => Math.min(BOOTS.maxSpeed, base * BOOTS.jumpScale);
 

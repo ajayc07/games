@@ -83,6 +83,8 @@ export class AvatarDriver {
   private stridePhase = 0;
   private runBlend = 0;
   private lean = 0;
+  /** Flying with the rocket boots (Task 023): leaned forward like a superhero while in the air. */
+  flying = false;
   private lastX: number;
   private lastFootfallAt = -1e9;
   private lastStreakAt = -1e9;
@@ -209,7 +211,7 @@ export class AvatarDriver {
     }
 
     // Lean: forward while running, follows vertical speed in the air; eased so switches never snap.
-    const leanTarget = riding || grounded ? 0 : airLean(input.vy, this.facing) * w.air;
+    const leanTarget = riding || grounded ? 0 : this.flying ? 0.38 * this.facing : airLean(input.vy, this.facing) * w.air;
     this.lean = smoothToward(this.lean, leanTarget, dtMs);
     const rotation = this.lean + (runLean(this.facing, w.stride) + strideRock(this.stridePhase, w.stride)) * blend;
     this.stretch = stretch;

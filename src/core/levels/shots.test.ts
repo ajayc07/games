@@ -293,3 +293,23 @@ describe('level legend: o and O', () => {
     expect(errs(['...OOO..', 'S..OOO.F', '########']).length).toBeGreaterThan(0); // 3 wide
   });
 });
+
+describe('rainbow coins (Task 024)', () => {
+  it('a pop can make rainbow coins, which count like any other and carry the flag to the scene', () => {
+    const f = new CoinFlow();
+    const plain = f.pop(0, 0, 0, 3);
+    const rainbow = f.pop(0, 0, 0, BUBBLE.coins.rainbow, true, true);
+    expect(plain.every((c) => !c.rainbow)).toBe(true);
+    expect(rainbow.length).toBe(8);
+    expect(rainbow.every((c) => c.rainbow && c.counted)).toBe(true);
+    const r = f.collect(10_000);
+    expect(r.counted).toBe(11);
+    expect(r.arrived.filter((c) => c.rainbow).length).toBe(8);
+  });
+
+  it('has its own chime', async () => {
+    const { DEFAULT_RECIPES } = await import('../audio/recipes');
+    expect(DEFAULT_RECIPES.rainbowCoin.tones.length).toBeGreaterThanOrEqual(3);
+  });
+});
+

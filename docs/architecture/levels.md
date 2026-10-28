@@ -188,4 +188,17 @@ Colours: deep blue sky (0x0b1445 to 0x3a3f9a), pale periwinkle moonlit hills (ke
 - **Debug:** with `?debug=1`, `__level.state().zen` is `{ lap, seed, bgShift }` and `__map.state().zen` the button's spot.
 
 ### Hold to run and the fall buzz (Task 021, D-064)
-`core/levels/runHold.ts` (pure, tested): `RUN_HOLD` (hold 350 ms, ramp 250 ms, x1.45, total cap x1.6, legs switch to the run gait above x1.2 and back below x1.1), `runScale(heldMs)`, `totalScale(run, other)`, `RunHold` (tracks how long one direction has been held; reset by a release, a turn, `halt` and `placeAt`). `Player` created with `runOnHold` multiplies its speed by `totalScale(run, speedScale)` and calls `AvatarDriver.setGait('run' | base gait)`; `LevelScene.makePlayer` sets it for the real player on Left/Right levels only. `core/ui/haptics.ts`: `vibrate(pattern)` (safe where unsupported) and `FALL_BUZZ_MS` (90), called at the start of `startRespawn`.
+`core/levels/runHold.ts` (pure, tested): `RUN_HOLD` (hold 350 ms, ramp 250 ms, x1.45, total cap x1.6, legs switch to the run gait above x1.2 and back below x1.1), `runScale(heldMs)`, `totalScale(run, other)`, `RunHold` (tracks how long one direction has been held; reset by a release, a turn, `halt` and `placeAt`). `Player` created with `runOnHold` multiplies its speed by `totalScale(run, speedScale)` and calls `AvatarDriver.setGait('run' | base gait)`; `LevelScene.makePlayer` sets it for the real player on Left/Right levels only. `core/ui/haptics.ts`: `vibrate(pattern)` (safe where unsupported) and `FALL_BUZZ_MS` (90), called at the start of `startRespawn`. (Replaced by `FALL_BUZZ` and the parent switch in Task 025.)
+
+### Zen seamless swap, blocks and gaps (Task 022, D-065)
+`generateZen(seed, world, { first?, carry? })` makes a 320-tile segment; with `carry: { grid, dir }` the 49 tiles `zenWindow(dir)` copies from the old segment (as `LevelScene.zenCarryGrid` prunes it: taken coins and orbs and popped bubbles cleared) land at the arrival position and content is generated only outside them (`dir 1`: from tile 66; `dir -1`: up to tile 262). `ZEN`: rightAt 294, rightArrival 34, leftAt 26, window 24, shift 260. The first segment skips the 12 tiles around the start. New motifs `steps` and `gap`; gap rules as in Practice (width 1-2, 7+ ground tiles between gaps). `rebaseZen` also destroys and rebuilds the ground strips (`groundObjs`), the step block images (`blockImgs`) and the collision bodies (the array the player collides with is refilled in place).
+
+### Rocket boots flight (Task 023, D-066)
+`FLIGHT` and `flightVelocity(vy, held, dtMs, top, ceilTop)` in `powerups.ts`. `Player.flight = { ceilTop }` is set while the boots are on; `Player.step` takes `jumpHeld` and applies `flightVelocity` after the jump logic; `AvatarDriver.flying` leans him forward. Flames grow while thrusting (`LevelScene.updatePowers`).
+
+### Rainbow coins (Task 024, D-067)
+`FlyingCoin.rainbow` from `CoinFlow.pop(..., rainbow)`; `BubbleField` draws `coin-rainbow` (46 px, spinning in flight, a rainbow ring on landing); `collect` reports `rainbow` and plays `rainbowCoin`; `LevelScene.addCoins(n, special)` bumps the counter bigger.
+
+### Day / night and vibration settings (Task 025, D-068)
+`ProgressSettings.dayNight` and `vibration`; `resolveDayNight` (`?time=`), `resolveVibration` (`?vibrate=`), `pickLook(mode, { nightLevel, varied, roll })`; `themeForRun(worldId, varied)` in `manifest.ts` picks `nightTheme` or the world theme at each level start. `haptics.ts`: `vibrate(pattern, force)` obeys the setting, `vibrationSupported()`, `FALL_BUZZ`. Parent view: `page` 1 or 2; `parentLayout` returns `more` (the page button) and `page2` (two rows of three controls over the full width, and a note area).
+

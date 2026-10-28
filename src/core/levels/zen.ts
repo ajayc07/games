@@ -1,41 +1,39 @@
-// Zen free play (Task 020, D-063): an endless, calm level with all four buttons and all three power-ups, no flag,
-// no stars and no way to lose. It is a flat ground with a segment of generated content on it; when he walks out of
-// the segment's content (into a stretch of empty ground at either end) the scene quietly swaps in a fresh segment
-// and moves everything back by the same distance, so he just keeps walking and never sees a seam. Pure and seeded:
-// the same seed and lap number always give the same segment. The scene does the swapping (LevelScene.rebaseZen).
+// Zen free play (Task 020, D-063; seamless since Task 022, D-065): an endless, calm level with all four buttons and all
+// three power-ups, step blocks, bounce pads and small gaps, no flag, no stars and no way to lose (a fall is a ride back
+// on a little cloud). A segment is 320 tiles of generated content. When he walks past tile 294 on the right (or 26 on
+// the left) the scene builds the next segment and moves everything back by 260 tiles. The 49 tiles around the swap
+// (24 each way, more than fits on any screen) are copied from the old segment into the new one, so what he sees does not
+// change at all, and the new content continues beyond that window. Pure and seeded: the same seed, lap and carried
+// window always give the same segment. The scene does the swapping (LevelScene.rebaseZen).
 import type { Action } from '../types';
 import type { PickupKind } from './powerups';
 import { makeRng, ROW } from './practice';
 
-const COLS = 300;
+const COLS = 320;
+/** Half the width of the window copied across a swap (tiles): wider than half of any screen. */
+const WINDOW = 24;
 
 export const ZEN = {
   cols: COLS,
   rows: 11,
   tile: 64,
-  /** He starts here (tiles from the left edge of a segment). */
-  startCol: 30,
-  /** Content starts this far in; the first segment starts a little closer to him so there is something to do at once. */
-  free: 52,
-  firstContent: 38,
-  /** Crossing these columns swaps the segment: to the right of `rightAt` he reappears at `rightArrival`, and so on. */
-  rightAt: COLS - 22,
-  rightArrival: 30,
-  leftAt: 22,
-  /** A segment's content stops this many tiles before its right edge. */
-  tail: 52,
+  window: WINDOW,
+  /** The first segment: he starts here, and its content starts a few tiles ahead. */
+  startCol: 34,
+  firstContent: 40,
+  /** Crossing these columns swaps the segment: past `rightAt` he reappears at `rightArrival`, below `leftAt` at `leftAt` + shift. */
+  rightAt: COLS - WINDOW - 2,
+  rightArrival: 34,
+  leftAt: 26,
 } as const;
 
-/** Columns he moves back (or forward) at a swap; the same both ways, and the same for every segment. */
+/** Columns everything moves at a swap (the same both ways and for every segment). */
 export const ZEN_SHIFT = ZEN.rightAt - ZEN.rightArrival;
-
-/** First column after a segment's content. */
-export const ZEN_CONTENT_END = ZEN.cols - ZEN.tail;
 
 /**
  * Does he need a fresh segment? `x` is his world x in px. Returns the direction (+1 he walked out on the right) and the
- * shift (px) to add to everything's x, or null. Walking back and forth never swaps twice in a row: the arrival column is
- * 8 tiles inside the trigger on both sides.
+ * shift (px) to add to everything's x, or null. The arrival is 8 tiles inside the trigger on both sides, so turning round
+ * at once never swaps twice in a row.
  */
 export function zenRebase(x: number, tile: number = ZEN.tile): { dir: 1 | -1; dx: number } | null {
   const col = x / tile;
@@ -44,18 +42,36 @@ export function zenRebase(x: number, tile: number = ZEN.tile): { dir: 1 | -1; dx
   return null;
 }
 
+/** The window copied at a swap: columns `from`..`from + 2 * window` of the old segment land at `to`.. of the new one. */
+export function zenWindow(dir: 1 | -1): { from: number; to: number; width: number } {
+  const width = 2 * WINDOW + 1;
+  if (dir === 1) return { from: ZEN.rightAt - WINDOW, to: ZEN.rightArrival - WINDOW, width };
+  return { from: ZEN.leftAt - WINDOW, to: ZEN.leftAt + ZEN_SHIFT - WINDOW, width };
+}
+
 /** The seed of a segment: lap 0 is the first one; each swap counts one lap up (right) or down (left). */
 export function zenSegmentSeed(seed: number, lap: number): number {
   return (seed + Math.imul(lap, 7919) + Math.imul(lap, lap)) >>> 0;
 }
 
-type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest';
+type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap';
 
 /** Weighted draw: shooting is the most common thing to do, then high bubbles; the rest are the occasional change. */
-const MOTIFS: readonly Motif[] = ['shoot', 'shoot', 'shoot', 'shoot', 'air', 'air', 'arc', 'pad', 'big', 'rest'];
+const MOTIFS: readonly Motif[] = ['shoot', 'shoot', 'shoot', 'shoot', 'air', 'air', 'arc', 'pad', 'big', 'rest', 'steps', 'steps', 'steps', 'gap', 'gap', 'gap'];
+/** Motifs with no bubbles in them: bubbles always come next. */
+const QUIET: readonly Motif[] = ['arc', 'pad', 'rest', 'steps', 'gap'];
 
 /** How long a power-up's reward stretch is (tiles): the car lasts about 43 tiles, the others about 10 s of walking. */
 const SET_LEN = 34;
+/** Tiles of ground at least between two gaps (as in Practice). */
+const MIN_GROUND = 7;
+
+export interface ZenOptions {
+  /** The very first segment of a visit: he starts at `startCol` and the content starts a few tiles ahead. */
+  first?: boolean;
+  /** The window of the segment he is leaving (its current state, with collected things taken out) and the direction he left by. */
+  carry?: { grid: readonly string[]; dir: 1 | -1 };
+}
 
 export interface ZenSegment {
   config: {
@@ -71,15 +87,31 @@ export interface ZenSegment {
   };
   /** What was placed, in order (for tests). */
   motifs: Array<Motif | `power-${PickupKind}`>;
+  /** The gaps in the ground (for tests). */
+  gaps: Array<{ col: number; width: 1 | 2 }>;
+  /** The generated range, [from, to) in tiles. */
+  range: { from: number; to: number };
 }
 
 class Cells {
   readonly map = new Map<string, string>();
+  readonly gaps: Array<{ col: number; width: 1 | 2 }> = [];
+  /** Last column of the last gap, or `lo` when there is none (so the first gap comes at least MIN_GROUND tiles in). */
+  lastGapEnd: number;
   constructor(
     readonly rng: () => number,
     readonly lo: number,
     readonly hi: number,
-  ) {}
+    /** Columns [from, to) kept empty (the first segment's start area). */
+    readonly skip: { from: number; to: number } | null = null,
+  ) {
+    this.lastGapEnd = lo;
+  }
+
+  /** Would something `len` tiles long starting at `col` touch the kept-empty columns? */
+  hitsSkip(col: number, len: number): boolean {
+    return !!this.skip && col + len > this.skip.from && col < this.skip.to;
+  }
 
   int(min: number, max: number): number {
     return min + Math.floor(this.rng() * (max - min + 1));
@@ -89,9 +121,10 @@ class Cells {
     return this.rng() < p;
   }
 
-  /** Puts a character in an empty cell inside the content stretch; false if it does not fit. */
+  /** Puts a character in an empty cell inside the generated range; false if it does not fit. */
   put(col: number, row: number, ch: string): boolean {
     if (col < this.lo || col >= this.hi) return false;
+    if (this.skip && col >= this.skip.from && col < this.skip.to) return false;
     const key = `${row}:${col}`;
     if (this.map.has(key)) return false;
     this.map.set(key, ch);
@@ -160,6 +193,32 @@ function rest(c: Cells, from: number): number {
   return from + 6;
 }
 
+/** Toy blocks to climb: one high, two high, one high again, with a coin on top of each (as the stairs in Grass 7). */
+function steps(c: Cells, from: number): number {
+  const x = from + 2;
+  c.put(x, 8, 'B');
+  c.put(x + 1, 8, 'B');
+  c.put(x + 1, 7, 'B');
+  c.put(x + 2, 8, 'B');
+  c.put(x, 7, 'c');
+  c.put(x + 1, 6, 'c');
+  c.put(x + 2, 7, 'c');
+  return from + 8;
+}
+
+/** A gap of 1 or 2 tiles with a coin arc over it, as in Practice; a plain `rest` if there is no room for the ground rule. */
+function gap(c: Cells, from: number): number {
+  const width: 1 | 2 = c.chance(0.5) ? 1 : 2;
+  const g = Math.max(from + 4, c.lastGapEnd + 1 + MIN_GROUND);
+  if (g + width + MIN_GROUND > c.hi) return rest(c, from);
+  c.gaps.push({ col: g, width });
+  c.put(g - 1, ROW.up, 'c');
+  for (let i = 0; i < width; i++) c.put(g + i, ROW.high, 'c');
+  c.put(width === 1 ? g + 3 : g + 2, ROW.up, 'c');
+  c.lastGapEnd = g + width - 1;
+  return g + width + 3;
+}
+
 const PICKUP_CHAR: Record<PickupKind, string> = { car: 'P', magnet: 'M', boots: 'J' };
 
 /** A power-up orb at walking height, then the stretch that rewards it (no bubbles in it). */
@@ -177,19 +236,41 @@ function powerSet(c: Cells, from: number, kind: PickupKind): number {
     let i = 0;
     for (let x = start; x < end; x += 2) c.put(x, rows[i++ % rows.length], 'c');
   } else {
-    // Low coins on the way and high ones only the boots reach (row 4, like Rocket Boots).
+    // Low coins on the way, high ones only a high jump reaches (row 4), and sky coins only flying reaches (rows 1-2).
     for (let x = start; x < end; x += 2) c.put(x, ROW.up, 'c');
     for (let x = start + 1; x < end - 1; x += 4) c.put(x, 4, 'c');
+    for (let x = start + 3; x < end - 3; x += 6) c.put(x, c.chance(0.5) ? 1 : 2, 'c');
   }
   return end;
 }
 
-/** A segment of the zen world. `first` makes content start closer to him (the very first one). */
-export function generateZen(seed: number, world = 'grass', first = false): ZenSegment {
+/** Keeps only whole 2x2 big bubbles (a window edge may have cut one in half). */
+function fixBigBubbles(grid: string[][]): void {
+  const keep = new Set<string>();
+  for (let col = 0; col + 1 < grid[7].length; col++) {
+    if (grid[7][col] === 'O' && grid[7][col + 1] === 'O' && grid[8][col] === 'O' && grid[8][col + 1] === 'O') {
+      for (const [r, cc] of [[7, col], [7, col + 1], [8, col], [8, col + 1]]) keep.add(`${r}:${cc}`);
+      col++;
+    }
+  }
+  for (let r = 0; r < grid.length; r++) {
+    for (let col = 0; col < grid[r].length; col++) if (grid[r][col] === 'O' && !keep.has(`${r}:${col}`)) grid[r][col] = '.';
+  }
+}
+
+/** A segment of the zen world. */
+export function generateZen(seed: number, world = 'grass', options: ZenOptions = {}): ZenSegment {
   const rng = makeRng(seed);
-  const lo = first ? ZEN.firstContent : ZEN.free;
-  const hi = ZEN_CONTENT_END;
-  const c = new Cells(rng, lo, hi);
+  const win = options.carry ? zenWindow(options.carry.dir) : null;
+  // The generated range: everything except the carried window.
+  let lo = 2;
+  let hi = COLS - 2;
+  if (win && options.carry) {
+    if (options.carry.dir === 1) lo = win.to + win.width;
+    else hi = win.to;
+  }
+  // The very first segment keeps the area around his start clear (he starts in the middle, content to both sides).
+  const c = new Cells(rng, lo, hi, options.first ? { from: ZEN.startCol - 6, to: ZEN.firstContent } : null);
   const motifs: ZenSegment['motifs'] = [];
 
   const kinds: PickupKind[] = [];
@@ -205,31 +286,41 @@ export function generateZen(seed: number, world = 'grass', first = false): ZenSe
   };
 
   let col: number = lo;
-  // Power-ups come by position, not by luck: the first stretch is due 24-36 tiles in, the next 6-20 tiles after the last.
-  let setDue = lo + c.int(24, 36);
+  // Power-ups come by position, not by luck: the first stretch is due 30-50 tiles in, the next 24-44 tiles after the last.
+  let setDue = lo + c.int(30, 50);
   let last: Motif | null = null;
-  // After a power-up stretch (no bubbles in it) or a coin-only motif, the next thing is always bubbles to shoot.
+  // After a power-up stretch (no bubbles in it) or a quiet motif, the next thing is always bubbles to shoot.
   let needBubbles = false;
-  while (hi - col >= 12) {
-    if (col >= setDue && hi - col >= SET_LEN + 8) {
+  while (hi - col >= 8) {
+    if (col >= setDue && hi - col >= SET_LEN + 8 && !c.hitsSkip(col, SET_LEN + 8)) {
       const kind = nextKind();
       motifs.push(`power-${kind}`);
       col = powerSet(c, col, kind) + c.int(2, 4);
-      setDue = col + c.int(6, 20);
+      setDue = col + c.int(24, 44);
       needBubbles = true;
+      continue;
+    }
+    if (c.hitsSkip(col, 20)) {
+      // Not enough room before the kept-empty start area: a short filler, or jump over it.
+      if (col + 6 <= c.skip!.from) {
+        rest(c, col);
+        col += 8;
+      } else col = c.skip!.to;
       continue;
     }
     let m: Motif;
     do m = needBubbles ? (c.chance(0.65) ? 'shoot' : 'air') : MOTIFS[c.int(0, MOTIFS.length - 1)];
     while (m === last && m !== 'shoot');
     last = m;
-    needBubbles = m === 'arc' || m === 'pad' || m === 'rest';
+    needBubbles = QUIET.includes(m);
     motifs.push(m);
     if (m === 'shoot') col = shoot(c, col, c.int(12, 18));
     else if (m === 'air') col = air(c, col, c.int(12, 16));
     else if (m === 'arc') col = arc(c, col);
     else if (m === 'pad') col = pad(c, col);
     else if (m === 'big') col = big(c, col);
+    else if (m === 'steps') col = steps(c, col);
+    else if (m === 'gap') col = gap(c, col);
     else col = rest(c, col);
     col += c.int(2, 3);
   }
@@ -240,18 +331,32 @@ export function generateZen(seed: number, world = 'grass', first = false): ZenSe
     const smalls = cells.filter(([, ch]) => ch === 'o');
     if (smalls.length > 0) c.map.set(smalls[c.int(0, smalls.length - 1)][0], 'r');
   }
+  // A jump from the edge of a 1-tile gap flies over the next two columns at head height: no walking coin there (Practice).
+  for (const g of c.gaps) if (g.width === 1) for (const dc of [1, 2]) if (c.map.get(`${ROW.up}:${g.col + dc}`) === 'c') c.map.delete(`${ROW.up}:${g.col + dc}`);
 
-  const grid: string[] = [];
+  const grid: string[][] = [];
   for (let row = 0; row < ZEN.rows; row++) {
-    let line = '';
-    for (let x = 0; x < ZEN.cols; x++) {
-      if (row >= ROW.ground) line += '#';
-      else if (row === ROW.low && x === ZEN.startCol) line += 'S';
-      else if (row === ROW.low && x === ZEN.cols - 1) line += 'F';
-      else line += c.map.get(`${row}:${x}`) ?? '.';
+    const line: string[] = [];
+    for (let x = 0; x < COLS; x++) {
+      if (row >= ROW.ground) line.push(c.gaps.some((g) => x >= g.col && x < g.col + g.width) ? '.' : '#');
+      else line.push(c.map.get(`${row}:${x}`) ?? '.');
     }
     grid.push(line);
   }
+  // The carried window: copied as it is (ground and all), without the old start and flag.
+  if (win && options.carry) {
+    for (let row = 0; row < ZEN.rows; row++) {
+      for (let i = 0; i < win.width; i++) {
+        const ch = options.carry.grid[row][win.from + i];
+        grid[row][win.to + i] = ch === 'S' || ch === 'F' ? '.' : ch;
+      }
+    }
+  }
+  fixBigBubbles(grid);
+  // The start matters only for the first segment; later ones keep a harmless one in the empty far corner.
+  grid[ROW.low][options.first ? ZEN.startCol : 0] = 'S';
+  grid[ROW.low][COLS - 1] = 'F';
+
   return {
     config: {
       version: 1,
@@ -263,9 +368,11 @@ export function generateZen(seed: number, world = 'grass', first = false): ZenSe
       tileSize: ZEN.tile,
       // Never shown (no result screen) but the format needs them.
       stars: { two: 0, three: 0 },
-      grid,
+      grid: grid.map((r) => r.join('')),
     },
     motifs,
+    gaps: c.gaps,
+    range: { from: lo, to: hi },
   };
 }
 

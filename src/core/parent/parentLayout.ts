@@ -34,6 +34,10 @@ export interface ParentLayout {
   sizeSteps: Rect[];
   /** The Full screen row (Task 013), under the size steps; null when fullscreen is unavailable (row hidden, preview grows). */
   fullscreen: { rect: Rect; label: Rect; controls: Rect[] } | null;
+  /** The "More settings ›" button at the top of the right column; on the second page it reads "‹ Settings" (Task 025). */
+  more: Rect;
+  /** The second page (Task 025): Day / night and Vibration, one row each across the whole width, and a note under them. */
+  page2: { rows: Array<{ id: 'daynight' | 'vibration'; rect: Rect; label: Rect; controls: Rect[] }>; note: Rect };
   /** The preview panel (the mini screen is drawn inside it, see `previewFit`). */
   preview: Rect;
   reset: Rect;
@@ -57,6 +61,10 @@ export const PARENT = {
   labelMax: 190,
   controlMinW: 100,
   backW: 128,
+  /** Extra room under the size caption for the "More settings" button. */
+  moreExtra: 14,
+  moreW: 196,
+  moreH: 44,
   /** The preview never gets less than this height. */
   previewMinH: 200,
 } as const;
@@ -99,7 +107,7 @@ export function parentLayout(width: number, height: number, insets: Insets, with
 
   // Right column: size steps on top, Reset and Back at the bottom, the preview in between.
   const sizeLabel = { x: rightX, y: top, width: rightW, height: P.labelH };
-  const stepY = top + P.labelH + 8;
+  const stepY = top + P.labelH + 8 + P.moreExtra;
   const stepW = Math.floor((rightW - P.gap * 3) / 4);
   const sizeSteps: Rect[] = [0, 1, 2, 3].map((i) => ({ x: rightX + i * (stepW + P.gap), y: stepY, width: stepW, height: P.rowH }));
   const bottomY = bottom - P.rowH;
@@ -123,7 +131,24 @@ export function parentLayout(width: number, height: number, insets: Insets, with
     previewY = y + P.rowH + P.gap;
   }
   const preview = { x: rightX, y: previewY, width: rightW, height: Math.max(P.previewMinH, bottomY - P.gap - previewY) };
-  return { rows, sizeLabel, sizeSteps, fullscreen, preview, reset, back };
+  const more = { x: rightX + rightW - P.moreW, y: top - 6, width: P.moreW, height: P.moreH };
+  // Page 2: the whole content width, so three choices fit even on the narrowest screen.
+  const p2Ctrl = cx + labelW + P.gap;
+  const p2W = contentW - labelW - P.gap;
+  const w3 = Math.floor((p2W - P.gap * 2) / 3);
+  const p2Row = (id: 'daynight' | 'vibration', i: number) => {
+    const y = top + P.moreH + P.gap + i * (P.rowH + P.gap);
+    return {
+      id,
+      rect: { x: cx, y, width: contentW, height: P.rowH },
+      label: { x: cx, y, width: labelW, height: P.rowH },
+      controls: [0, 1, 2].map((k) => ({ x: p2Ctrl + k * (w3 + P.gap), y, width: w3, height: P.rowH })),
+    };
+  };
+  const p2rows = [p2Row('daynight', 0), p2Row('vibration', 1)];
+  const noteY = p2rows[1].rect.y + P.rowH + P.gap;
+  const note = { x: cx, y: noteY, width: contentW, height: Math.max(60, bottomY - P.gap - noteY) };
+  return { rows, sizeLabel, sizeSteps, fullscreen, more, page2: { rows: p2rows, note }, preview, reset, back };
 }
 
 /**

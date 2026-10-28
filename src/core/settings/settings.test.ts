@@ -8,6 +8,9 @@ import {
   bindSettings,
   clampButtonScale,
   nearestScaleStep,
+  pickLook,
+  resolveDayNight,
+  resolveVibration,
   resolveButtonScale,
   resolveButtonsPrimary,
   resolveLook,
@@ -101,8 +104,8 @@ describe('settings precedence: URL, then saved, then default', () => {
   });
 
   it('reports which settings the URL pins', () => {
-    expect(urlOverrides('')).toEqual({ buttonScale: false, buttonsPrimary: false, soundOn: false, unlockAll: false, look: false, walkAssist: false, fullscreen: false });
-    expect(urlOverrides('?buttonScale=1.3&buttons=power&sound=0&unlock=all&look=ball&assist=sticky')).toEqual({ buttonScale: true, buttonsPrimary: true, soundOn: true, unlockAll: true, look: true, walkAssist: true, fullscreen: false });
+    expect(urlOverrides('')).toEqual({ buttonScale: false, buttonsPrimary: false, soundOn: false, unlockAll: false, look: false, walkAssist: false, fullscreen: false, dayNight: false, vibration: false });
+    expect(urlOverrides('?buttonScale=1.3&buttons=power&sound=0&unlock=all&look=ball&assist=sticky')).toEqual({ buttonScale: true, buttonsPrimary: true, soundOn: true, unlockAll: true, look: true, walkAssist: true, fullscreen: false, dayNight: false, vibration: false });
     expect(urlOverrides('?assist=maybe').walkAssist).toBe(false);
     expect(urlOverrides('?buttonScale=junk&look=sprite').buttonScale).toBe(false);
     expect(urlOverrides('?look=sprite').look).toBe(false);
@@ -221,3 +224,53 @@ describe('unlock all through the settings', () => {
     expect(open(unlockFromSearch('', 3, false))).toBe(3);
   });
 });
+
+describe('day / night and vibration (Task 025)', () => {
+  const input = (search: string, saved: Parameters<typeof resolveDayNight>[0]['saved'] = {}) => ({ search, saved, savedLook: null });
+
+  it('day / night: the URL, then the saved value, then random', () => {
+    expect(resolveDayNight(input(''))).toBe('random');
+    expect(resolveDayNight(input('', { dayNight: 'night' }))).toBe('night');
+    expect(resolveDayNight(input('?time=day', { dayNight: 'night' }))).toBe('day');
+    expect(resolveDayNight(input('?time=nonsense', { dayNight: 'day' }))).toBe('day');
+    expect(resolveDayNight(input('?time=RANDOM', { dayNight: 'day' }))).toBe('random');
+    expect(urlOverrides('?time=day').dayNight).toBe(true);
+    expect(urlOverrides('?time=x').dayNight).toBe(false);
+  });
+
+  it('vibration: the URL, then the saved value, then on', () => {
+    expect(resolveVibration(input(''))).toBe(true);
+    expect(resolveVibration(input('', { vibration: false }))).toBe(false);
+    expect(resolveVibration(input('?vibrate=1', { vibration: false }))).toBe(true);
+    expect(resolveVibration(input('?vibrate=off'))).toBe(false);
+    expect(urlOverrides('?vibrate=0').vibration).toBe(true);
+    expect(urlOverrides('').vibration).toBe(false);
+  });
+
+  it('which look a level gets: the night level is always dark, day and night are obeyed, random keeps a first play bright', () => {
+    for (const roll of [0, 0.3, 0.7, 0.99]) {
+      expect(pickLook('day', { nightLevel: true, varied: true, roll })).toBe('night');
+      expect(pickLook('day', { nightLevel: false, varied: true, roll })).toBe('day');
+      expect(pickLook('night', { nightLevel: false, varied: false, roll })).toBe('night');
+      expect(pickLook('random', { nightLevel: false, varied: false, roll })).toBe('day');
+    }
+    expect(pickLook('random', { nightLevel: false, varied: true, roll: 0.2 })).toBe('night');
+    expect(pickLook('random', { nightLevel: false, varied: true, roll: 0.8 })).toBe('day');
+    // Roughly half and half over many rolls.
+    let night = 0;
+    for (let i = 0; i < 1000; i++) if (pickLook('random', { nightLevel: false, varied: true, roll: i / 1000 }) === 'night') night++;
+    expect(night).toBe(500);
+  });
+
+  it('both settings survive the saved record, and bad values are dropped', () => {
+    const rec = freshRecord();
+    rec.settings.dayNight = 'night';
+    rec.settings.vibration = false;
+    const back = parseRecord(serializeRecord(rec)).record;
+    expect(back.settings.dayNight).toBe('night');
+    expect(back.settings.vibration).toBe(false);
+    const bad = parseRecord(JSON.stringify({ version: 1, settings: { dayNight: 'purple', vibration: 'yes' } })).record;
+    expect(bad.settings).toEqual({});
+  });
+});
+

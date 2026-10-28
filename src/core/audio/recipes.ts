@@ -55,6 +55,15 @@ export const DEFAULT_RECIPES = {
       { freq: 1319, at: 0.08, dur: 0.24, type: 'triangle' },
     ],
   },
+  // A rainbow coin (Task 024): the coin sound, an octave of sparkle higher with a shimmer on top.
+  rainbowCoin: {
+    tones: [
+      { freq: 1319, dur: 0.07, type: 'triangle' },
+      { freq: 1760, at: 0.06, dur: 0.07, type: 'triangle' },
+      { freq: 2349, at: 0.12, dur: 0.26, type: 'triangle' },
+      { freq: 3520, at: 0.14, dur: 0.18, type: 'sine', gain: 0.12 },
+    ],
+  },
   win: {
     tones: [
       { freq: 523, dur: 0.14, type: 'triangle' },

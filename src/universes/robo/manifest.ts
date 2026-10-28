@@ -20,6 +20,9 @@ import {
   resolveUnlockAll,
   resolveWalkAssist,
   resolveFullscreen,
+  pickLook,
+  resolveDayNight,
+  resolveVibration,
   settings,
   urlOverrides,
 } from '../../core/settings/settings';
@@ -29,9 +32,11 @@ import { loadLegacyChoice } from '../../core/storage/choice';
 import { ProgressStore } from '../../core/storage/store';
 import { starsOf, type ProgressRecord } from '../../core/storage/progress';
 import { options } from './options';
+import { FALL_BUZZ, vibrate, vibrationSupported } from '../../core/ui/haptics';
 import { enterFullscreen, exitFullscreen, fullscreenAvailable } from '../../core/ui/fullscreen';
 import { levels } from './levels';
-import { themeForWorld } from './themes';
+import { nightTheme, themeForWorld } from './themes';
+import type { LevelTheme } from '../../core/levels/theme';
 import { worlds } from './worlds';
 import { InputLabScene, type InputLabData } from './scenes/InputLabScene';
 import { UNIVERSE_ID, UNIVERSE_TITLE } from './universe';
@@ -147,6 +152,12 @@ function openPicker(s: Session, then: () => void): void {
   startOnly(s.game, PickerScene.KEY, PickerScene, data);
 }
 
+/** The look of a level at this start (Task 025): bright or dark, by the parent's setting (random by default). */
+function themeForRun(worldId: string, varied: boolean): LevelTheme {
+  const look = pickLook(settings.dayNight(), { nightLevel: worldId === 'night', varied, roll: Math.random() });
+  return look === 'night' ? nightTheme : themeForWorld(worldId);
+}
+
 function openMap(s: Session): void {
   const world = worlds.find((w) => w.levels.length > 0);
   if (!world) throw new Error(`${TAG} no world with levels`);
@@ -195,7 +206,7 @@ function openPractice(s: Session, mode: PracticeMode, seed: number): void {
   });
   const data: LevelSceneData = {
     level,
-    theme: themeForWorld(level.world),
+    theme: themeForRun(level.world, true),
     option: currentOption(s),
     look: s.look,
     onHome: () => openMap(s),
@@ -211,10 +222,10 @@ function openPractice(s: Session, mode: PracticeMode, seed: number): void {
  */
 function openZen(s: Session, seed: number): void {
   s.arrival = null;
-  const level = parseLevelOrThrow(generateZen(seed, 'grass', true).config, `zen ${seed}`);
+  const level = parseLevelOrThrow(generateZen(seed, 'grass', { first: true }).config, `zen ${seed}`);
   const data: LevelSceneData = {
     level,
-    theme: themeForWorld(level.world),
+    theme: themeForRun(level.world, true),
     option: currentOption(s),
     look: s.look,
     onHome: () => openMap(s),
@@ -241,6 +252,9 @@ function openParent(s: Session): void {
         walkAssist: saved.walkAssist ?? resolveWalkAssist(input),
         fullscreen: saved.fullscreen ?? resolveFullscreen(input),
         fullscreenAvailable: fullscreenAvailable(),
+        dayNight: saved.dayNight ?? resolveDayNight(input),
+        vibration: saved.vibration ?? resolveVibration(input),
+        vibrationSupported: vibrationSupported(),
         pinned: urlOverrides(input.search),
       };
     },
@@ -262,6 +276,12 @@ function openParent(s: Session): void {
       if (on) enterFullscreen();
       else exitFullscreen();
     },
+    setDayNight: (v) => store.updateSettings({ dayNight: v }),
+    setVibration: (on) => {
+      store.updateSettings({ vibration: on });
+      if (on) vibrate(FALL_BUZZ, true); // a buzz right away, so the parent feels that it is on
+    },
+    testBuzz: () => vibrate(FALL_BUZZ, true),
     showDemosAgain: () => LevelScene.forgetDemos(),
     resetProgress: async () => {
       s.arrival = null;
@@ -297,7 +317,7 @@ function openLevel(s: Session, levelId: string, replay = false): void {
   const data: LevelSceneData = {
     level: withRainbowBubble(varied ? varyForRun(level, varietySeedFrom(location.search)) : level),
     onReplay: () => openLevel(s, here, true),
-    theme: themeForWorld(level.world),
+    theme: themeForRun(level.world, varied),
     option: currentOption(s),
     look: s.look,
     onHome: () => openMap(s),

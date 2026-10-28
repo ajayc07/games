@@ -21,6 +21,10 @@ export interface ProgressSettings {
   walkAssist?: 'off' | 'sticky';
   /** Browser fullscreen on the first tap (Task 013). Missing = on. */
   fullscreen?: boolean;
+  /** Bright or dark look of a level (Task 025): `random` (the default) picks one at each start, or always `day` / `night`. */
+  dayNight?: 'random' | 'day' | 'night';
+  /** The fall buzz (Task 021, Task 025). Missing = on. */
+  vibration?: boolean;
 }
 
 export interface ProgressRecord {
@@ -75,6 +79,8 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
     if (typeof s.unlockAll === 'boolean') record.settings.unlockAll = s.unlockAll;
     if (s.walkAssist === 'off' || s.walkAssist === 'sticky') record.settings.walkAssist = s.walkAssist;
     if (typeof s.fullscreen === 'boolean') record.settings.fullscreen = s.fullscreen;
+    if (s.dayNight === 'random' || s.dayNight === 'day' || s.dayNight === 'night') record.settings.dayNight = s.dayNight;
+    if (typeof s.vibration === 'boolean') record.settings.vibration = s.vibration;
   }
   return { record, status: 'ok' };
 }

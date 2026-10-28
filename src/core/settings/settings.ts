@@ -13,6 +13,9 @@ export type ButtonsPrimary = 'jump' | 'power';
 /** Walk assist in Practice (Task 011, D-049): off (default) or sticky (a quick tap on Left/Right keeps walking). */
 export type WalkAssist = 'off' | 'sticky';
 
+/** Bright or dark look (Task 025): random at each start (the default), or always day, or always night. */
+export type DayNight = 'random' | 'day' | 'night';
+
 export interface SettingsInput {
   /** `location.search` of this visit. */
   search: string;
@@ -74,6 +77,34 @@ export function resolveFullscreen(i: SettingsInput): boolean {
   return i.saved.fullscreen ?? true;
 }
 
+/** `?time=day|night|random`, else the saved value, else random (Task 025). */
+export function resolveDayNight(i: SettingsInput): DayNight {
+  const url = param(i.search, 'time')?.toLowerCase();
+  if (url === 'day' || url === 'night' || url === 'random') return url;
+  const saved = i.saved.dayNight;
+  return saved === 'day' || saved === 'night' ? saved : 'random';
+}
+
+/** `?vibrate=0|1` (also off/on), else the saved value, else on (Task 025). */
+export function resolveVibration(i: SettingsInput): boolean {
+  const url = param(i.search, 'vibrate')?.toLowerCase();
+  if (url === '0' || url === 'off') return false;
+  if (url === '1' || url === 'on') return true;
+  return i.saved.vibration ?? true;
+}
+
+/**
+ * Which look a level gets. The night level is always night; `day` and `night` are always obeyed; `random` rolls (a number
+ * 0..1) at each start, but a first play of a level (not `varied`) stays bright like it always was, so the first time through
+ * a level is the same for everyone. Zen and Practice count as varied.
+ */
+export function pickLook(mode: DayNight, o: { nightLevel: boolean; varied: boolean; roll: number }): 'day' | 'night' {
+  if (o.nightLevel) return 'night';
+  if (mode === 'night') return 'night';
+  if (mode === 'day') return 'day';
+  return o.varied && o.roll < 0.5 ? 'night' : 'day';
+}
+
 /** `?look=` (a known name), else the saved look, else the robot. (An unknown `?look=` is ignored here; the boot warns.) */
 export function resolveLook(i: SettingsInput): LookName {
   const url = param(i.search, 'look')?.toLowerCase();
@@ -90,12 +121,16 @@ export function urlOverrides(search: string): {
   look: boolean;
   walkAssist: boolean;
   fullscreen: boolean;
+  dayNight: boolean;
+  vibration: boolean;
 } {
   const scale = Number(param(search, 'buttonScale'));
   const sound = param(search, 'sound')?.toLowerCase();
   const buttons = param(search, 'buttons');
   const assist = param(search, 'assist')?.toLowerCase();
   const fs = param(search, 'fullscreen')?.toLowerCase();
+  const time = param(search, 'time')?.toLowerCase();
+  const vib = param(search, 'vibrate')?.toLowerCase();
   return {
     buttonScale: param(search, 'buttonScale') !== null && Number.isFinite(scale) && scale > 0,
     buttonsPrimary: buttons === 'jump' || buttons === 'power',
@@ -104,6 +139,8 @@ export function urlOverrides(search: string): {
     look: isLook(param(search, 'look')?.toLowerCase()),
     walkAssist: assist === 'sticky' || assist === 'off',
     fullscreen: fs === '0' || fs === 'off' || fs === '1' || fs === 'on',
+    dayNight: time === 'day' || time === 'night' || time === 'random',
+    vibration: vib === '0' || vib === 'off' || vib === '1' || vib === 'on',
   };
 }
 
@@ -139,4 +176,6 @@ export const settings = {
   look: (): LookName => resolveLook(source()),
   walkAssist: (): WalkAssist => resolveWalkAssist(source()),
   fullscreen: (): boolean => resolveFullscreen(source()),
+  dayNight: (): DayNight => resolveDayNight(source()),
+  vibration: (): boolean => resolveVibration(source()),
 };

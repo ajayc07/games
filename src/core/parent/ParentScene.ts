@@ -7,7 +7,7 @@ import { audio } from '../audio/AudioManager';
 import { HoldTracker, RESET_HOLD_MS } from '../ui/hold';
 import { placeButtons } from '../ui/buttonLayout';
 import { STYLES, drawActionIcon } from '../ui/TouchControls';
-import { BUTTON_SCALE_STEPS, nearestScaleStep, type ButtonsPrimary, type WalkAssist } from '../settings/settings';
+import { BUTTON_SCALE_STEPS, nearestScaleStep, type ButtonsPrimary, type DayNight, type WalkAssist } from '../settings/settings';
 import { LOOK_NAMES, type LookName } from '../avatar/config';
 import { parentLayout, previewFit, type ParentLayout, type Rect } from './parentLayout';
 
@@ -23,8 +23,13 @@ export interface ParentState {
   fullscreen: boolean;
   /** Whether this browser can do fullscreen and the app is not installed; the row is hidden otherwise. */
   fullscreenAvailable: boolean;
+  /** Bright or dark look (Task 025). */
+  dayNight: DayNight;
+  /** The fall buzz (Task 025), and whether this browser can vibrate at all (iOS Safari cannot). */
+  vibration: boolean;
+  vibrationSupported: boolean;
   /** Settings the URL pins for this visit (a change is saved but this visit still uses the URL value). */
-  pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean; fullscreen: boolean };
+  pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean; fullscreen: boolean; dayNight: boolean; vibration: boolean };
 }
 
 export interface ParentSceneData {
@@ -37,6 +42,10 @@ export interface ParentSceneData {
   setWalkAssist(v: WalkAssist): void;
   /** Saves the setting and, being a tap, enters or leaves fullscreen right away. */
   setFullscreen(on: boolean): void;
+  setDayNight(v: DayNight): void;
+  setVibration(on: boolean): void;
+  /** Buzzes now, whatever the switch says; true if the browser accepted it. */
+  testBuzz(): boolean;
   showDemosAgain(): void;
   resetProgress(): Promise<void>;
   onBack(): void;
@@ -68,6 +77,9 @@ export class ParentScene extends Phaser.Scene {
   private leaving = false;
   private resetDone = 0;
   private demoTick = 0;
+  /** 1 = the main page, 2 = Day / night and Vibration (Task 025). */
+  private page: 1 | 2 = 1;
+  private buzzTried: 'none' | 'ok' | 'no' = 'none';
   private seenKeys = new WeakSet<KeyboardEvent>();
   private pointerOnReset = -1;
   private previewButtons: Array<{ action: string; x: number; y: number; r: number }> = [];
@@ -85,6 +97,8 @@ export class ParentScene extends Phaser.Scene {
     this.resetTitle = null;
     this.resetDone = 0;
     this.demoTick = 0;
+    this.page = 1;
+    this.buzzTried = 'none';
     this.pointerOnReset = -1;
     this.seenKeys = new WeakSet();
   }
@@ -120,6 +134,10 @@ export class ParentScene extends Phaser.Scene {
     this.pl = parentLayout(l.width, l.height, l.insets, st.fullscreenAvailable);
     root.add(this.add.graphics().fillStyle(C.bg, 1).fillRect(0, 0, l.width, l.height));
 
+    if (this.page === 2) {
+      this.buildPage2(st);
+      return;
+    }
     const row = (id: string) => this.pl.rows.find((r) => r.id === id)!;
     const put = (...o: Phaser.GameObjects.GameObject[]) => root.add(o);
 
@@ -164,8 +182,56 @@ export class ParentScene extends Phaser.Scene {
     const cur = nearestScaleStep(st.buttonScale);
     this.pl.sizeSteps.forEach((r, i) => this.choice(r, names[i], i === cur, () => this.change(() => this.data0.setButtonScale(BUTTON_SCALE_STEPS[i]))).setFontSize(21));
     this.drawPreview(st);
+    this.buildMore('More settings  ›');
     this.buildReset();
     this.buildBack();
+  }
+
+  /** The second page (Task 025): the look of the levels (bright, dark or random) and the fall buzz with a test button. */
+  private buildPage2(st: ParentState): void {
+    const [dn, vib] = this.pl.page2.rows;
+    this.rowLabel(dn, 'Day / night');
+    ([['random', 'Random'], ['day', 'Day'], ['night', 'Night']] as const).forEach(([v, name], i) =>
+      this.choice(dn.controls[i], name, st.dayNight === v, () => this.change(() => this.data0.setDayNight(v))),
+    );
+    this.rowLabel(vib, 'Vibration');
+    this.choice(vib.controls[0], 'On', st.vibration, () => this.change(() => this.data0.setVibration(true)));
+    this.choice(vib.controls[1], 'Off', !st.vibration, () => this.change(() => this.data0.setVibration(false)));
+    const test = this.buzzTried === 'ok' ? 'Buzzed ✓' : this.buzzTried === 'no' ? 'Not felt' : 'Test buzz';
+    this.choice(vib.controls[2], test, this.buzzTried === 'ok', () => {
+      this.buzzTried = this.data0.testBuzz() ? 'ok' : 'no';
+      this.change(() => undefined);
+    }).setFontSize(24);
+    const lines = [
+      'Random: each time he starts a level it is bright or dark by chance. The first time through a level is always bright; Night 1 is always dark.',
+      'Vibration: a firm buzz when he falls into a gap. Not felt? Check that the phone is not on silent or battery saver, and that touch vibration is on in its settings.',
+      st.vibrationSupported ? '' : 'This browser cannot vibrate at all (iPhone and iPad cannot).',
+    ];
+    const pinned = [st.pinned.dayNight && 'day / night', st.pinned.vibration && 'vibration'].filter(Boolean);
+    if (pinned.length > 0) lines.push(`The web address sets ${pinned.join(' and ')} for this visit.`);
+    const n = this.pl.page2.note;
+    this.root!.add(this.text(lines.filter(Boolean).join('\n\n'), n.x, n.y, 20, C.soft).setWordWrapWidth(n.width));
+    this.buildMore('‹  Settings');
+    this.buildBack();
+  }
+
+  /** The button that switches between the two pages. */
+  private buildMore(label: string): void {
+    const r = this.pl.more;
+    const g = this.add.graphics();
+    g.fillStyle(C.choice, 1).fillRoundedRect(r.x, r.y, r.width, r.height, 20);
+    g.lineStyle(3, C.line, 1).strokeRoundedRect(r.x, r.y, r.width, r.height, 20);
+    const t = this.add
+      .text(r.x + r.width / 2, r.y + r.height / 2, label, { fontFamily: FONT, fontSize: '21px', color: C.ink, fontStyle: 'bold', resolution: this.layout.renderScale })
+      .setOrigin(0.5);
+    const zone = this.add.zone(r.x + r.width / 2, r.y + r.height / 2, r.width, r.height).setInteractive({ useHandCursor: true });
+    zone.on(Phaser.Input.Events.POINTER_UP, (p: Phaser.Input.Pointer) => {
+      if (p.getDistance() >= 24) return;
+      audio.play('pick');
+      this.page = this.page === 1 ? 2 : 1;
+      this.rebuildSoon();
+    });
+    this.root!.add([g, t, zone]);
   }
 
   private text(text: string, x: number, y: number, size: number, color: string, bold = false): Phaser.GameObjects.Text {
@@ -338,6 +404,7 @@ export class ParentScene extends Phaser.Scene {
         ...this.data0.read(),
         reset: { progress: this.tracker.progress(this.time.now), holding: this.tracker.holding, done: this.resetDone },
         demoTick: this.demoTick,
+        page: this.page,
         preview: this.previewButtons,
         fps: this.game.loop.actualFps,
       }),

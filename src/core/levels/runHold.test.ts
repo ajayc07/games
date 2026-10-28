@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { RUN_HOLD, RunHold, runScale, totalScale } from './runHold';
-import { FALL_BUZZ_MS, vibrate } from '../ui/haptics';
+import { FALL_BUZZ, vibrate, vibrationSupported } from '../ui/haptics';
 
 describe('hold to run (Task 021, D-064)', () => {
   it('a tap or a short hold stays a walk; a long hold runs at 1.45x, easing up', () => {
@@ -62,18 +62,21 @@ describe('haptics', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('buzzes when the browser can and does nothing when it cannot', () => {
-    const fn = vi.fn();
+    const fn = vi.fn(() => true);
     vi.stubGlobal('navigator', { vibrate: fn });
-    vibrate(FALL_BUZZ_MS);
-    expect(fn).toHaveBeenCalledWith(FALL_BUZZ_MS);
+    expect(vibrate(FALL_BUZZ)).toBe(true);
+    expect(fn).toHaveBeenCalledWith(FALL_BUZZ);
     vi.stubGlobal('navigator', {});
+    expect(vibrationSupported()).toBe(false);
     expect(() => vibrate(50)).not.toThrow();
+    expect(vibrate(50, true)).toBe(false);
     vi.stubGlobal('navigator', { vibrate: () => { throw new Error('no'); } });
     expect(() => vibrate(50)).not.toThrow();
   });
 
-  it('the fall buzz is short and gentle', () => {
-    expect(FALL_BUZZ_MS).toBeLessThanOrEqual(120);
-    expect(FALL_BUZZ_MS).toBeGreaterThanOrEqual(40);
+  it('the fall buzz is two firm pulses, short as a whole', () => {
+    expect(FALL_BUZZ).toHaveLength(3);
+    expect(FALL_BUZZ[0]).toBeGreaterThanOrEqual(120);
+    expect(FALL_BUZZ.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(500);
   });
 });
