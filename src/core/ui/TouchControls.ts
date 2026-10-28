@@ -34,6 +34,8 @@ interface Button {
   ring: Phaser.GameObjects.Arc;
   base: Phaser.GameObjects.Arc;
   radius: number;
+  /** Shown because the level enables it; `visible` also drops the Jump button while he flies (Task 028). */
+  configVisible: boolean;
   visible: boolean;
   pressed: boolean;
   /** Shows pressed until this time (ms, scene clock) without real input: the demo's presses. */
@@ -48,6 +50,8 @@ export class TouchControls {
   private readonly primary: Primary;
   /** Walk assist (Task 011): the latched direction shows its pressed look while it keeps walking. */
   private latched: Action | null = null;
+  /** Rocket boots flight (Task 028): Left and Right turn into Up and Down, and Jump goes away. */
+  private flightMode = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -100,6 +104,17 @@ export class TouchControls {
     if (b) b.fakeUntil = this.scene.time.now + ms;
   }
 
+  /** Flight mode on or off: the buttons keep their places, the arrows turn up and down, Jump is hidden. */
+  setFlightMode(on: boolean): void {
+    if (this.flightMode === on) return;
+    this.flightMode = on;
+    this.applyConfig(this.input.config);
+    if (on) {
+      this.pulse('left', 'invite');
+      this.pulse('right', 'invite');
+    }
+  }
+
   /** Walk assist (Task 011): show `action` pressed while the latch keeps walking, or nothing (null). */
   setLatched(action: Action | null): void {
     this.latched = action;
@@ -141,14 +156,16 @@ export class TouchControls {
 
   private applyConfig(config: InputConfig): void {
     for (const b of this.buttons.values()) {
-      b.visible = !config.tapAnywhereJumps && config.enabled.includes(b.action);
+      b.configVisible = !config.tapAnywhereJumps && config.enabled.includes(b.action);
+      b.visible = b.configVisible && !(this.flightMode && b.action === 'jump');
       b.container.setVisible(b.visible);
     }
     this.position();
   }
 
   private position(): void {
-    const shown = [...this.buttons.values()].filter((b) => b.visible).map((b) => b.action);
+    // Placement ignores the flight mode, so every button stays where his thumbs know it.
+    const shown = [...this.buttons.values()].filter((b) => b.configVisible).map((b) => b.action);
     const placed = placeButtons({ shown, ui: this.layout.uiRect, short: this.layout.height, scale: this.scale, primary: this.primary });
     // Hidden buttons keep a sensible size (they are not drawn).
     const sizes = sizesFor(shown, this.primary);
@@ -185,20 +202,27 @@ export class TouchControls {
     // Children need scrollFactor 0 too (ARCHITECTURE "Screen layout").
     container.setScrollFactor(0, 0, true);
     container.setData('icon', icon);
-    return { action, container, face, ring, base, radius: 60, visible: true, pressed: false, fakeUntil: 0, pulsing: false };
+    return { action, container, face, ring, base, radius: 60, configVisible: true, visible: true, pressed: false, fakeUntil: 0, pulsing: false };
   }
 
   private drawIcon(b: Button): void {
-    drawActionIcon(b.container.getData('icon') as Phaser.GameObjects.Graphics, b.action, b.radius);
+    const arrow = this.flightMode ? (b.action === 'left' ? 'up' : b.action === 'right' ? 'down' : undefined) : undefined;
+    drawActionIcon(b.container.getData('icon') as Phaser.GameObjects.Graphics, b.action, b.radius, arrow);
   }
 }
 
 /** Draws a button's icon (arrow, jump arrow, blaster with a ball) into a cleared Graphics at the origin; also used by the parent view's preview. */
-export function drawActionIcon(g: Phaser.GameObjects.Graphics, action: Action, radius: number): void {
+export function drawActionIcon(g: Phaser.GameObjects.Graphics, action: Action, radius: number, arrow?: 'up' | 'down'): void {
   const s = radius * 0.5; // icon half-size
   g.clear();
   g.fillStyle(STYLES[action].icon, 1);
   const pts = (list: Array<[number, number]>) => list.map(([x, y]) => new Phaser.Math.Vector2(x * s, y * s));
+  // Flight (Task 028): the Left button shows an up arrow and the Right button a down arrow.
+  if (arrow) {
+    const up: Array<[number, number]> = [[0, -1], [0.9, 0.1], [0.35, 0.1], [0.35, 0.9], [-0.35, 0.9], [-0.35, 0.1], [-0.9, 0.1]];
+    g.fillPoints(pts(arrow === 'up' ? up : up.map(([x, y]) => [x, -y] as [number, number])), true);
+    return;
+  }
   switch (action) {
     case 'left':
       g.fillPoints(pts([[-1, 0], [0.1, -0.9], [0.1, -0.35], [0.9, -0.35], [0.9, 0.35], [0.1, 0.35], [0.1, 0.9]]), true);

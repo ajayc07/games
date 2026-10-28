@@ -17,7 +17,9 @@ import { PAD, PadTrigger } from './pads';
 import { CAR, CarTimer, carAlpha, touchesPickup } from './car';
 import { CarSprite } from './CarSprite';
 import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS } from './placeholders';
-import { FLIGHT, MAGNET, bootsJumpSpeed, inMagnetRange, pullStep, type PickupKind } from './powerups';
+import { BOOTS, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
+import { FLY, flyDirection, plainGround } from './flight';
+import { PowerBars, type BarEntry } from './PowerBars';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
@@ -211,6 +213,8 @@ export class LevelScene extends Phaser.Scene {
     this.magnetTimer.stop();
     this.bootsTimer.stop();
     this.badge = null;
+    this.bars = null;
+    this.carOrbKey = '';
     this.field = null;
     this.flames = [];
     this.blaster = null;
@@ -555,7 +559,8 @@ export class LevelScene extends Phaser.Scene {
     makePowerOrbTextures(this);
     // Zen swaps its segments, so the car is built once, whichever segment has the first orb.
     if (!this.car && (this.level.zen || this.grid.pickups.some((p) => p.kind === 'car'))) this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
-    const orbOf = (kind: PickupKind) => (kind === 'car' ? carTextureKeys(pal.accent, pal.joint).orb : POWER_ORB_KEYS[kind]);
+    this.carOrbKey = carTextureKeys(pal.accent, pal.joint).orb;
+    const orbOf = (kind: PickupKind) => (kind === 'car' ? this.carOrbKey : POWER_ORB_KEYS[kind]);
     this.pickups = this.grid.pickups.map((c, i) => {
       const { x, y } = this.cellCenter(c);
       const img = this.add.image(x, y, orbOf(c.kind)).setDisplaySize(CAR.pickupRadius * 2, CAR.pickupRadius * 2).setDepth(DEPTH.coins + 1);
@@ -578,7 +583,9 @@ export class LevelScene extends Phaser.Scene {
 
   // Magnet and rocket boots (Task 018, D-062): timed like the car; the badge above his head shows which one is on.
   private readonly magnetTimer = new CarTimer();
-  private readonly bootsTimer = new CarTimer();
+  private readonly bootsTimer = new CarTimer(BOOTS.durationMs);
+  private bars: PowerBars | null = null;
+  private carOrbKey = '';
   private badge: Phaser.GameObjects.Image | null = null;
   private field: Phaser.GameObjects.Arc | null = null;
   private flames: Phaser.GameObjects.Image[] = [];
@@ -599,8 +606,16 @@ export class LevelScene extends Phaser.Scene {
       this.field.setVisible(true);
     } else {
       this.bootsTimer.start(now);
-      this.player.jumpScale = bootsJumpSpeed() / PHYSICS.jumpVelocity;
-      this.player.flight = { ceilTop: this.gridTop + FLIGHT.ceilingBelowGrid };
+      if (!this.player.flying) {
+        // Take-off (Task 028): he flies forward by himself; Left / Right become Up / Down until he has landed again.
+        const T = this.tile;
+        this.player.startFlight({
+          ceilTop: this.gridTop + FLY.ceilingBelowGrid,
+          floorY: this.gridTop + 9 * T,
+          canLand: (l, r) => plainGround(this.grid.solid, Math.max(0, Math.floor(l / T)), Math.min(this.grid.cols - 1, Math.floor(r / T))),
+        });
+        this.touch.setFlightMode(true);
+      }
       if (this.flames.length === 0) {
         this.flames = [-9, 9].map(() => this.add.image(0, 0, 'fx-glow').setTint(0xff8a00).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.player - 0.5));
       }
@@ -615,8 +630,8 @@ export class LevelScene extends Phaser.Scene {
     const had = this.magnetTimer.active(this.time.now) || this.bootsTimer.active(this.time.now);
     this.magnetTimer.stop();
     this.bootsTimer.stop();
-    this.player.jumpScale = 1;
-    this.player.flight = null;
+    this.player.cancelFlight();
+    this.touch.setFlightMode(false);
     this.field?.setVisible(false);
     for (const f of this.flames) f.setVisible(false);
     this.badge?.setVisible(false);
@@ -626,13 +641,17 @@ export class LevelScene extends Phaser.Scene {
   /** Every frame: the badge, the magnet's field ring, the boots' flames, and the end of the time. */
   private updatePowers(now: number): void {
     const magnet = this.magnetTimer.active(now);
-    const boots = this.bootsTimer.active(now);
+    const timed = this.bootsTimer.active(now);
+    // Time is up: he lands at the next stretch of plain ground; the flames and the arrows stay until then.
+    if (!timed && this.player.flying && !this.player.landing) this.player.beginLanding();
+    const boots = timed || this.player.flying;
+    this.updateBars(now);
     if (!magnet && !boots) {
-      if (this.badge?.visible) this.endPowers();
+      if (this.badge?.visible || this.flames.some((f) => f.visible)) this.endPowers();
       return;
     }
     const b = this.player.body;
-    const left = Math.min(magnet ? this.magnetTimer.remaining(now) : Infinity, boots ? this.bootsTimer.remaining(now) : Infinity);
+    const left = Math.min(magnet ? this.magnetTimer.remaining(now) : Infinity, timed ? this.bootsTimer.remaining(now) : Infinity);
     if (this.badge) {
       this.badge.setPosition(b.center.x, b.top - 34 + Math.sin(now / 250) * 3).setAlpha(carAlpha(left));
       if (magnet && !boots) this.badge.setTexture(POWER_ORB_KEYS.magnet);
@@ -643,23 +662,33 @@ export class LevelScene extends Phaser.Scene {
       this.field.setVisible(on);
       if (on) this.field.setPosition(b.center.x, b.center.y).setAlpha((0.5 + 0.3 * Math.sin(now / 300)) * carAlpha(this.magnetTimer.remaining(now)));
     }
-    if (!boots && this.flames.length > 0) {
-      this.player.jumpScale = 1;
-      this.player.flight = null;
-      for (const f of this.flames) f.setVisible(false);
-    }
+    if (!boots && this.flames.length > 0) for (const f of this.flames) f.setVisible(false);
     if (boots) {
-      const air = !this.player.grounded;
-      const thrust = air && this.input2.isDown('jump') && this.mode === 'play';
+      const climbing = this.player.flying && !this.player.landing && b.velocity.y < -40;
       this.flames.forEach((f, i) => {
-        const size = (thrust ? 58 : air ? 34 : 20) + Math.sin(now / 50 + i * 2) * (thrust ? 7 : 4);
-        f.setVisible(true).setPosition(b.center.x + (i === 0 ? -9 : 9), b.bottom - 2).setDisplaySize(size, size * 1.3).setAlpha((air ? 0.85 : 0.4) * carAlpha(this.bootsTimer.remaining(now)));
+        const size = (climbing ? 56 : 40) + Math.sin(now / 50 + i * 2) * 6;
+        f.setVisible(true).setPosition(b.center.x + (i === 0 ? -9 : 9), b.bottom - 2).setDisplaySize(size, size * 1.3).setAlpha(0.9 * (timed ? carAlpha(this.bootsTimer.remaining(now)) : 1));
       });
-      if ((thrust || b.velocity.y < -50) && now - this.lastFlameAt > (thrust ? 40 : 70)) {
+      if (now - this.lastFlameAt > (climbing ? 40 : 70)) {
         this.lastFlameAt = now;
-        this.sparkle.explode(thrust ? 3 : 2, b.center.x, b.bottom);
+        this.sparkle.explode(climbing ? 3 : 2, b.center.x, b.bottom);
       }
     }
+  }
+
+  /** The time bars (Task 028): one row for each timed power that is on. */
+  private updateBars(now: number): void {
+    const entries: BarEntry[] = [];
+    const add = (key: string, tex: string, timer: CarTimer, color: number) => {
+      if (timer.active(now)) entries.push({ key, tex, frac: timer.fraction(now), color, alpha: carAlpha(timer.remaining(now)) });
+    };
+    if (this.carOn()) add('car', this.carOrbKey, this.carTimer, 0x29b6f6);
+    add('magnet', POWER_ORB_KEYS.magnet, this.magnetTimer, 0xff5252);
+    add('boots', POWER_ORB_KEYS.boots, this.bootsTimer, 0xff9800);
+    if (entries.length === 0 && !this.bars) return;
+    this.bars ??= new PowerBars(this, DEPTH.hud);
+    this.bars.layout(this.layout);
+    this.bars.update(entries);
   }
 
   /** The magnet pulls loose coins within its radius toward his chest; the normal coin test collects them as they arrive. */
@@ -949,7 +978,9 @@ export class LevelScene extends Phaser.Scene {
         : walkDirection(input.isDown('left'), input.isDown('right'));
     for (const a of ['left', 'right', 'jump', 'power'] as const) if (input.justPressed(a)) this.pressedOnce.add(a);
     const pressed = input.justPressed('jump');
-    const r = this.player.step(now, { move, jumpPressed: pressed, jumpHeld: input.isDown('jump'), walls: this.bubbleWalls(this.player) }, dtMs);
+    // Flying (Task 028): Left (or the Jump key) is up, Right is down; nothing else steers him.
+    const fly = this.player.flying ? flyDirection(input.isDown('left') || input.isDown('jump'), input.isDown('right')) : undefined;
+    const r = this.player.step(now, { move: fly === undefined ? move : 0, jumpPressed: pressed && fly === undefined, fly, walls: fly === undefined ? this.bubbleWalls(this.player) : undefined }, dtMs);
     if (r.jumped) this.onJump();
 
     this.pullCoins(now, dtMs);

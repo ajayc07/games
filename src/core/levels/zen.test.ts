@@ -81,7 +81,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
           kinds.add(p.kind);
           expect(p.row).toBe(8);
         }
-        expect(e.coins.length, `seed ${seed}`).toBeGreaterThanOrEqual(80);
+        expect(e.coins.length, `seed ${seed}`).toBeGreaterThanOrEqual(70);
         expect(e.bubbles.length, `seed ${seed}`).toBeGreaterThanOrEqual(12);
       }
     }
@@ -121,8 +121,8 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
         expect(row, `seed ${seed}`).toBeGreaterThanOrEqual(1);
         if (row >= 6) continue;
         const abovePad = pads.some((p) => Math.abs(p.col - col) <= 1);
-        const inSet = (kind: string, minRow: number, maxRow = 9) => orbs.some((o) => o.ch === kind && col >= o.col + 4 && col <= o.col + 4 + 34 && row >= minRow && row <= maxRow);
-        // Boots: low coins, row 4 (a high jump) and rows 1-2 (flying; Task 023).
+        const inSet = (kind: string, minRow: number, maxRow = 9) => orbs.some((o) => o.ch === kind && col >= o.col + 4 && col <= o.col + 4 + 46 && row >= minRow && row <= maxRow);
+        // Boots: a wave of coins from the ground to the sky, which only flying reaches (Task 028).
         const ok = abovePad || inSet('M', 4) || inSet('J', 1);
         expect(ok, `seed ${seed}: coin at ${col}:${row}`).toBe(true);
       }

@@ -4,7 +4,7 @@
 // real play (the ghost just gets no dust). Physics and the hit box never depend on the look.
 import type Phaser from 'phaser';
 import { PHYSICS } from './physics';
-import { flightVelocity } from './powerups';
+import { FLY, FlightState, type FlightEnv, type FlyDir } from './flight';
 import { edgeLimit, nextFacing, rampSpeed, type FacingState } from './walk';
 import { RunHold, totalScale } from './runHold';
 import { AvatarDriver } from '../avatar/AvatarDriver';
@@ -19,8 +19,8 @@ export interface PlayerIntent {
   move: -1 | 0 | 1;
   /** Jump was pressed this frame (buffered and coyote-timed, D-021). */
   jumpPressed: boolean;
-  /** Jump is held (the rocket boots fly while it is, Task 023). */
-  jumpHeld?: boolean;
+  /** Flying (Task 028): -1 up, 0 hold, 1 down. Ignored when he is not flying. */
+  fly?: FlyDir;
   /** Extra soft walls this frame (a big bubble, Task 007), on top of the level ends. Same soft stop. */
   walls?: { minX: number; maxX: number };
 }
@@ -69,8 +69,9 @@ export class Player {
   ride: { x: number; y: number } | null = null;
   /** Jump strength multiplier (1 normally; the rocket boots make it about 1.3, Task 018). */
   jumpScale = 1;
-  /** Rocket boots on: hold Jump in the air to fly (Task 023). Set by the scene with the ceiling (world y of the highest body top). */
-  flight: { ceilTop: number } | null = null;
+  /** Rocket boots flight (Task 028): null on the ground. Everything about it is in `startFlight` / `flyStep`. */
+  private flight: { state: FlightState; env: FlightEnv } | null = null;
+  private collider!: Phaser.Physics.Arcade.Collider;
   /** The look's opacity when it is shown (the car power-up hides the robot by setting its alpha to 0). */
   alphaWanted = 1;
   /** Moving speed multiplier (1 normally; the car power-up makes it a little faster, Task 017). */
@@ -108,7 +109,7 @@ export class Player {
     this.body = this.zone.body as Phaser.Physics.Arcade.Body;
     this.body.setMaxVelocity(1000, PHYSICS.maxFallSpeed);
     this.body.setCollideWorldBounds(true);
-    scene.physics.add.collider(this.zone, opts.colliders);
+    this.collider = scene.physics.add.collider(this.zone, opts.colliders);
 
     this.alphaWanted = opts.alpha ?? 1;
     this.avatar = new AvatarDriver(scene, {
@@ -136,6 +137,7 @@ export class Player {
 
   /** Movement and jumping for one frame. */
   step(now: number, intent: PlayerIntent, dtMs: number): StepResult {
+    if (this.flight) return this.flyStep(now, intent, dtMs);
     const body = this.body;
     let landed = false;
     if (this.grounded) {
@@ -180,13 +182,69 @@ export class Player {
       this.avatar.takeoff(now);
       jumped = true;
     }
-    const fl = this.flight;
-    if (fl) {
-      const flying = !this.grounded && !!intent.jumpHeld;
-      body.setVelocityY(flightVelocity(body.velocity.y, flying, dtMs, body.top, fl.ceilTop));
-      this.avatar.flying = flying;
-    } else if (this.avatar.flying) this.avatar.flying = false;
     return { jumped, landed };
+  }
+
+  /** True from take-off until he has landed again (also while he is landing). */
+  get flying(): boolean {
+    return this.flight !== null;
+  }
+
+  /** True while time is up and he is still on his way down. */
+  get landing(): boolean {
+    return this.flight?.state.phase === 'landing';
+  }
+
+  /** Rocket boots on (Task 028): he lifts off and flies by himself; walls, blocks and gaps are no longer in his way. */
+  startFlight(env: FlightEnv): void {
+    this.flight = { state: new FlightState(), env };
+    this.collider.active = false;
+    this.body.setAllowGravity(false);
+    this.body.setVelocityY(FLY.launch);
+    this.runHold?.reset();
+    this.jumpBufferUntil = -1;
+    this.airborneSince = -1;
+    this.avatar.flying = true;
+  }
+
+  /** Time is up: come down at the next stretch of plain ground. */
+  beginLanding(): void {
+    this.flight?.state.beginLanding();
+  }
+
+  /** Back to the ground rules at once (a fall, the goal, or he has landed); he drops if he is still in the air. */
+  cancelFlight(): void {
+    if (!this.flight) return;
+    this.flight = null;
+    this.collider.active = true;
+    this.body.setAllowGravity(true);
+    this.avatar.flying = false;
+  }
+
+  /** One frame of flying: forward by himself, up or down by the buttons, and the landing when the time is up. */
+  private flyStep(now: number, intent: PlayerIntent, dtMs: number): StepResult {
+    const body = this.body;
+    const fl = this.flight!;
+    const speed = FLY.speed * this.speedScale;
+    this.walkV = speed;
+    body.setVelocityX(edgeLimit(body.center.x, speed, this.minX, this.maxX));
+    this.facing = 1;
+    const res = fl.state.step({ vy: body.velocity.y, top: body.top, bottom: body.bottom, left: body.left, right: body.right }, intent.fly ?? 0, dtMs, fl.env);
+    body.setVelocityY(res.vy);
+    if (!res.landed) return { jumped: false, landed: false };
+    // Touched down: sit exactly on the ground, then the normal rules carry on from here.
+    const d = fl.env.floorY - body.bottom;
+    body.position.y += d;
+    body.prev.y += d;
+    body.prevFrame.y += d;
+    body.updateCenter();
+    body.setVelocityY(0);
+    this.cancelFlight();
+    this.jumpUsed = false;
+    this.lastGroundedAt = now;
+    this.lastGroundedCol = Math.floor(body.center.x / this.tile);
+    this.avatar.land(now, body.center.x, body.bottom);
+    return { jumped: false, landed: true };
   }
 
   /** A bounce pad fired (Task 015): up at `speed` px/s by itself, like a jump that is already used. */
@@ -218,6 +276,7 @@ export class Player {
 
   /** Puts the player on the ground at (x, feet), standing still. */
   placeAt(x: number, feet: number, now: number): void {
+    this.cancelFlight();
     this.zone.setPosition(x, feet - PHYSICS.body.height / 2);
     this.body.enable = true;
     this.body.reset(this.zone.x, this.zone.y);

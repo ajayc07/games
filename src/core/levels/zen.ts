@@ -63,6 +63,7 @@ const QUIET: readonly Motif[] = ['arc', 'pad', 'rest', 'steps', 'gap'];
 
 /** How long a power-up's reward stretch is (tiles): the car lasts about 43 tiles, the others about 10 s of walking. */
 const SET_LEN = 34;
+const BOOTS_SET_LEN = 46;
 /** Tiles of ground at least between two gaps (as in Practice). */
 const MIN_GROUND = 7;
 
@@ -225,7 +226,8 @@ const PICKUP_CHAR: Record<PickupKind, string> = { car: 'P', magnet: 'M', boots: 
 function powerSet(c: Cells, from: number, kind: PickupKind): number {
   c.put(from + 1, 8, PICKUP_CHAR[kind]);
   const start = from + 5;
-  const end = Math.min(start + SET_LEN, c.hi);
+  // The boots stretch is longer: 12 s of flight is about 47 tiles.
+  const end = Math.min(start + (kind === 'boots' ? BOOTS_SET_LEN : SET_LEN), c.hi);
   if (kind === 'car') {
     // A head-height trail to drive along, with a few higher coins.
     for (let x = start; x < end; x += 2) c.put(x, ROW.up, 'c');
@@ -236,10 +238,9 @@ function powerSet(c: Cells, from: number, kind: PickupKind): number {
     let i = 0;
     for (let x = start; x < end; x += 2) c.put(x, rows[i++ % rows.length], 'c');
   } else {
-    // Low coins on the way, high ones only a high jump reaches (row 4), and sky coins only flying reaches (rows 1-2).
-    for (let x = start; x < end; x += 2) c.put(x, ROW.up, 'c');
-    for (let x = start + 1; x < end - 1; x += 4) c.put(x, 4, 'c');
-    for (let x = start + 3; x < end - 3; x += 6) c.put(x, c.chance(0.5) ? 1 : 2, 'c');
+    // A flight path (Task 028): the boots fly him forward for 12 s (about 47 tiles); a wave of coins from the ground to the sky.
+    let i = 0;
+    for (let x = start; x < end; x += 2) c.put(x, Math.max(1, Math.min(7, Math.round(4 + 3 * Math.sin(i++ / 2)))), 'c');
   }
   return end;
 }
@@ -294,6 +295,12 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   while (hi - col >= 8) {
     if (col >= setDue && hi - col >= SET_LEN + 8 && !c.hitsSkip(col, SET_LEN + 8)) {
       const kind = nextKind();
+      // The boots stretch is longer: if it will not fit here, the orb waits for the next segment.
+      if (kind === 'boots' && (hi - col < BOOTS_SET_LEN + 8 || c.hitsSkip(col, BOOTS_SET_LEN + 8))) {
+        kinds.push(kind);
+        col = Math.min(col + 6, hi - 8);
+        continue;
+      }
       motifs.push(`power-${kind}`);
       col = powerSet(c, col, kind) + c.int(2, 4);
       setDue = col + c.int(24, 44);
@@ -330,6 +337,31 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   if (!cells.some(([, ch]) => ch === 'r')) {
     const smalls = cells.filter(([, ch]) => ch === 'o');
     if (smalls.length > 0) c.map.set(smalls[c.int(0, smalls.length - 1)][0], 'r');
+  }
+  // No long empty stretch: a coin every 8 tiles through any gap in the content longer than 16 tiles.
+  {
+    const used = [...new Set([...c.map.keys()].map((k) => Number(k.split(':')[1])))].sort((a, b) => a - b);
+    // The carried window's content counts too (it sits at hi..hi+width or just before lo).
+    const carried: number[] = [];
+    if (win && options.carry) {
+      for (let i = 0; i < win.width; i++) {
+        for (let row = 0; row < ROW.ground; row++) if (/[cohrOPMJ]/.test(options.carry.grid[row][win.from + i])) carried.push(win.to + i);
+      }
+    }
+    // Content right at the edges of the range keeps the carried window from leaving a hole beside it.
+    const inRange = used.filter((x) => x >= lo && x < hi);
+    const lastIn = inRange.length ? inRange[inRange.length - 1] : lo - 1;
+    const firstIn = inRange.length ? inRange[0] : hi;
+    for (const x of [hi - 1, lo]) {
+      const near = Math.abs(x - (x === hi - 1 ? lastIn : firstIn));
+      if (near > 0 && !c.gaps.some((g) => x >= g.col - 1 && x <= g.col + g.width)) c.put(x, ROW.up, 'c');
+    }
+    const marks = [lo - 1, ...used, hi, ...carried.filter((x) => x < lo || x >= hi)].sort((a, b) => a - b);
+    for (let i = 1; i < marks.length; i++) {
+      for (let x = marks[i - 1] + 8; marks[i] - x >= 8 && marks[i] - marks[i - 1] > 16; x += 8) {
+        if (!c.gaps.some((g) => x >= g.col - 1 && x <= g.col + g.width)) c.put(x, ROW.up, 'c');
+      }
+    }
   }
   // A jump from the edge of a 1-tile gap flies over the next two columns at head height: no walking coin there (Practice).
   for (const g of c.gaps) if (g.width === 1) for (const dc of [1, 2]) if (c.map.get(`${ROW.up}:${g.col + dc}`) === 'c') c.map.delete(`${ROW.up}:${g.col + dc}`);

@@ -25,8 +25,15 @@ export const CAR = {
 export class CarTimer {
   private until = -1;
 
+  constructor(private readonly durationMs: number = CAR.durationMs) {}
+
   start(now: number): void {
-    this.until = now + CAR.durationMs;
+    this.until = now + this.durationMs;
+  }
+
+  /** How much of the time is left, 1 (just started) to 0 (over): the progress bar (Task 028). */
+  fraction(now: number): number {
+    return Math.min(1, this.remaining(now) / this.durationMs);
   }
 
   stop(): void {

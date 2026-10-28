@@ -193,7 +193,10 @@ Colours: deep blue sky (0x0b1445 to 0x3a3f9a), pale periwinkle moonlit hills (ke
 ### Zen seamless swap, blocks and gaps (Task 022, D-065)
 `generateZen(seed, world, { first?, carry? })` makes a 320-tile segment; with `carry: { grid, dir }` the 49 tiles `zenWindow(dir)` copies from the old segment (as `LevelScene.zenCarryGrid` prunes it: taken coins and orbs and popped bubbles cleared) land at the arrival position and content is generated only outside them (`dir 1`: from tile 66; `dir -1`: up to tile 262). `ZEN`: rightAt 294, rightArrival 34, leftAt 26, window 24, shift 260. The first segment skips the 12 tiles around the start. New motifs `steps` and `gap`; gap rules as in Practice (width 1-2, 7+ ground tiles between gaps). `rebaseZen` also destroys and rebuilds the ground strips (`groundObjs`), the step block images (`blockImgs`) and the collision bodies (the array the player collides with is refilled in place).
 
-### Rocket boots flight (Task 023, D-066)
+### Rocket boots flight (Task 028, D-071; replaces Task 023, D-066)
+`levels/flight.ts` (`FLY`, `FlightState`, `flyDirection`, `flyVelocity`, `plainGround`): automatic forward flight for 12 s, Up/Down from the Left/Right buttons (`TouchControls.setFlightMode`), landing only over plain ground (`Player.beginLanding`), `PowerBars` for every power's time left. The text below is the old hold-Jump design, kept for history.
+
+### (old) Rocket boots flight (Task 023, D-066)
 `FLIGHT` and `flightVelocity(vy, held, dtMs, top, ceilTop)` in `powerups.ts`. `Player.flight = { ceilTop }` is set while the boots are on; `Player.step` takes `jumpHeld` and applies `flightVelocity` after the jump logic; `AvatarDriver.flying` leans him forward. Flames grow while thrusting (`LevelScene.updatePowers`).
 
 ### Rainbow coins (Task 024, D-067)
