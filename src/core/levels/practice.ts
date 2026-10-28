@@ -1,7 +1,7 @@
 // Combo Practice levels (Task 011, D-049): a pure, seeded generator that builds a normal level config (the usual
 // grid legend, all four buttons, walking) for one of four focuses. Same seed = same level; Replay uses a new seed, so
 // a repeat is never the same layout (D-044). The rules come from D-045 and Grass 4-6: gaps of 1 or 2 tiles only, at
-// least 7 tiles of ground between gaps and between a gap and the start or the flag, no bubble inside a gap or within
+// least 7 tiles of ground between gaps and between a gap and the start or the goal, no bubble inside a gap or within
 // 1 tile of its edge (high bubbles 2 tiles), small bubbles in the two rows a standing shot reaches, high bubbles in the
 // row only a shot from a jump reaches, no big bubbles. Universe-agnostic: the universe passes the world and theme.
 import type { Action } from '../types';
@@ -15,17 +15,17 @@ export const PRACTICE = {
   /** Grid rows, as in Grass 6: the player stands in row 8 on two rows of ground. */
   rows: 11,
   startCol: 6,
-  /** The level is about this long (tiles); chunks stop about 10 tiles before it, then the flag follows. */
+  /** The level is about this long (tiles); chunks stop about 10 tiles before it, then the goal follows. */
   targetLength: 120,
   /** Chunk length range (tiles). */
   chunk: { min: 12, max: 20 },
-  /** Tiles of ground at least between two gaps, and between a gap and the start or the flag (D-045). */
+  /** Tiles of ground at least between two gaps, and between a gap and the start or the goal (D-045). */
   minGround: 7,
   /** Small bubbles stay this many columns away from any gap column (so never within 1 tile of its edge). */
   smallClear: 2,
   /** High bubbles stay this many columns away from a gap edge (Grass 6), so the player can stand under them and jump. */
   highClear: 3,
-  /** Ground after the flag. */
+  /** Ground after the goal. */
   tail: 4,
   tileSize: 64,
 } as const;

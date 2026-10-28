@@ -52,7 +52,7 @@ export function runBot(e: ReturnType<typeof extractEntities>, opts: { jumpForCoi
   let t = 0;
   let fell = false;
   let peakShotPending = false;
-  const flagX = e.flag.col * T + T / 2;
+  const goalX = e.goal.col * T + T / 2;
   const fire = (shotH: number) => {
     if (t - lastShot < SHOT.cooldownMs || shots.length >= SHOT.maxInFlight) return false;
     lastShot = t;
@@ -134,10 +134,10 @@ export function runBot(e: ReturnType<typeof extractEntities>, opts: { jumpForCoi
       const nh = Math.max(h, Math.min(c.h, h + PHYSICS.body.height));
       if ((c.x - nx) ** 2 + (c.h - nh) ** 2 <= 18 * 18) c.taken = true;
     }
-    if (x >= flagX - half) break;
+    if (x >= goalX - half) break;
   }
   return {
-    finished: !fell && x >= flagX - half,
+    finished: !fell && x >= goalX - half,
     fell,
     x: Math.round(x),
     seconds: t / 1000,

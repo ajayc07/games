@@ -67,7 +67,7 @@ describe('varyLevel (Task 012)', () => {
     for (const l of LEVELS) {
       const gaps = gapCols(l.grid);
       const e0 = extractEntities(l.grid);
-      const stops = [...gaps, e0.start.col, e0.flag.col];
+      const stops = [...gaps, e0.start.col, e0.goal.col];
       const stretch = (c: number) => stops.filter((s) => s < c).length;
       const rows = (g: string[], chars: string) => cellsOf(g, chars).map((x) => x.r).sort();
       const arc = (g: string[]) => cellsOf(g, 'c').filter((x) => gaps.some((gc) => Math.abs(gc - x.c) <= VARIETY.arcReach)).map((x) => `${x.r}:${x.c}`);

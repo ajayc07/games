@@ -32,7 +32,7 @@ export interface PracticeRunOptions {
 /** What the scene tells the run each frame. */
 export interface PracticeFrame {
   now: number;
-  /** In play (not the intro, the cloud ride or the flag). */
+  /** In play (not the intro, the cloud ride or the goal). */
   playing: boolean;
   left: boolean;
   right: boolean;
@@ -41,7 +41,7 @@ export interface PracticeFrame {
   jumpPressed: boolean;
   powerPressed: boolean;
   airborne: boolean;
-  /** A combo is possible now (not over a gap, not on the cloud, not at the flag). */
+  /** A combo is possible now (not over a gap, not on the cloud, not at the goal). */
   possible: boolean;
   /** The way the avatar travels (the coach holds this nav button). */
   facing: 1 | -1;

@@ -1,7 +1,7 @@
 # Architect handoff (for a new Claude Desktop session)
 
 Read this first if you are a new Claude Desktop session taking over as the **architect** of Athi's Game.
-Last updated: 2026-10-25 (after the 011 review and the docs trim).
+Last updated: 2026-10-28 (after the 012 review).
 
 ## Roles and workflow
 - **You (Claude Desktop) = architect.** You plan, write task files, review summaries and review screenshots. You do not write the game code.
@@ -26,9 +26,7 @@ Last updated: 2026-10-25 (after the 011 review and the docs trim).
 A gentle platformer that teaches navigation buttons (Left/Right), Jump and Power, and hand-eye coordination. Phaser 3 + TypeScript + Vite, PWA, offline, GitHub Pages via Actions. Universe modules (lazy loaded): currently one generic universe `robo` ("Robo World"). The player is a code-drawn robot (looks: `robot` default, `ball`) in a three-quarter view when moving; colour/size/antennae come from the chosen colour card. All physics and hit boxes are identical for every option.
 
 ## Where things stand (check docs/PROGRESS.md for the truth)
-- Done and accepted: 001 to 007 (setup, input/audio, level engine, Grass 1-4, lively motion, avatar rig, robot view, robo universe + picker, map + progress, shooting).
-- Tablet findings (D-037): Athiran liked the robot best, loves its shooting, got bored with auto-run/tap-to-jump (Grass 1/2), liked Grass 3 (walking). Robot looked like it ran backwards: fixed in 005c (parent should confirm on tablet).
-- The original plan 001-010 and Task 011 Combo Practice are complete and reviewed (D-039 to D-050); the docs trim is done (D-051). Everything up to Task 010 is pushed; Task 011 and the trim are committed locally (the parent pushes). Tablet feedback so far: D-037, D-044, D-049. Post-plan list (nothing starts without the parent's say-so): tablet test of Grass 5-6, the parent view and Practice; replay variety and unique per-colour traits (docs/IDEAS.md); git-history rewrite offer; more worlds (Cave, Sky, Castle).
+- Done and reviewed: Tasks 001-013 (D-039 to D-054): picker, map and progress, Grass 1-6, parent view, Combo Practice, browser fullscreen, replay variety (shuffled coins/small bubbles after a first clear, rare rainbow bubble). Tasks 012-013 are committed locally (the parent pushes). Tablet feedback so far: D-037, D-044, D-049, plus a basic pass on 2026-10-25. Pending: tablet check of replay variety and fullscreen; Task 014 charging pad instead of the flag (D-055; written, handed to Claude Code), then optional Task 015 polish bundle (footsteps, landing thump, idle wave; not drafted); other parked ideas in docs/IDEAS.md; git-history rewrite offer; more worlds. Nothing starts without the parent's say-so. Note: sessions of the architect can change between tasks, so always read PROGRESS.md and DECISIONS.md first.
 - Open items: the public GitHub repo history still contains the removed Nintendo files; the parent may want a clean-history restart (offer exact steps once 005d is done). The commercial idea is parked in `docs/IDEAS.md`.
 
 ## Useful facts

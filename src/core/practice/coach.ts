@@ -1,7 +1,7 @@
 // Gentle coaching for Combo Practice (Task 011, D-049): after about 8 s without a combo, while one is possible, a ghost
 // hand shows the combo (a finger holds the nav button, a second finger taps the action button twice) for about 2.5 s,
 // then nothing for at least 20 s. It stops at once when a combo happens or the moment is gone (a gap, the cloud ride,
-// the flag). Pure and unit-tested; the scene draws the hand.
+// the goal). Pure and unit-tested; the scene draws the hand.
 import type { PracticeMode } from '../levels/practice';
 
 export const COACH = {
@@ -15,7 +15,7 @@ export const COACH = {
 
 export interface CoachInput {
   now: number;
-  /** The run has started (not the intro, not the flag). */
+  /** The run has started (not the intro, not the goal). */
   playing: boolean;
   /** A combo is possible right now (on the ground or in a normal jump; not over a gap, not on the cloud). */
   possible: boolean;

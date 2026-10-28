@@ -10,9 +10,9 @@ export const VARIETY = {
   arcReach: 2,
   /** Coin clusters within this many columns of a demo jump column stay put (tile demos only: Grass 1-2). */
   demoReach: 3,
-  /** A moved item keeps this many columns from the nearest gap column, the start and the flag (2 tiles in between). */
+  /** A moved item keeps this many columns from the nearest gap column, the start and the goal (2 tiles in between). */
   clear: 3,
-  /** Fallback for the distance to the start and the flag when an item has no other place at `clear` (a tight level): 1 tile in between. */
+  /** Fallback for the distance to the start and the goal when an item has no other place at `clear` (a tight level): 1 tile in between. */
   tightClear: 2,
   /** Chance of a rainbow bubble in a varied run, and how many small bubbles a level needs for one. */
   rainbowChance: 1 / 3,
@@ -31,7 +31,7 @@ export function varyLevel(level: LevelData, seed: number): LevelData {
 
   const demoCols = level.controls.demo && !isScriptDemo(level.controls.demo) ? level.controls.demo.jumpsAtTiles : [];
   const gapCols = g.gapColumns();
-  const ends = [g.start.col, g.flag.col];
+  const ends = [g.start.col, g.goal.col];
 
   // What moves: coin clusters (rigid, so arcs keep their shape) and small bubbles, in a seeded random order.
   type Unit = { cells: Cell[]; ch: string };
@@ -97,7 +97,7 @@ function shuffle<T>(a: T[], rng: () => number): void {
 
 /**
  * The first and last column the item (spanning `lo`..`hi`) may occupy: this far from the nearest gap column on each side
- * (always `VARIETY.clear`, so a moved coin is never in the arc zone of a gap), and `endClear` from the start and the flag
+ * (always `VARIETY.clear`, so a moved coin is never in the arc zone of a gap), and `endClear` from the start and the goal
  * (which also keeps it on the same side of them), or the level edges.
  */
 function bounds(gaps: readonly number[], ends: readonly number[], endClear: number, lo: number, hi: number, width: number): [number, number] {
@@ -117,13 +117,13 @@ class Grid {
   private readonly cells: string[][];
   readonly width: number;
   readonly start: Cell;
-  readonly flag: Cell;
+  readonly goal: Cell;
 
   constructor(rows: readonly string[]) {
     this.cells = rows.map((r) => [...r]);
     this.width = rows[0].length;
     this.start = this.find('S')[0];
-    this.flag = this.find('F')[0];
+    this.goal = this.find('F')[0];
   }
 
   rows(): string[] {

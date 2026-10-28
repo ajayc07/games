@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseLevel } from '../../../core/levels/format';
+import { LEGEND, parseLevel, parseLevelOrThrow } from '../../../core/levels/format';
 import { extractEntities } from '../../../core/levels/grid';
 import { nextLevelId } from '../../../core/levels/progression';
 import { jumpPeak, PHYSICS } from '../../../core/levels/physics';
@@ -20,6 +20,7 @@ import grass6 from './grass-6.json';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
 import { shotHitsBubble } from '../../../core/levels/bubbles';
+import { GOAL, arrivalExtraMs, goalX, padHeight } from '../../../core/levels/goal';
 import { worldDots } from '../../../core/map/unlock';
 
 /**
@@ -104,8 +105,8 @@ describe('Robo World level files', () => {
     expect(e.cols).toBeLessThanOrEqual(75);
     expect(e.solid[e.start.row + 1].every(Boolean)).toBe(true); // no gaps
     expect(e.start.col).toBe(6);
-    expect(e.flag.col).toBeGreaterThan(e.cols - 8);
-    expect(e.flag.row).toBe(e.start.row);
+    expect(e.goal.col).toBeGreaterThan(e.cols - 8);
+    expect(e.goal.row).toBe(e.start.row);
     expect(e.coins.length).toBeGreaterThanOrEqual(20);
     expect(e.coins.length).toBeLessThanOrEqual(24);
 
@@ -168,7 +169,7 @@ describe('Robo World level files', () => {
     expect(bigFrac).toBeGreaterThan(0.5);
     expect(bigFrac).toBeLessThan(0.7);
     expect(big[0].row + 2).toBe(e.start.row + 1);
-    expect(e.flag.col).toBeGreaterThan(big[0].col + 4);
+    expect(e.goal.col).toBeGreaterThan(big[0].col + 4);
     const total = small.length * BUBBLE.coins.small + BUBBLE.coins.big;
     expect(total).toBeGreaterThanOrEqual(36);
     expect(total).toBeLessThanOrEqual(42);
@@ -201,7 +202,7 @@ describe('Robo World level files', () => {
     expect(e.cols).toBeLessThanOrEqual(80);
     expect(e.bubbles).toEqual([]);
     expect(e.start.col).toBe(6);
-    expect(e.flag.col).toBeGreaterThan(e.cols - 8);
+    expect(e.goal.col).toBeGreaterThan(e.cols - 8);
 
     // Gap widths 1, 1, 2, 1, 2, 2 and a safe stretch of at least 6 tiles before, between and after the gaps.
     const gaps = gapsOf(e);
@@ -212,10 +213,10 @@ describe('Robo World level files', () => {
       expect(gaps[i][0] - prevEnd - 1, `stretch before gap ${i + 1}`).toBeGreaterThanOrEqual(6);
     }
     const lastGap = gaps[gaps.length - 1];
-    expect(e.flag.col - lastGap[lastGap.length - 1] - 1).toBeGreaterThanOrEqual(6);
+    expect(e.goal.col - lastGap[lastGap.length - 1] - 1).toBeGreaterThanOrEqual(6);
     // Gaps go through every ground row, and the flag stands on ground.
     for (const g of gaps) for (let row = e.start.row + 1; row < e.rows; row++) for (const c of g) expect(e.solid[row][c]).toBe(false);
-    expect(e.solid[e.start.row + 1][e.flag.col]).toBe(true);
+    expect(e.solid[e.start.row + 1][e.goal.col]).toBe(true);
 
     // Every gap can be crossed from a standing start at its edge, with a margin of at least 40 px (0.18 s of walking).
     const reach = walkingJumpReach(PHYSICS.walkSpeed);
@@ -261,8 +262,8 @@ describe('Robo World level files', () => {
     expect(e.cols).toBeGreaterThanOrEqual(75);
     expect(e.cols).toBeLessThanOrEqual(90);
     expect(e.start.col).toBe(6);
-    expect(e.flag.col).toBeGreaterThan(e.cols - 8);
-    expect(e.solid[e.start.row + 1][e.flag.col]).toBe(true);
+    expect(e.goal.col).toBeGreaterThan(e.cols - 8);
+    expect(e.solid[e.start.row + 1][e.goal.col]).toBe(true);
 
     // Gaps of 1 or 2 tiles only (D-045): 1, 2, 1, 2, 2, an opening stretch of about 14 tiles, 7+ tiles of ground between and after.
     const gaps = gapsOf(e);
@@ -271,7 +272,7 @@ describe('Robo World level files', () => {
     expect(gaps[0][0] - e.start.col).toBeLessThanOrEqual(16);
     for (let i = 1; i < gaps.length; i++) expect(gaps[i][0] - gaps[i - 1][gaps[i - 1].length - 1] - 1, `stretch ${i}`).toBeGreaterThanOrEqual(7);
     const lastGap = gaps[gaps.length - 1];
-    expect(e.flag.col - lastGap[lastGap.length - 1] - 1).toBeGreaterThanOrEqual(7);
+    expect(e.goal.col - lastGap[lastGap.length - 1] - 1).toBeGreaterThanOrEqual(7);
     for (const g of gaps) for (let row = e.start.row + 1; row < e.rows; row++) for (const c of g) expect(e.solid[row][c]).toBe(false);
     // Every gap crossable from a standing start at its edge with a margin of at least 40 px (as in Grass 5).
     const reach = walkingJumpReach(PHYSICS.walkSpeed);
@@ -437,5 +438,41 @@ describe('Robo World avatar options (D-038)', () => {
   it('no sound or picture files are bundled any more; theme art is still looked up', () => {
     expect(asset('nope.png')).toBeUndefined();
     expect(Object.values(grassTheme.images ?? {}).filter(Boolean)).toEqual([]);
+  });
+});
+
+describe('Charging pad goal (Task 014, D-055)', () => {
+  const g = grassTheme.goal;
+  const backgrounds = [grassTheme.hills.far, grassTheme.hills.near, grassTheme.sky.top, grassTheme.sky.bottom];
+  it('pad rim and beacon outline stand out (3:1) from both hills and the sky', () => {
+    for (const bg of backgrounds) {
+      expect(contrast(g.rim, bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(g.beaconRim, bg)).toBeGreaterThanOrEqual(3);
+    }
+  });
+  it('the top face and the beacon are bright against their dark rims', () => {
+    expect(contrast(g.top, g.rim)).toBeGreaterThanOrEqual(3);
+    expect(contrast(g.beacon, g.beaconRim)).toBeGreaterThanOrEqual(3);
+  });
+  it('the trigger x equals the old flag trigger (middle of the F column) on every level', () => {
+    for (const lvl of [grass1, grass2, grass3, grass4, grass5, grass6]) {
+      const e = extractEntities(parseLevelOrThrow(lvl).grid);
+      expect(goalX(e.goal, lvl.tileSize), lvl.id).toBe(e.goal.col * lvl.tileSize + lvl.tileSize / 2);
+    }
+  });
+  it('arrival timings stay within the bounds', () => {
+    expect(GOAL.settleMs).toBeGreaterThanOrEqual(200);
+    expect(GOAL.settleMs).toBeLessThanOrEqual(300);
+    expect(GOAL.beamMs).toBeGreaterThanOrEqual(800);
+    expect(GOAL.beamMs).toBeLessThanOrEqual(1200);
+    expect(GOAL.beamTiles).toBe(3);
+    expect(GOAL.ringPulses).toBe(2);
+    expect(arrivalExtraMs()).toBeLessThanOrEqual(300);
+    expect(arrivalExtraMs()).toBeGreaterThanOrEqual(0);
+    expect(padHeight(64)).toBeCloseTo(19.2);
+  });
+  it('the legend calls F the goal and the parser still accepts it', () => {
+    expect(LEGEND.F).toBe('goal');
+    expect(parseLevel({ ...grass1, controls: { ...grass1.controls, demo: false }, stars: { two: 1, three: 2 }, grid: ['S.F', '###'] }).ok).toBe(true);
   });
 });

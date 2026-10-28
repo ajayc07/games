@@ -10,7 +10,7 @@ Each look scales the shared motion with its `motion()` weights (the robot has it
 - **Run:** a stride phase advances with distance travelled on the ground (one whole number per footfall, step 56 px), so
   faster = quicker steps and standing = no stride. Per step: bounce (5 px), squash at foot-strike, stretch mid-stride,
   a forward lean (~4 deg) and an alternating rock (~2 deg). A run blend (in 160 ms, out 220 ms) fades it all in and out.
-- **Air / landing:** take-off, landing, the flag hop and respawn placement each start a squash/stretch `Pulse`
+- **Air / landing:** take-off, landing, the goal-pad hop and respawn placement each start a squash/stretch `Pulse`
   (ease to a peak, settle back; landing settles in 120 ms). A new pulse starts from the current value, so a jump that
   interrupts a landing squash, or mashing, never pops. In the air the lean follows vertical speed (up = back, down = forward),
   eased toward its target.

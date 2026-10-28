@@ -43,8 +43,8 @@ describe('practice generator (Task 011)', () => {
         expect(e.cols, at).toBeGreaterThanOrEqual(110);
         expect(e.cols, at).toBeLessThanOrEqual(135);
         expect(e.start.col).toBe(PRACTICE.startCol);
-        expect(e.flag.row).toBe(e.start.row);
-        expect(e.solid[e.start.row + 1][e.flag.col], at).toBe(true);
+        expect(e.goal.row).toBe(e.start.row);
+        expect(e.solid[e.start.row + 1][e.goal.col], at).toBe(true);
         expect(e.bubbles.some((b) => b.kind === 'big'), `${at}: no big bubbles`).toBe(false);
 
         const gaps = gapsOf(e);
@@ -56,7 +56,7 @@ describe('practice generator (Task 011)', () => {
           for (let row = e.start.row + 1; row < e.rows; row++) for (const c of g) expect(e.solid[row][c]).toBe(false);
           prevEnd = g[g.length - 1];
         }
-        expect(e.flag.col - prevEnd - 1, `${at}: ground before the flag`).toBeGreaterThanOrEqual(PRACTICE.minGround);
+        expect(e.goal.col - prevEnd - 1, `${at}: ground before the flag`).toBeGreaterThanOrEqual(PRACTICE.minGround);
 
         // Every gap can be crossed from a standing start at its edge (D-045: 1 tile needs 44 px, 2 tiles 108 px; a standing jump carries 179+).
         const air = (2 * PHYSICS.jumpVelocity) / PHYSICS.gravity;
@@ -69,7 +69,7 @@ describe('practice generator (Task 011)', () => {
           const near = Math.min(Infinity, ...gapCols.map((c) => Math.abs(c - b.col)));
           expect(near, `${at}: bubble at ${b.col}`).toBeGreaterThanOrEqual(b.kind === 'high' ? PRACTICE.highClear : PRACTICE.smallClear);
           expect(e.solid[e.start.row + 1][b.col]).toBe(true);
-          expect(b.col).toBeLessThan(e.flag.col);
+          expect(b.col).toBeLessThan(e.goal.col);
           if (b.kind === 'high') expect(b.row).toBe(ROW.high);
           else expect([ROW.up, ROW.low]).toContain(b.row);
         }

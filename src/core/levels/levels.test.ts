@@ -57,7 +57,7 @@ describe('parseLevel', () => {
     raw.grid[0] = 'S.........';
     const errors = errorsOf(raw);
     expect(errors).toContain('test-1: grid needs exactly one "S" (player start), found 2');
-    expect(errors).toContain('test-1: grid needs exactly one "F" (flag), found 0');
+    expect(errors).toContain('test-1: grid needs exactly one "F" (goal), found 0');
   });
 
   it('rejects unknown actions and bad control flags', () => {
@@ -89,7 +89,7 @@ describe('extractEntities', () => {
     expect(e.cols).toBe(10);
     expect(e.rows).toBe(5);
     expect(e.start).toEqual({ col: 0, row: 2 });
-    expect(e.flag).toEqual({ col: 9, row: 1 });
+    expect(e.goal).toEqual({ col: 9, row: 1 });
     expect(e.coins).toEqual([
       { col: 2, row: 1 },
       { col: 6, row: 1 },

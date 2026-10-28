@@ -8,7 +8,7 @@ export const LEGEND = {
   '#': 'ground',
   c: 'coin',
   S: 'start',
-  F: 'flag',
+  F: 'goal',
   /** Small bubble (Task 007, D-041): one cell, popped by a shot into 3 coins. Not solid. */
   o: 'bubble',
   /** Big bubble: a 2x2 block of `O` cells, a soft blocker until popped (6 coins). */
@@ -171,7 +171,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
     });
     for (const msg of bigBubbleErrors(rows)) err(msg);
     if (starts !== 1) err(`grid needs exactly one "S" (player start), found ${starts}`);
-    if (flags !== 1) err(`grid needs exactly one "F" (flag), found ${flags}`);
+    if (flags !== 1) err(`grid needs exactly one "F" (goal), found ${flags}`);
     if (demo && !isScriptDemo(demo) && starts === 1) {
       const startCol = rows.find((r) => r.includes('S'))!.indexOf('S');
       if (demo.tiles <= startCol || demo.tiles > width) {

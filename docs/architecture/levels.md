@@ -38,7 +38,7 @@ Levels are plain JSON in `universes/<id>/levels/`, loaded by that folder's `inde
   "grid": ["....", "S..F", "####"]
 }
 ```
-- `grid`: equal-length rows, top row first. Legend: `#` ground, `.` empty, `c` coin, `S` start, `F` flag (pole stands in
+- `grid`: equal-length rows, top row first. Legend: `#` ground, `.` empty, `c` coin, `S` start, `F` goal (the charging pad stands in
   that cell), `o` small bubble, `O` big bubble (a whole 2x2 block of `O`; a broken block is an error naming its first cell),
   `h` high bubble (Task 009: the small picture, 4 coins, centred in its cell and raised a quarter tile, never solid),
   `r` rainbow bubble (Task 012: made by replay variety, never written in the JSON).
@@ -78,6 +78,17 @@ demo; a tap or key after 1.5 s skips it. At the end the ghost fades, the camera 
 "your turn" cue (bouncing arrow over the character, ripples at its feet, a button pulse and the soft `yourTurn` sound)
 and the real run starts. Plays once per session per level (static set in LevelScene); `?demo=1` forces, `?demo=0` skips.
 
+### Goal pad (Task 014, D-055)
+The stage end is an original robot charging pad, the same on every level and in Practice (grid letter `F`, `LEGEND.F` = "goal"; level JSON untouched).
+`core/levels/goal.ts` (pure, tested): `GOAL` numbers (pad 2 tiles wide, 0.3 tile tall, post 2.5 tiles, `settleMs` 250, `beamMs` 1000, `beamTiles` 3, `ringPulses` 2,
+`resultDelayMs` 1100), `goalX(cell, tile)` (middle of the `F` column, the same trigger x as the old flag), `padHeight`, `arrivalTotalMs` (settle + 1100, so 250 ms
+longer than before). Look, all generated from `theme.goal` colours (`goal-pad`, `goal-ring`, `goal-post`, `goal-beacon` textures, `fx-beam`, `fx-bolt` effects): a slab with a dark raspberry
+rim (3:1 against hills and sky, unit-tested, like the beacon outline) and a gold top face, a cyan glowing ring on the top, a post at the back with a beacon ball and halo.
+Idle: ring and halo pulse softly, beacon blinks every 1 s, a few sparkles rise slowly (tweens and one emitter; no per-frame work).
+Arrival (`LevelScene.reachGoal` unchanged trigger, then `updateFinish` once grounded): `settleOnPad` eases the body to the pad centre in 250 ms (`body.reset` each tick) while
+`Player.lift` raises the picture onto the top face; `chargePad` then plays the option's win chime and the `win` clip (hop), makes the beacon solid, pulses the ring twice, rises a beam
+3 tiles for about 1 s, bursts sparkles, flashes the body and throws a few accent-coloured bolts, then confetti; the result screen follows 1100 ms after the charge starts.
+
 ### Replay variety (Task 012, D-053)
 `core/levels/variety.ts` (pure, seeded with `makeRng`, tested): `varyLevel(level, seed)` returns the level with a shuffled grid; same level and
 seed = same grid. Only loose coins and small bubbles move, sideways, along their own ground stretch (between gaps, the start and the flag, so
@@ -98,7 +109,7 @@ records unchanged). A level whose watch-me demo is about to play (`LevelScene.de
 `core/levels/` (all universe-agnostic):
 - `format.ts`: types, `parseLevel` (readable errors: row lengths, unknown characters with position, exactly one S/F,
   valid actions, star thresholds), `parseLevelOrThrow`.
-- `grid.ts`: `extractEntities` (solid map, coins, bubbles, start, flag), `mergeSolids` (few collision rectangles, no seams),
+- `grid.ts`: `extractEntities` (solid map, coins, bubbles, start, goal), `mergeSolids` (few collision rectangles, no seams),
   `surfaceRow`, `findRespawn` (D-019: nearest standable column at least 3 behind the last grounded column, preferring
   ground on both sides; Task 008: `dir` = the way he was heading, so a fall while walking LEFT over a gap puts him on the
   side he came from, 3 or more columns to the right of where he last stood, and never across the gap; at the right end of
@@ -109,10 +120,10 @@ records unchanged). A level whose watch-me demo is about to play (`LevelScene.de
   onHome, onNext?, nextAvailable?, onResult?, onPicker? }` from the universe, so core never imports a universe. Player = invisible 40x84 physics zone + a separate
   look (robot or ball, lively motion, see "Avatar looks" above). Camera follows by hand with a look-ahead (see "Walking");
   scenery ground extends past both level ends.
-  Falls: whoosh, a cloud carries the player to the respawn spot, facing the gap he fell into (his facing at the fall). Flag: stop, the option's win chime, hop, confetti, `ResultScreen`.
+  Falls: whoosh, a cloud carries the player to the respawn spot, facing the gap he fell into (his facing at the fall). Goal: see "Goal pad" below.
   `?debug=1` exposes `window.__level` (state, scene, input, layout, audio) for tests.
-- `theme.ts`: `LevelTheme` = colours for sky, hills, clouds, ground, coin, flag plus optional image files per texture
-  (`ground-top`, `ground-fill`, `coin`, `flag-pole`, `flag-cloth`, `hills-far`, `hills-near`, `cloud`).
+- `theme.ts`: `LevelTheme` = colours for sky, hills, clouds, ground, coin, goal (pad: rim, top, ring, glow, beacon, beaconRim, post) plus optional image files per texture
+  (`ground-top`, `ground-fill`, `coin`, `goal-pad`, `goal-ring`, `goal-post`, `goal-beacon`, `hills-far`, `hills-near`, `cloud`).
 - `placeholders.ts`: generates the theme textures (and effect/capsule textures) at 2x resolution for any texture without
   a file. Real art: drop the file into the universe assets; the Grass theme already looks up `grass-ground-top.png` etc.
 - `background.ts`: parallax sky gradient, wrapping clouds and two tiling hill strips, all screen-fixed and scrolled by hand.

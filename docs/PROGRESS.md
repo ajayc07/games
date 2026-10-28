@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-28 (Task 012 replay variety done, D-053)_
+_Last updated: 2026-10-28 (Task 014 charging pad done, D-055)_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -13,7 +13,7 @@ combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey 
 (sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
 `?demo=0|1`, `?variety=0|1`, `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
-Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-013 are committed locally.
+Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-014 are committed locally.
 
 ## Roadmap
 | # | Task | Status |
@@ -27,10 +27,13 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 011 | Combo Practice (free play) | Done |
 | 013 | Browser fullscreen (first tap, parent-view toggle) | Done |
 | 012 | Replay variety (shuffle coins and small bubbles on replays after a first clear, rare rainbow bubble), D-053 | Done |
+| 014 | Charging pad instead of the flag, stronger rainbow bubble, robot hex-nut coin face (D-054, D-055) | Done |
+| 015 | Polish bundle (footsteps, landing thump, idle wave), not drafted | Optional |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
-1. Optional: Task 014 polish bundle (footsteps, landing thump, idle wave), not drafted.
+1. Task 014 is done (committed locally, not pushed). Optional next: Task 015 polish bundle (footsteps, landing thump, idle wave), not drafted.
+   Parent housekeeping: stop the Vite dev server Claude Code left running on port 5173 (D-054).
 2. Real-device checks of Task 012 (see the tablet checklist) and of Task 013 fullscreen.
 
 ## In progress
@@ -64,6 +67,7 @@ _(nothing)_
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Charging pad (014)**: does it still get "is it Mario?"; does he understand the pad is the end; does he enjoy the charge effect (beam, rings, bolts); is the pad easy to spot from far away; is the rainbow bubble now easy to spot; does the hex-nut coin still read as a coin? The charge sound is just the existing win chime.
   - **Replay variety (012)** (`?level=grass-4&variety=1&demo=0` forces it; `&seed=1` always gives a rainbow bubble in Grass 4 and 6): does a replay feel different to him? Does he notice and enjoy the rainbow bubble (about 1 in 3
     replays of Grass 4 and 6; 8 coins, rising chime, coloured rings; the chime is not yet heard by ear)? Does any level feel unfair, too empty or too crowded after shuffling (coins and small bubbles only; arcs, gaps, big and high bubbles stay)?
   - **Practice (011)** (`?practice=walk-shoot` etc. jump straight in): does he find the teal Practice button and understand the four cards? Does he make combos (an arrow held while

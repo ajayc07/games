@@ -61,6 +61,8 @@ export class Player {
   lastGroundedCol = 0;
   /** While set, the picture follows this point instead of the body (cloud ride). */
   ride: { x: number; y: number } | null = null;
+  /** Picture raised above the body's feet (px): standing on the goal pad. */
+  lift = 0;
 
   private jumpUsed = false;
   private jumpBufferUntil = -1;
@@ -157,7 +159,7 @@ export class Player {
     return { jumped, landed };
   }
 
-  /** Happy hop at the flag. */
+  /** Happy hop at the goal. */
   hop(now: number): void {
     this.body.setVelocityY(-PHYSICS.jumpVelocity * 0.7);
     this.jumpUsed = true;
@@ -202,7 +204,7 @@ export class Player {
       time,
       dtMs: dt * 1000,
       x: body.center.x,
-      bottom: body.bottom,
+      bottom: body.bottom - this.lift,
       vx: body.velocity.x,
       vy: body.velocity.y,
       onGround: this.grounded,

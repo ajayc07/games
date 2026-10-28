@@ -6,8 +6,10 @@ export const THEME_TEXTURES = [
   'ground-top', // one ground cell with grass on top (tileSize x tileSize)
   'ground-fill', // one ground cell under the surface
   'coin',
-  'flag-pole',
-  'flag-cloth',
+  'goal-pad', // the charging pad slab (rim, top face)
+  'goal-ring', // glowing ring on the pad top
+  'goal-post', // post with antenna
+  'goal-beacon', // beacon ball
   'hills-far', // horizontally tileable strip, bottom-aligned
   'hills-near',
   'cloud',
@@ -23,7 +25,8 @@ export interface LevelTheme {
   cloud: number;
   ground: { grass: number; grassDark: number; dirt: number; dirtDots: number };
   coin: { fill: number; edge: number; shine: number };
-  flag: { pole: number; cloth: number; knob: number };
+  /** Charging pad: `rim` and `beaconRim` are dark enough to stand out from sky and hills (unit-tested, 3:1). */
+  goal: { rim: number; top: number; ring: number; glow: number; beacon: number; beaconRim: number; post: number };
   /** Image files (URLs) that replace generated placeholders. Drop a file into the universe assets and list it here. */
   images?: Partial<Record<ThemeTexture, string>>;
 }

@@ -26,7 +26,7 @@ export interface GridEntities {
   /** In grid order (top to bottom, left to right by first cell). */
   bubbles: BubbleCell[];
   start: Cell;
-  flag: Cell;
+  goal: Cell;
 }
 
 /** Splits a validated grid into what the scene needs. Assumes parseLevel() accepted it. */
@@ -38,7 +38,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const bubbles: BubbleCell[] = [];
   const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
-  let flag: Cell = { col: 0, row: 0 };
+  let goal: Cell = { col: 0, row: 0 };
   for (let row = 0; row < rows; row++) {
     const line: boolean[] = [];
     for (let col = 0; col < cols; col++) {
@@ -54,11 +54,11 @@ export function extractEntities(grid: readonly string[]): GridEntities {
         for (const k of [`${row}:${col + 1}`, `${row + 1}:${col}`, `${row + 1}:${col + 1}`]) bigTaken.add(k);
       }
       else if (ch === 'S') start = { col, row };
-      else if (ch === 'F') flag = { col, row };
+      else if (ch === 'F') goal = { col, row };
     }
     solid.push(line);
   }
-  return { cols, rows, solid, coins, bubbles, start, flag };
+  return { cols, rows, solid, coins, bubbles, start, goal };
 }
 
 /**

@@ -124,7 +124,7 @@ export class AvatarDriver {
     this.look.trigger('land', now);
   }
 
-  /** Happy hop at the flag: the look switches to its win animation. */
+  /** Happy hop at the goal: the look switches to its win animation. */
   hop(now: number): void {
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.hop);
     this.look.trigger('win', now);

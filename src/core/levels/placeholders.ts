@@ -14,10 +14,14 @@ export function themeTextureSize(name: ThemeTexture, tile: number): { w: number;
       return { w: tile, h: tile };
     case 'coin':
       return { w: 40, h: 40 };
-    case 'flag-pole':
-      return { w: 20, h: tile * 4 + 12 };
-    case 'flag-cloth':
-      return { w: 84, h: 60 };
+    case 'goal-pad':
+      return { w: tile * 2, h: Math.ceil(tile * 0.3) + 4 };
+    case 'goal-ring':
+      return { w: tile * 1.5, h: 18 };
+    case 'goal-post':
+      return { w: 30, h: tile * 2.5 };
+    case 'goal-beacon':
+      return { w: 48, h: 48 };
     case 'hills-far':
       return { w: 1024, h: 300 };
     case 'hills-near':
@@ -38,7 +42,7 @@ export function makeThemeTextures(scene: Phaser.Scene, theme: LevelTheme, tile: 
     generate(scene, key, w, h, paint);
   };
 
-  const { ground, coin, flag, hills } = theme;
+  const { ground, coin, goal, hills } = theme;
   const dots = (g: Phaser.GameObjects.Graphics, w: number, top: number, h: number) => {
     g.fillStyle(ground.dirtDots, 1);
     const spots: Array<[number, number, number]> = [
@@ -71,18 +75,34 @@ export function makeThemeTextures(scene: Phaser.Scene, theme: LevelTheme, tile: 
     const r = Math.min(w, h) / 2;
     g.fillStyle(coin.edge, 1).fillCircle(w / 2, h / 2, r);
     g.fillStyle(coin.fill, 1).fillCircle(w / 2, h / 2, r * 0.8);
-    g.fillStyle(coin.edge, 1).fillRoundedRect(w / 2 - r * 0.12, h / 2 - r * 0.45, r * 0.24, r * 0.9, r * 0.1);
+    // Robot hex-nut emblem (like the chest hexagon): a hexagon with a round hole.
+    const hex = Array.from({ length: 6 }, (_, i) => new Phaser.Geom.Point(w / 2 + Math.cos((i * Math.PI) / 3) * r * 0.5, h / 2 + Math.sin((i * Math.PI) / 3) * r * 0.5));
+    g.fillStyle(coin.edge, 1).fillPoints(hex, true);
+    g.fillStyle(coin.fill, 1).fillCircle(w / 2, h / 2, r * 0.2);
     g.fillStyle(coin.shine, 0.9).fillCircle(w / 2 - r * 0.38, h / 2 - r * 0.38, r * 0.16);
   });
 
-  draw('flag-pole', (g, w, h) => {
-    g.fillStyle(flag.pole, 1).fillRoundedRect(w / 2 - 4, w / 2, 8, h - w / 2, 3);
-    g.fillStyle(flag.knob, 1).fillCircle(w / 2, w / 2, w / 2);
+  draw('goal-pad', (g, w, h) => {
+    // Rounded slab: dark rim all round, lighter top face inset, a darker front strip below it.
+    g.fillStyle(goal.rim, 1).fillRoundedRect(0, 0, w, h, h / 2);
+    g.fillStyle(goal.top, 1).fillRoundedRect(4, 3, w - 8, h * 0.55, (h * 0.55) / 2);
   });
 
-  draw('flag-cloth', (g, w, h) => {
-    g.fillStyle(flag.cloth, 1).fillTriangle(0, 0, w, h / 2, 0, h);
-    g.fillStyle(0xffffff, 1).fillCircle(w * 0.3, h / 2, h * 0.16);
+  draw('goal-ring', (g, w, h) => {
+    g.lineStyle(5, goal.glow, 0.55).strokeEllipse(w / 2, h / 2, w - 6, h - 4);
+    g.lineStyle(2.5, goal.ring, 1).strokeEllipse(w / 2, h / 2, w - 6, h - 4);
+  });
+
+  draw('goal-post', (g, w, h) => {
+    g.fillStyle(goal.rim, 1).fillRoundedRect(w / 2 - 5, h * 0.3, 10, h * 0.7, 3);
+    g.fillStyle(goal.post, 1).fillRoundedRect(w / 2 - 3, h * 0.3 + 2, 6, h * 0.7 - 2, 2);
+    g.fillStyle(goal.rim, 1).fillRect(w / 2 - 1.5, 0, 3, h * 0.32);
+  });
+
+  draw('goal-beacon', (g, w) => {
+    g.fillStyle(goal.beaconRim, 1).fillCircle(w / 2, w / 2, w / 2);
+    g.fillStyle(goal.beacon, 1).fillCircle(w / 2, w / 2, w / 2 - 3.5);
+    g.fillStyle(0xffffff, 0.9).fillCircle(w * 0.38, w * 0.36, w * 0.1);
   });
 
   const hillStrip = (color: number, shade: number, bumps: Array<[number, number, number]>) =>
@@ -133,6 +153,16 @@ export function makeEffectTextures(scene: Phaser.Scene): void {
   });
   // Speed streak: a thin rounded line.
   once('fx-streak', 30, 4, (g, w, h) => g.fillStyle(0xffffff, 1).fillRoundedRect(0, 0, w, h, h / 2));
+  // Soft vertical beam: stacked rounded bars, faint at the edge and brighter in the middle.
+  once('fx-beam', 64, 192, (g, w, h) => {
+    for (let i = 0; i < 5; i++) {
+      const inset = (i / 5) * (w / 2 - 4);
+      g.fillStyle(0xffffff, 0.16).fillRoundedRect(inset, 0, w - inset * 2, h, 10);
+    }
+  });
+  once('fx-bolt', 20, 28, (g) => {
+    g.fillStyle(0xffffff, 1).fillTriangle(12, 0, 2, 16, 11, 16).fillTriangle(8, 12, 18, 12, 6, 28);
+  });
   once('fx-confetti', 10, 14, (g, w, h) => g.fillStyle(0xffffff, 1).fillRect(0, 0, w, h));
   once('fx-sparkle', 28, 28, (g, w) => {
     const c = w / 2;

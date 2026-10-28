@@ -23,6 +23,8 @@ interface BubbleView {
   spec: BubbleSpec;
   img: Phaser.GameObjects.Image;
   popped: boolean;
+  /** Rainbow bubbles only: a soft sparkle that twinkles on the bubble about every 1.5 s. */
+  twinkle?: Phaser.GameObjects.Image;
   /** Current centre (with the bob). */
   x: number;
   y: number;
@@ -30,6 +32,7 @@ interface BubbleView {
 
 const COIN_SIZE = 36;
 const COIN_LIFT = 70;
+const TWINKLE_MS = 1500;
 
 export interface BubbleFieldOptions {
   cells: readonly BubbleCell[];
@@ -58,7 +61,11 @@ export class BubbleField {
     this.views = specs.map((spec) => {
       const key = bubbleTexture(scene, spec.r, spec.kind === 'rainbow');
       const img = scene.add.image(spec.x, spec.y, key).setScale(1 / TEX_RES).setDepth(opts.depth.bubbles);
-      return { spec, img, popped: false, x: spec.x, y: spec.y };
+      const twinkle =
+        spec.kind === 'rainbow'
+          ? scene.add.image(spec.x, spec.y, 'fx-sparkle').setDepth(opts.depth.bubbles + 0.1).setAlpha(0).setBlendMode('ADD')
+          : undefined;
+      return { spec, img, popped: false, x: spec.x, y: spec.y, twinkle };
     });
   }
 
@@ -72,6 +79,12 @@ export class BubbleField {
       if (v.popped) continue;
       v.y = v.spec.y + bobOffset(v.spec, now);
       v.img.setY(v.y);
+      if (v.twinkle) {
+        // A slow sparkle: grows and fades over the first 0.45 s of every 1.5 s (offset per bubble position).
+        const phase = ((now + v.spec.x * 3) % TWINKLE_MS) / TWINKLE_MS;
+        const k = phase < 0.3 ? Math.sin((phase / 0.3) * Math.PI) : 0;
+        v.twinkle.setPosition(v.x - v.spec.r * 0.35, v.y - v.spec.r * 0.4).setAlpha(k).setScale(0.3 + 0.9 * k).setAngle(phase * 90);
+      }
     }
     for (const c of this.flow.coins) {
       const img = this.coinViews.get(c.id);
@@ -149,6 +162,7 @@ export class BubbleField {
 
   private pop(v: BubbleView, now: number, counted: boolean): void {
     v.popped = true;
+    v.twinkle?.setAlpha(0);
     this.pops++;
     const s = this.scene;
     const rainbow = v.spec.kind === 'rainbow';
@@ -204,7 +218,7 @@ export class BubbleField {
 }
 
 /** Soft rainbow colours (red to violet) for the sheen and the burst. */
-const RAINBOW = [0xff8a80, 0xffb74d, 0xfff176, 0x81c784, 0x64b5f6, 0xba68c8];
+const RAINBOW = [0xff5252, 0xffa726, 0xffee58, 0x4caf50, 0x2196f3, 0xab47bc];
 
 /** A translucent soft blue/white bubble of radius `r` (logical px), drawn once and cached by size. `rainbow` adds a soft rainbow sheen. */
 function bubbleTexture(scene: Phaser.Scene, r: number, rainbow = false): string {
@@ -239,14 +253,14 @@ function bubbleTexture(scene: Phaser.Scene, r: number, rainbow = false): string 
     ctx.arc(c, c, r * 0.86, Math.PI * 0.1, Math.PI * 0.55);
     ctx.stroke();
     if (rainbow) {
-      // Concentric soft bands of the rainbow just inside the rim, across the lower right (like soap film).
+      // Thick saturated rainbow bands just inside the rim, round the whole bubble (readable at 844x390).
       ctx.lineCap = 'butt';
       RAINBOW.forEach((color, i) => {
-        ctx.lineWidth = Math.max(2.5, r * 0.085);
+        ctx.lineWidth = Math.max(3.5, r * 0.12);
         ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-        ctx.globalAlpha = 0.9;
+        ctx.globalAlpha = 1;
         ctx.beginPath();
-        ctx.arc(c, c, r * (0.8 - i * 0.07), Math.PI * 0.05, Math.PI * 0.95);
+        ctx.arc(c, c, r * (0.86 - i * 0.1), Math.PI * 0.02, Math.PI * 1.98);
         ctx.stroke();
       });
       ctx.globalAlpha = 1;

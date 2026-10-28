@@ -2,6 +2,7 @@
 // specific universe; the universe passes everything in through LevelSceneData.
 import Phaser from 'phaser';
 import type { Action, AvatarOptionDef } from '../types';
+import { GOAL, goalX, padHeight, arrivalTotalMs } from './goal';
 import { INPUT_EVENTS, InputManager } from '../input/InputManager';
 import { TouchControls } from '../ui/TouchControls';
 import { getLayout, type Layout } from '../ui/layout';
@@ -42,7 +43,7 @@ export interface LevelSceneData {
   onNext?: () => void;
   /** Asked when the win screen appears (after onResult): is Next allowed now (the next level open)? Default yes. */
   nextAvailable?: () => boolean;
-  /** Called at the flag, before the win screen, so progress is kept even if the child quits right away. */
+  /** Called at the goal, before the win screen, so progress is kept even if the child quits right away. */
   onResult?: (result: { stars: number; coins: number }) => void;
   /** How the player is drawn; default `?look=` / robot. */
   look?: LookName;
@@ -68,7 +69,7 @@ const COIN_SIZE = 40;
 const COIN_HIT_R = 18;
 /** Where the player sits on screen, as a fraction across the safe area (rest is look-ahead). */
 const CAMERA_ANCHOR = 0.36;
-const DEPTH = { ground: 0, coins: 10, flag: 5, bubbles: 12, ghost: 19, player: 20, shots: 22, popCoins: 26, fx: 30, hint: 40, hud: 900, exit: 950 };
+const DEPTH = { ground: 0, coins: 10, goal: 5, bubbles: 12, ghost: 19, player: 20, shots: 22, popCoins: 26, fx: 30, hint: 40, hud: 900, exit: 950 };
 const GHOST_ALPHA = 0.55;
 /** Each button gives a gentle "press me" pulse this often until its first press (ms); Left and Right take turns. */
 const INVITE_EVERY_MS = 2600;
@@ -120,9 +121,14 @@ export class LevelScene extends Phaser.Scene {
   private pressedOnce = new Set<Action>();
   private inviteTick = 0;
   private coins: Coin[] = [];
-  private flagX = 0;
-  private flagTopY = 0;
-  private flagCloth!: Phaser.GameObjects.Image;
+  private goalX = 0;
+  /** y of the pad's top face (where the robot stands once settled) and of the beacon centre. */
+  private padTopY = 0;
+  private beaconY = 0;
+  private beacon!: Phaser.GameObjects.Image;
+  private beaconHalo!: Phaser.GameObjects.Image;
+  private goalRing!: Phaser.GameObjects.Image;
+  private beaconBlink: Phaser.Tweens.Tween | null = null;
   private hud!: { icon: Phaser.GameObjects.Image; count: Phaser.GameObjects.Text };
   private hint: Phaser.GameObjects.Container | null = null;
   private result: ResultScreen | null = null;
@@ -209,7 +215,7 @@ export class LevelScene extends Phaser.Scene {
     this.bg = new ParallaxBackground(this, theme, surfaceY);
     this.buildGround();
     this.buildCoins();
-    this.buildFlag();
+    this.buildGoal();
     this.lookName = this.data0.look ?? lookFromUrl();
     this.size = sizeFromUrl();
     this.motionFx = new MotionFx(this, DEPTH.player - 1, this.size);
@@ -335,20 +341,40 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
-  private buildFlag(): void {
+  /** The charging pad (D-055): slab, glowing ring, post with a blinking beacon, a few slow sparkles. All generated textures. */
+  private buildGoal(): void {
     const T = this.tile;
     const theme = this.data0.theme;
-    const base = this.gridTop + (this.grid.flag.row + 1) * T;
-    this.flagX = this.grid.flag.col * T + T / 2;
-    const poleH = T * 4 + 12;
-    this.add.image(this.flagX, base, themeKey(theme, 'flag-pole')).setOrigin(0.5, 1).setDisplaySize(20, poleH).setDepth(DEPTH.flag);
-    this.flagTopY = base - poleH;
-    this.flagCloth = this.add
-      .image(this.flagX + 4, this.flagTopY + 22, themeKey(theme, 'flag-cloth'))
-      .setOrigin(0, 0)
-      .setDisplaySize(84, 60)
-      .setDepth(DEPTH.flag);
-    this.tweens.add({ targets: this.flagCloth, scaleX: this.flagCloth.scaleX * 0.88, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    const base = this.gridTop + (this.grid.goal.row + 1) * T;
+    this.goalX = goalX(this.grid.goal, T);
+    const padH = padHeight(T);
+    const padW = GOAL.padTiles.w * T;
+    this.padTopY = base - padH;
+    const padImg = this.add.image(this.goalX, base + 2, themeKey(theme, 'goal-pad')).setOrigin(0.5, 1).setDisplaySize(padW, padH + 4).setDepth(DEPTH.goal);
+    const postH = GOAL.postTiles * T;
+    const postX = this.goalX + padW * 0.34;
+    this.add.image(postX, base - padH * 0.5, themeKey(theme, 'goal-post')).setOrigin(0.5, 1).setDisplaySize(30, postH).setDepth(DEPTH.goal - 0.1);
+    this.beaconY = base - padH * 0.5 - postH * 0.7 - 8;
+    this.beaconHalo = this.add.image(postX, this.beaconY, 'fx-dust').setDisplaySize(120, 120).setTint(theme.goal.beacon).setAlpha(0.45).setBlendMode('ADD').setDepth(DEPTH.goal - 0.05);
+    this.beacon = this.add.image(postX, this.beaconY, themeKey(theme, 'goal-beacon')).setDisplaySize(48, 48).setDepth(DEPTH.goal);
+    this.beaconBlink = this.tweens.add({ targets: this.beacon, alpha: { from: 1, to: 0.3 }, duration: GOAL.idleBlinkMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: this.beaconHalo, alpha: { from: 0.55, to: 0.1 }, duration: GOAL.idleBlinkMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.goalRing = this.add.image(this.goalX, this.padTopY + 7, themeKey(theme, 'goal-ring')).setDisplaySize(T * 1.5, 18).setDepth(DEPTH.goal + 0.1);
+    this.tweens.add({ targets: this.goalRing, alpha: { from: 1, to: 0.45 }, scaleX: this.goalRing.scaleX * 1.06, duration: GOAL.idleRingMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.add
+      .particles(this.goalX, this.padTopY, 'fx-sparkle', {
+        x: { min: -padW * 0.4, max: padW * 0.4 },
+        y: { min: -6, max: 0 },
+        speedY: { min: -38, max: -22 },
+        speedX: 0,
+        lifespan: 1800,
+        frequency: 650,
+        scale: { start: 0.32, end: 0 },
+        alpha: { start: 0.9, end: 0 },
+        tint: [theme.goal.glow, 0xffffff],
+      })
+      .setDepth(DEPTH.goal + 0.2);
+    void padImg;
   }
 
   /** The real player gets dust; the demo ghost does not. */
@@ -593,7 +619,7 @@ export class LevelScene extends Phaser.Scene {
     this.collectCoins();
 
     const body = this.player.body;
-    if (body.center.x >= this.flagX - PHYSICS.body.width / 2) this.reachFlag();
+    if (body.center.x >= this.goalX - PHYSICS.body.width / 2) this.reachGoal();
     else if (body.top > this.layout.height + 40) this.startRespawn();
   }
 
@@ -683,7 +709,7 @@ export class LevelScene extends Phaser.Scene {
       jumpPressed: playing && input.justPressed('jump'),
       powerPressed: playing && input.justPressed('power'),
       airborne: !this.player.grounded,
-      possible: playing && !this.player.ride && !this.nearGap(b.center.x) && b.center.x < this.flagX - 2 * this.tile,
+      possible: playing && !this.player.ride && !this.nearGap(b.center.x) && b.center.x < this.goalX - 2 * this.tile,
       facing: this.player.facing,
       avatar: { left: b.left - cam - 30, right: b.right - cam + 30, top: b.top - 40, bottom: b.bottom + 8 },
     });
@@ -784,9 +810,9 @@ export class LevelScene extends Phaser.Scene {
     });
   }
 
-  // ---------- flag and result ----------
+  // ---------- goal pad and result ----------
 
-  private reachFlag(): void {
+  private reachGoal(): void {
     this.mode = 'finish';
     this.exitBtn.setEnabled(false);
     this.player.halt();
@@ -808,17 +834,12 @@ export class LevelScene extends Phaser.Scene {
     player.halt();
     if (!player.grounded) return;
     this.mode = 'result';
-    playChime(this.data0.option, 'win'); // the chosen option's own win chime (D-038)
-    player.avatar.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
-    player.hop(this.time.now);
-    this.confetti.explode(70, this.flagX, this.flagTopY + 20);
-    this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
-    this.tweens.add({ targets: this.flagCloth, angle: { from: -8, to: 8 }, duration: 160, yoyo: true, repeat: 3 });
+    this.settleOnPad();
     const stars = starsFor(true, this.coinCount, this.level.stars);
     // Keep progress now, before the win screen, so quitting right after still saves it. Practice saves nothing (Task 011).
     resultHandlerFor(this.level, this.data0.onResult)?.({ stars, coins: this.coinCount });
     const practice = this.practice && this.data0.practice ? { combos: this.practice.combo.total } : undefined;
-    this.time.delayedCall(1100, () => {
+    this.time.delayedCall(arrivalTotalMs(), () => {
       // A joyful bounce on the spot while the stars fill, ending as the buttons appear.
       player.celebrate(this.time.now, ResultScreen.fillMs(stars, practice));
       const replay = this.data0.onReplay;
@@ -832,6 +853,65 @@ export class LevelScene extends Phaser.Scene {
         onPractice: practice && this.data0.practice ? () => this.afterStep(this.data0.practice!.onPractice) : undefined,
       }, practice);
     });
+  }
+
+  /** The robot eases onto the pad centre (feet on the top face), then the pad charges. */
+  private settleOnPad(): void {
+    const player = this.player;
+    const body = player.body;
+    const x0 = body.center.x;
+    const dx = this.goalX - x0;
+    const lift = padHeight(this.tile);
+    player.avatar.setDepth(ResultScreen.DEPTH + 0.5); // above the dim layer, below stars and buttons
+    this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: GOAL.settleMs,
+      ease: 'Sine.easeOut',
+      onUpdate: (tw) => {
+        const e = tw.getValue() ?? 0;
+        body.reset(x0 + dx * e, body.center.y);
+        player.lift = lift * e;
+      },
+      onComplete: () => this.chargePad(),
+    });
+  }
+
+  /** The pad lights up: ring pulses, a beam, sparkles, the beacon goes solid; the robot flashes and does its win clip. */
+  private chargePad(): void {
+    const player = this.player;
+    const theme = this.data0.theme;
+    const T = this.tile;
+    playChime(this.data0.option, 'win'); // the chosen option's own win chime (D-038)
+    player.hop(this.time.now);
+    this.beaconBlink?.remove();
+    this.beaconBlink = null;
+    this.beacon.setAlpha(1);
+    this.tweens.killTweensOf(this.beaconHalo);
+    this.beaconHalo.setAlpha(0.8);
+    this.tweens.add({ targets: this.beacon, displayWidth: 62, displayHeight: 62, duration: 200, yoyo: true });
+    for (let i = 0; i < GOAL.ringPulses; i++) {
+      const ring = this.add.image(this.goalX, this.padTopY + 7, themeKey(theme, 'goal-ring')).setDisplaySize(T * 1.5, 18).setDepth(DEPTH.goal + 0.3).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: ring, scaleX: ring.scaleX * 1.8, scaleY: ring.scaleY * 1.8, alpha: { from: 1, to: 0 }, duration: GOAL.ringPulseMs, delay: i * GOAL.ringPulseMs * 0.8, onComplete: () => ring.destroy() });
+    }
+    const beamH = GOAL.beamTiles * T;
+    const beam = this.add.image(this.goalX, this.padTopY, 'fx-beam').setOrigin(0.5, 1).setDisplaySize(64, 1).setTint(theme.goal.glow).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.goal - 0.5);
+    this.tweens.add({ targets: beam, displayHeight: beamH, duration: 180, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: beam, alpha: 0, delay: GOAL.beamMs * 0.6, duration: GOAL.beamMs * 0.4, onComplete: () => beam.destroy() });
+    this.sparkle.explode(22, this.goalX, this.padTopY - 4);
+    // Charge effect on the body: a quick bright flash and a few bolts in the accent colour.
+    const accent = resolveAvatar(this.data0.option).palette.accent;
+    const cx = player.body.center.x;
+    const cy = player.body.center.y;
+    const flash = this.add.image(cx, cy, 'fx-dust').setDisplaySize(70, 70).setTint(0xffffff).setBlendMode(Phaser.BlendModes.ADD).setDepth(ResultScreen.DEPTH + 0.6);
+    this.tweens.add({ targets: flash, displayWidth: 120, displayHeight: 120, alpha: { from: 0.6, to: 0 }, duration: 260, onComplete: () => flash.destroy() });
+    const bolts = this.add
+      .particles(cx, cy, 'fx-bolt', { emitting: false, speed: { min: 90, max: 170 }, scale: { start: 0.7, end: 0 }, rotate: { min: -40, max: 40 }, tint: [accent, 0xffffff, theme.goal.beacon], lifespan: 650 })
+      .setDepth(ResultScreen.DEPTH + 0.6);
+    bolts.explode(7);
+    this.time.delayedCall(900, () => bolts.destroy());
+    this.confetti.explode(70, this.goalX, this.beaconY);
+    this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
   }
 
   private afterStep(fn: () => void): void {
