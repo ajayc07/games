@@ -193,7 +193,7 @@ export class TouchControls {
   }
 }
 
-/** Draws a button's icon (arrow, jump arrow, star) into a cleared Graphics at the origin; also used by the parent view's preview. */
+/** Draws a button's icon (arrow, jump arrow, blaster with a ball) into a cleared Graphics at the origin; also used by the parent view's preview. */
 export function drawActionIcon(g: Phaser.GameObjects.Graphics, action: Action, radius: number): void {
   const s = radius * 0.5; // icon half-size
   g.clear();
@@ -210,13 +210,15 @@ export function drawActionIcon(g: Phaser.GameObjects.Graphics, action: Action, r
       g.fillPoints(pts([[0, -1], [0.9, 0.1], [0.35, 0.1], [0.35, 0.9], [-0.35, 0.9], [-0.35, 0.1], [-0.9, 0.1]]), true);
       break;
     case 'power': {
-      const star: Array<[number, number]> = [];
-      for (let i = 0; i < 10; i++) {
-        const rr = i % 2 === 0 ? 1.05 : 0.45;
-        const a = -Math.PI / 2 + (i * Math.PI) / 5;
-        star.push([rr * Math.cos(a), rr * Math.sin(a) + 0.08]);
-      }
-      g.fillPoints(pts(star), true);
+      // A toy blaster seen from the side, with a ball just leaving the nozzle (Task 026): reads as "shoot".
+      g.fillRoundedRect(-1.1 * s, -0.4 * s, 1.3 * s, 0.6 * s, 0.16 * s); // body
+      g.fillRoundedRect(0.1 * s, -0.28 * s, 0.55 * s, 0.36 * s, 0.08 * s); // nozzle
+      g.fillPoints(pts([[-0.85, 0.15], [-0.4, 0.15], [-0.55, 0.95], [-1.0, 0.95]]), true); // grip
+      g.fillCircle(1.0 * s, -0.1 * s, 0.27 * s); // the ball
+      // Details in the button's colour: the nozzle ring and a shine on the ball.
+      g.fillStyle(STYLES[action].color, 0.6);
+      g.fillRect(0.02 * s, -0.4 * s, 0.1 * s, 0.6 * s);
+      g.fillCircle(0.92 * s, -0.2 * s, 0.07 * s);
       break;
     }
   }

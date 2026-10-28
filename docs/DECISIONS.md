@@ -172,3 +172,6 @@ The eight coins from a rainbow bubble are now special: a bigger coin (46 px) wit
 - The parent view got a "More settings ›" button (a second page) because the first page has no room left for two more rows.
 - Not checked on a phone: whether the stronger buzz is felt, whether random day/night is fun or confusing, whether the night look is playable on every level (Night Walk is tested; other levels at night are only looked at in Chromium).
 
+
+## D-069 (2026-10-28) Power button icon: a toy blaster firing a ball (Task 026)
+The yellow star on the purple Power button did not say "shoot", and a ball with a trail was still unclear. It is now a small toy blaster (body, nozzle with a ring, grip) with a ball just leaving the nozzle, in the same yellow on the same purple button (`drawActionIcon` in `TouchControls.ts`, also used by the parent view's preview). Not checked with him: whether he connects it with popping bubbles.

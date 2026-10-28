@@ -41,6 +41,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 023 | Rocket boots fly like Iron Man: hold Jump (D-066) | Done (uncommitted) |
 | 024 | Rainbow coins: special look, chime and counter bump (D-067) | Done (uncommitted) |
 | 025 | Day / night setting (random by default), vibration switch and test, firmer buzz (D-068) | Done (uncommitted) |
+| 026 | Power button icon: a toy blaster firing a ball instead of a star (D-069) | Done (uncommitted) |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, surprise map dot, polish bundle (Task 019: footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
