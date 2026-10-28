@@ -35,7 +35,8 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 017 | Car power-up: orb pickup, car transform for 10 s, new level car-1 "Zoom Car" (D-061) | Done (uncommitted until the parent commits) |
 | 018 | Magnet and rocket boots: two pickups, new levels magnet-1 and boots-1 (D-062) | Done (uncommitted until the parent commits) |
 | 019 | Polish bundle (footsteps, landing thump, idle wave), not drafted | Optional |
-| 020 | Zen free play: endless level with every button and power-up, a Zen button on the map (D-063) | Done (uncommitted until the parent commits) |
+| 020 | Zen free play: endless level with every button and power-up, a Zen button on the map (D-063) | Done and committed |
+| 021 | Hold to run (x1.45 after 350 ms) and a vibration on a fall (D-064) | Done (uncommitted until the parent commits) |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, surprise map dot, polish bundle (Task 019: footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
@@ -48,7 +49,8 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 5. Real-device checks for Task 017 (D-061): does he notice the orb, is 10 s as a car right, is x1.25 speed fun or too fast, does the change back confuse him.
 6. Real-device checks for Task 018 (D-062): is the magnet ring noticed (it is faint), is the boots jump fun or too floaty, can he reach the high coins in Rocket Boots.
 7. Real-device checks for Task 020 (D-063): does he find the purple infinity button, does he stay with zen (how long), is a power-up about every 60-70 tiles too busy or too quiet, does a big bubble in the path frustrate him, does the world ever look wrong at a swap (it should not).
-8. Real-device checks for D-058: the rainbow bubble now on every play of Grass 4 and 6; the big bubble's 3 hits (feel of the shrink sizes `BUBBLE.bigScales`, sound). Star thresholds not retuned for the +5 rainbow coins; optional idea: a coin or two per big-bubble hit.
+8. Real-device checks for Task 021 (D-064): is holding an arrow for 350 ms a natural way to run for him, is x1.45 too fast on gap levels, does the buzz on a fall feel right (Android only).
+9. Real-device checks for D-058: the rainbow bubble now on every play of Grass 4 and 6; the big bubble's 3 hits (feel of the shrink sizes `BUBBLE.bigScales`, sound). Star thresholds not retuned for the +5 rainbow coins; optional idea: a coin or two per big-bubble hit.
 
 ## In progress
 _(nothing)_

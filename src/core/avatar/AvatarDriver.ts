@@ -78,7 +78,7 @@ export class AvatarDriver {
   private readonly groundAt: DriverOptions['groundAt'];
   private readonly fx: MotionFxSink | undefined;
   private readonly refSpeed: number;
-  private readonly gait: Gait;
+  private gait: Gait;
   private pulse: Pulse | null = null;
   private stridePhase = 0;
   private runBlend = 0;
@@ -105,6 +105,11 @@ export class AvatarDriver {
     this.shadow = scene.add.image(opts.x, opts.feet, 'fx-shadow').setDepth(opts.depth - 0.5).setAlpha(ANIM.shadow.alpha * this.alpha);
     this.look.setDepth(opts.depth);
     this.look.setAlpha(this.alpha);
+  }
+
+  /** Walking or running legs (the hold-to-run switch, Task 021). */
+  setGait(gait: Gait): void {
+    this.gait = gait;
   }
 
   // ---------- events from the physics side ----------

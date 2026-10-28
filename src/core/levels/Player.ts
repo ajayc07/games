@@ -5,6 +5,7 @@
 import type Phaser from 'phaser';
 import { PHYSICS } from './physics';
 import { edgeLimit, nextFacing, rampSpeed, type FacingState } from './walk';
+import { RunHold, totalScale } from './runHold';
 import { AvatarDriver } from '../avatar/AvatarDriver';
 import type { Gait } from '../avatar/clips';
 import type { AvatarLook, MotionFxSink } from '../avatar/types';
@@ -48,6 +49,8 @@ export interface PlayerOptions {
   /** World y of the ground surface under x at or below `feet`, or null over a gap (for the shadow). */
   groundAt: (x: number, feet: number) => number | null;
   fx?: MotionFxSink;
+  /** Hold to run (Task 021, D-064): holding an arrow breaks into a faster run. The real player on Left/Right levels only. */
+  runOnHold?: boolean;
 }
 
 export class Player {
@@ -67,9 +70,12 @@ export class Player {
   alphaWanted = 1;
   /** Moving speed multiplier (1 normally; the car power-up makes it a little faster, Task 017). */
   speedScale = 1;
+  /** Hold to run (Task 021): only the real player on Left/Right levels. Null = no running. */
+  private readonly runHold: RunHold | null;
   /** Picture raised above the body's feet (px): standing on the goal pad. */
   lift = 0;
 
+  private readonly baseGait: Gait;
   private jumpUsed = false;
   private jumpBufferUntil = -1;
   private lastGroundedAt = 0;
@@ -90,6 +96,8 @@ export class Player {
     this.ramp = opts.ramp;
     this.minX = opts.minX;
     this.maxX = opts.maxX;
+    this.runHold = opts.runOnHold ? new RunHold() : null;
+    this.baseGait = opts.gait;
     this.zone = scene.add.zone(opts.x, opts.feet - height / 2, width, height);
     scene.physics.add.existing(this.zone);
     this.body = this.zone.body as Phaser.Physics.Arcade.Body;
@@ -141,7 +149,10 @@ export class Player {
     }
 
     // Walk mode ramps (D-029: about 60 ms up, 80 ms down, no sliding); auto-run sets the speed at once.
-    const speed = this.speed * this.speedScale;
+    // Hold to run (Task 021): the arrow held for a moment eases the speed up and switches to the running legs.
+    const run = this.runHold ? this.runHold.update(intent.move, dtMs) : 1;
+    if (this.runHold) this.avatar.setGait(this.runHold.gaitRun ? 'run' : this.baseGait);
+    const speed = this.speed * (this.runHold ? totalScale(run, this.speedScale) : this.speedScale);
     const target = intent.move * speed;
     this.walkV = this.ramp ? rampSpeed(this.walkV, target, dtMs, speed, PHYSICS.walkRampUpMs, PHYSICS.walkRampDownMs) : target;
     const minX = Math.max(this.minX, intent.walls?.minX ?? -Infinity);
@@ -185,6 +196,7 @@ export class Player {
   /** Stops moving at once (flag, respawn); the next walk starts from standing. */
   halt(): void {
     this.walkV = 0;
+    this.runHold?.reset();
     this.body.setVelocityX(0);
   }
 
@@ -203,6 +215,7 @@ export class Player {
     this.airborneSince = -1;
     this.lastGroundedAt = now;
     this.walkV = 0;
+    this.runHold?.reset();
     this.avatar.placed(now, x);
   }
 

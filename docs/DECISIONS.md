@@ -144,3 +144,9 @@ The parent asked for one stage that is pure free play, with all buttons and all 
 - Defaults chosen because the parent did not specify: day theme (Grass), a new random seed on every visit, the first bubbles 8 tiles ahead of the start, no music, no timer, the coin counter stays.
 - Pure rules in `core/levels/zen.ts` (generator, swap rule, `?zen=`); `Player.shiftX`, `BubbleField.destroy`, the Zen button in `MapScene` (`mapZenSpot`, `addZenBadge`).
 - Not checked on the tablet: whether he finds the purple button, whether the power-up spacing feels too busy or too quiet, whether a big bubble in the path ever frustrates him.
+
+## D-064 (2026-10-28) Hold to run, and a buzz when he falls (Task 021)
+The parent asked that holding an arrow makes the robot run (a tap stays a tap), and that a fall vibrates.
+- **Hold to run:** on Left/Right levels, keeping one arrow held for 350 ms eases his speed up over 250 ms to 1.45 times the walk speed (220 to about 319 px/s) and switches him to the running legs. Releasing or turning round starts again from a walk; a tap is exactly as before. With the car (x1.25) the total is capped at 1.6. Real player only: the demo ghost, auto-run levels and the stick-to-walk assist's timing are unchanged. Pure rules in `core/levels/runHold.ts`; `Player.runOnHold`, `AvatarDriver.setGait`.
+- **Fall buzz:** `navigator.vibrate(90)` when he falls into a gap (the start of the cloud ride back), through `core/ui/haptics.ts`. It works on Android Chrome and similar; iOS Safari has no vibration, so nothing happens there. No setting for it yet (the parent view could get a switch if he dislikes it).
+- Existing levels were designed at walk speed; running only makes jumps travel farther (a 1-2 tile gap jump goes about 4 tiles at run speed), and the first play with taps is unchanged. Not checked on the tablet: whether 1.45x is the right run speed, whether 350 ms is a good hold time for a small thumb, whether the buzz is pleasant or startling.

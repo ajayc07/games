@@ -35,6 +35,7 @@ import { SHOT } from './shots';
 import { resolveAvatar } from '../avatar/config';
 import type { PracticeMode } from './practice';
 import { generateZen, zenRebase, zenSegmentSeed } from './zen';
+import { FALL_BUZZ_MS, vibrate } from '../ui/haptics';
 import { PracticeRun } from '../practice/PracticeRun';
 import { resultHandlerFor, walkAssistOn } from '../practice/practiceResult';
 
@@ -494,6 +495,8 @@ export class LevelScene extends Phaser.Scene {
       maxX: this.worldW - PHYSICS.body.width / 2,
       groundAt: this.groundAt,
       fx: dust ? this.motionFx : undefined,
+      // Hold to run (Task 021): the real player on Left/Right levels, never the demo ghost (its script is timed for walking).
+      runOnHold: dust && !this.level.controls.autoRun,
     });
   }
 
@@ -1152,6 +1155,7 @@ export class LevelScene extends Phaser.Scene {
     this.respawns++;
     this.practice?.cancelLatch(); // the walk assist lets go on a fall (Task 011)
     audio.play('whoosh');
+    vibrate(FALL_BUZZ_MS); // a short, soft buzz where the device can (Task 021)
     const player = this.player;
     // Put him back on the side he came from: a fall while walking left over a gap must not carry him across it.
     const dir = player.facing;
