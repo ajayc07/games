@@ -1,7 +1,7 @@
 // A tiny kinematic copy of the level physics and a scripted bot, shared by the practice and variety tests (not shipped).
 import { extractEntities } from './grid';
 import { PHYSICS } from './physics';
-import { bubbleSpecs, shotHitsBubble } from './bubbles';
+import { bubbleScale, bubbleSpecs, hitBursts, shotHitsBubble } from './bubbles';
 import { PRACTICE, ROW } from './practice';
 import { SHOT } from './shots';
 import { edgeLimit, rampSpeed } from './walk';
@@ -40,6 +40,7 @@ export function runBot(e: ReturnType<typeof extractEntities>, opts: { jumpForCoi
   const supported = (x: number) => solidAt(x - half) || solidAt(x + half - 0.001);
   const gaps = gapsOf(e);
   const specs = bubbleSpecs(e.bubbles, T, GRID_TOP, e.solid).map((s) => ({ ...s, popped: false }));
+  const hitCount = new Map<(typeof specs)[number], number>();
   const coins = e.coins.map((c) => ({ x: c.col * T + T / 2, h: (ROW.ground - c.row) * T - T / 2, col: c.col, taken: false }));
   const shots: Array<{ x: number; h: number; dir: 1 | -1; travelled: number }> = [];
   let x = e.start.col * T + T / 2;
@@ -123,8 +124,16 @@ export function runBot(e: ReturnType<typeof extractEntities>, opts: { jumpForCoi
       const step = SHOT.speed * dt;
       s.x += s.dir * step;
       s.travelled += step;
-      const hitBubble = specs.find((b) => !b.popped && shotHitsBubble(s.x, GROUND_Y - s.h, SHOT.radius, b, b.x, b.y));
-      if (hitBubble) hitBubble.popped = true;
+      const hitBubble = specs.find((b) => {
+        if (b.popped) return false;
+        const k = bubbleScale(b.kind, hitCount.get(b) ?? 0);
+        return shotHitsBubble(s.x, GROUND_Y - s.h, SHOT.radius, { r: b.r * k }, b.x, b.y + b.r * (1 - k));
+      });
+      if (hitBubble) {
+        const n = (hitCount.get(hitBubble) ?? 0) + 1;
+        hitCount.set(hitBubble, n);
+        if (hitBursts(hitBubble.kind, n)) hitBubble.popped = true;
+      }
       if (hitBubble || s.travelled >= SHOT.range) shots.splice(i, 1);
     }
     // Coins (the body rectangle against the coin's circle, as LevelScene.collectCoins).

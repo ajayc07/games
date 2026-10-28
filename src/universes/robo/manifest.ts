@@ -9,7 +9,7 @@ import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene
 import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
 import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
 import { parseLevelOrThrow, type LevelData } from '../../core/levels/format';
-import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowHook } from '../../core/levels/variety';
+import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowBubble, withRainbowHook } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
 import {
   bindSettings,
@@ -183,7 +183,7 @@ function openPracticeSelect(s: Session): void {
 function openPractice(s: Session, mode: PracticeMode, seed: number): void {
   s.arrival = null;
   s.practiceMode = mode;
-  const level = withRainbowHook(parseLevelOrThrow(generatePractice(mode, seed, 'grass').config, `practice ${mode} ${seed}`), {
+  const level = withRainbowHook(withRainbowBubble(parseLevelOrThrow(generatePractice(mode, seed, 'grass').config, `practice ${mode} ${seed}`), seed), {
     search: location.search,
     varied: true,
     seed,
@@ -272,7 +272,7 @@ function openLevel(s: Session, levelId: string, replay = false): void {
     demoPlays: LevelScene.demoWillPlay(level),
   });
   const data: LevelSceneData = {
-    level: varied ? varyForRun(level, varietySeedFrom(location.search)) : level,
+    level: withRainbowBubble(varied ? varyForRun(level, varietySeedFrom(location.search)) : level),
     onReplay: () => openLevel(s, here, true),
     theme: themeForWorld(level.world),
     option: currentOption(s),

@@ -124,7 +124,7 @@ describe('varyLevel (Task 012)', () => {
     expect(() => parseLevelOrThrow({ ...l, variety: 'no' }, 'bad')).toThrow(/variety/);
   });
 
-  it('rainbow: 1 in 3, only with 4+ small bubbles, deterministic, never in Grass 1-3 or Grass 5', () => {
+  it('rainbow: every varied run, only with 4+ small bubbles, deterministic, never in Grass 1-3 or Grass 5', () => {
     expect(rainbowPick(3, 1)).toBeNull();
     expect(rainbowPick(0, 1)).toBeNull();
     expect(rainbowPick(11, 4)).toBe(rainbowPick(11, 4));
@@ -134,14 +134,12 @@ describe('varyLevel (Task 012)', () => {
     }
     const many = Array.from({ length: 3000 }, (_, i) => i * 104729 + 7);
     const rate = many.filter((s) => rainbowPick(11, s) !== null).length / many.length;
-    expect(rate).toBeGreaterThan(0.29);
-    expect(rate).toBeLessThan(0.38);
+    expect(rate).toBe(1);
     for (const l of LEVELS) {
       const withRainbow = SEEDS.filter((s) => count(varyLevel(l, s).grid, 'r') === 1).length;
       if (count(l.grid, 'o') < VARIETY.rainbowMinBubbles) expect(withRainbow, l.id).toBe(0);
       else {
-        expect(withRainbow / SEEDS.length, l.id).toBeGreaterThan(0.25);
-        expect(withRainbow / SEEDS.length, l.id).toBeLessThan(0.42);
+        expect(withRainbow, l.id).toBe(SEEDS.length);
       }
     }
     const g4 = LEVELS.find((l) => l.id === 'grass-4')!;

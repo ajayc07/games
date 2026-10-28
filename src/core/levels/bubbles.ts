@@ -31,7 +31,24 @@ export const BUBBLE = {
   bobMs: 2200,
   /** Pop: scale up and fade (ms). */
   popMs: 220,
+  /**
+   * A big bubble takes this many shots to burst. Each hit that does not burst it shrinks it to the next size in
+   * `bigScales` (index = hits taken so far, as a fraction of its full size); the last hit bursts it into the coins.
+   */
+  bigHits: 3,
+  bigScales: [1, 0.72, 0.48],
 } as const;
+
+/** Size of a bubble (1 = full) after `hits` shots. Only big bubbles shrink; the others burst on the first hit. */
+export function bubbleScale(kind: BubbleKind, hits: number): number {
+  if (kind !== 'big') return 1;
+  return BUBBLE.bigScales[Math.min(Math.max(0, hits), BUBBLE.bigScales.length - 1)];
+}
+
+/** Does the `hits`-th hit (1-based) burst a bubble of this kind? */
+export function hitBursts(kind: BubbleKind, hits: number): boolean {
+  return hits >= (kind === 'big' ? BUBBLE.bigHits : 1);
+}
 
 /** Coins from a pop: they appear in an arc, wait, then fly to the player and are counted on arrival. */
 export const POP_COINS = {

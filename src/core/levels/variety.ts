@@ -15,7 +15,7 @@ export const VARIETY = {
   /** Fallback for the distance to the start and the goal when an item has no other place at `clear` (a tight level): 1 tile in between. */
   tightClear: 2,
   /** Chance of a rainbow bubble in a varied run, and how many small bubbles a level needs for one. */
-  rainbowChance: 1 / 3,
+  rainbowChance: 1,
   rainbowMinBubbles: 4,
 } as const;
 
@@ -86,6 +86,24 @@ export function rainbowPick(smallBubbles: number, seed: number): number | null {
   rng(); // the first number of a seeded stream is weakly mixed
   if (rng() >= VARIETY.rainbowChance) return null;
   return Math.floor(rng() * smallBubbles);
+}
+
+/**
+ * Every play of a level with enough small bubbles has exactly one rainbow bubble (it used to show only on some replays, so
+ * it was hardly ever seen). A level that already has one (a varied run) is unchanged. The pick comes from the seed, so the
+ * canonical grid (the demo and a first play) always puts it on the same bubble. Never written in the level JSON.
+ */
+export function withRainbowBubble(level: LevelData, seed = 0): LevelData {
+  if (level.grid.some((r) => r.includes('r'))) return level;
+  const rows = level.grid.map((r) => [...r]);
+  const small: Cell[] = [];
+  rows.forEach((r, row) => r.forEach((ch, col) => ch === 'o' && small.push({ row, col })));
+  if (small.length < VARIETY.rainbowMinBubbles) return level;
+  const rng = makeRng((seed ^ 0x2545f491) >>> 0);
+  rng();
+  const pick = small[Math.floor(rng() * small.length)];
+  rows[pick.row][pick.col] = 'r';
+  return { ...level, grid: rows.map((r) => r.join('')) };
 }
 
 /** `?rainbow=1` (test hook, Task 014b): force one rainbow bubble in a varied run. */

@@ -9,6 +9,8 @@ import type { BubbleCell } from './grid';
 import { TEX_RES } from './placeholders';
 import {
   BUBBLE,
+  bubbleScale,
+  hitBursts,
   CoinFlow,
   PopPitch,
   blockerWalls,
@@ -23,6 +25,9 @@ interface BubbleView {
   spec: BubbleSpec;
   img: Phaser.GameObjects.Image;
   popped: boolean;
+  /** Shots taken so far, and the current size (1 = full); only a big bubble survives a hit and shrinks. */
+  hits: number;
+  scale: number;
   /** Rainbow bubbles only: a soft sparkle that twinkles on the bubble about every 1.5 s. */
   twinkle?: Phaser.GameObjects.Image;
   /** Current centre (with the bob). */
@@ -65,7 +70,7 @@ export class BubbleField {
         spec.kind === 'rainbow'
           ? scene.add.image(spec.x, spec.y, 'fx-sparkle').setDepth(opts.depth.bubbles + 0.1).setAlpha(0).setBlendMode('ADD')
           : undefined;
-      return { spec, img, popped: false, x: spec.x, y: spec.y, twinkle };
+      return { spec, img, popped: false, hits: 0, scale: 1, x: spec.x, y: spec.y, twinkle };
     });
   }
 
@@ -77,8 +82,9 @@ export class BubbleField {
   update(now: number, target: { x: number; y: number }): void {
     for (const v of this.views) {
       if (v.popped) continue;
-      v.y = v.spec.y + bobOffset(v.spec, now);
-      v.img.setY(v.y);
+      // A shrunken big bubble keeps its bottom on the ground, so its centre sinks as it gets smaller.
+      v.y = v.spec.y + v.spec.r * (1 - v.scale) + bobOffset(v.spec, now);
+      v.img.setY(v.y).setScale(v.scale / TEX_RES);
       if (v.twinkle) {
         // A slow sparkle: grows and fades over the first 0.45 s of every 1.5 s (offset per bubble position).
         const phase = ((now + v.spec.x * 3) % TWINKLE_MS) / TWINKLE_MS;
@@ -101,9 +107,11 @@ export class BubbleField {
 
   /** Pops the first unpopped bubble a shot at (x, y) with radius r touches; returns its index or -1. */
   tryHit(x: number, y: number, r: number, now: number, counted = true): number {
-    const v = this.views.find((b) => !b.popped && shotHitsBubble(x, y, r, b.spec, b.x, b.y));
+    const v = this.views.find((b) => !b.popped && shotHitsBubble(x, y, r, { r: b.spec.r * b.scale }, b.x, b.y));
     if (!v) return -1;
-    this.pop(v, now, counted);
+    v.hits++;
+    if (hitBursts(v.spec.kind, v.hits)) this.pop(v, now, counted);
+    else this.shrink(v, now);
     return v.spec.index;
   }
 
@@ -129,7 +137,7 @@ export class BubbleField {
     let maxX = Infinity;
     for (const v of this.views) {
       if (v.popped || v.spec.kind !== 'big') continue;
-      const w = blockerWalls({ x: v.spec.x, y: v.spec.y, r: v.spec.r }, body);
+      const w = blockerWalls({ x: v.spec.x, y: v.y, r: v.spec.r * v.scale }, body);
       if (w.maxX !== undefined) maxX = Math.min(maxX, w.maxX);
       if (w.minX !== undefined) minX = Math.max(minX, w.minX);
     }
@@ -142,8 +150,11 @@ export class BubbleField {
     for (const img of this.coinViews.values()) img.destroy();
     this.coinViews.clear();
     for (const v of this.views) {
-      if (!v.popped) continue;
+      if (!v.popped && v.hits === 0) continue;
       v.popped = false;
+      v.hits = 0;
+      v.scale = 1;
+      this.scene.tweens.killTweensOf(v);
       this.scene.tweens.killTweensOf(v.img);
       v.img.setVisible(true).setAlpha(0).setScale(0.3 / TEX_RES).setPosition(v.spec.x, v.spec.y);
       this.scene.tweens.add({ targets: v.img, alpha: 1, scale: 1 / TEX_RES, duration: 420, ease: 'Back.easeOut' });
@@ -160,8 +171,24 @@ export class BubbleField {
     return this.views.reduce((n, v) => n + v.spec.coins, 0);
   }
 
+  /** A hit that does not burst a big bubble: it wobbles, shrinks to its next size and sparkles a little. */
+  private shrink(v: BubbleView, now: number): void {
+    const s = this.scene;
+    audio.play(popSoundId(this.pitch.next(now)));
+    const to = bubbleScale(v.spec.kind, v.hits);
+    s.tweens.killTweensOf(v);
+    // Squash first (a quick dip), then settle at the smaller size.
+    v.scale = Math.min(v.scale, 1) * 1.0;
+    s.tweens.add({ targets: v, scale: to, duration: 260, ease: 'Back.easeOut' });
+    const ring = s.add.circle(v.x, v.y, v.spec.r * v.scale).setStrokeStyle(5, 0xffffff, 0.9).setDepth(this.opts.depth.coins);
+    s.tweens.add({ targets: ring, scale: 1.3, alpha: 0, duration: 300, ease: 'Sine.easeOut', onComplete: () => ring.destroy() });
+    this.opts.sparkle.explode(8, v.x, v.y);
+  }
+
   private pop(v: BubbleView, now: number, counted: boolean): void {
     v.popped = true;
+    v.scale = Math.max(v.scale, 0.01);
+    this.scene.tweens.killTweensOf(v);
     v.twinkle?.setAlpha(0);
     this.pops++;
     const s = this.scene;
@@ -172,14 +199,14 @@ export class BubbleField {
     s.tweens.killTweensOf(v.img);
     s.tweens.add({
       targets: v.img,
-      scale: 1.35 / TEX_RES,
+      scale: (1.35 * v.scale) / TEX_RES,
       alpha: 0,
       duration: BUBBLE.popMs,
       ease: 'Quad.easeOut',
       onComplete: () => v.img.setVisible(false),
     });
     // A ring and a burst of sparkles.
-    const ring = s.add.circle(v.x, v.y, v.spec.r).setStrokeStyle(6, 0xffffff, 0.9).setDepth(this.opts.depth.coins);
+    const ring = s.add.circle(v.x, v.y, v.spec.r * v.scale).setStrokeStyle(6, 0xffffff, 0.9).setDepth(this.opts.depth.coins);
     s.tweens.add({ targets: ring, scale: 1.6, alpha: 0, duration: 360, ease: 'Sine.easeOut', onComplete: () => ring.destroy() });
     this.opts.sparkle.explode(v.spec.kind === 'big' ? 22 : rainbow ? 30 : 12, v.x, v.y);
     if (rainbow) this.rainbowRings(v);
