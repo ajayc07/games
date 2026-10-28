@@ -162,6 +162,19 @@ export class BubbleField {
     this.pops = 0;
   }
 
+  /** Removes every bubble and flying coin (the zen world swaps its segment, Task 020). Land the coins first (`flushCoins`). */
+  destroy(): void {
+    for (const img of this.coinViews.values()) img.destroy();
+    this.coinViews.clear();
+    for (const v of this.views) {
+      this.scene.tweens.killTweensOf(v);
+      this.scene.tweens.killTweensOf(v.img);
+      v.img.destroy();
+      v.twinkle?.destroy();
+    }
+    this.views.length = 0;
+  }
+
   /** For tests and debugging. */
   state(): Array<{ kind: string; x: number; y: number; r: number; popped: boolean; coins: number }> {
     return this.views.map((v) => ({ kind: v.spec.kind, x: v.x, y: v.y, r: v.spec.r, popped: v.popped, coins: v.spec.coins }));

@@ -8,6 +8,7 @@ import { unlockFromSearch, worldDots, type UnlockOptions } from '../../core/map/
 import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene';
 import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
 import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
+import { generateZen, zenFromSearch } from '../../core/levels/zen';
 import { parseLevelOrThrow, type LevelData } from '../../core/levels/format';
 import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowBubble, withRainbowHook } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
@@ -103,6 +104,9 @@ async function boot(game: Phaser.Game): Promise<void> {
     if (practice.mode) return openPractice(s, practice.mode, practice.seed ?? newSeed());
     return openPracticeSelect(s);
   }
+  // ?zen=1 starts the endless zen level at once (Task 020); ?level= wins.
+  const zen = zenFromSearch(search);
+  if (zen.open && !levelId) return openZen(s, zen.seed ?? newSeed());
   const forcePicker = params.has('picker') && params.get('picker') !== '0';
   if (levelId && !forcePicker) return openLevel(s, levelId);
   if (forcePicker || (!store.record.chosenCharacterId && !s.visitOption)) {
@@ -161,6 +165,7 @@ function openMap(s: Session): void {
     onPicker: () => openPicker(s, () => openMap(s)),
     onParent: () => openParent(s),
     onPractice: () => openPracticeSelect(s),
+    onZen: () => openZen(s, newSeed()),
   };
   startOnly(s.game, MapScene.KEY, MapScene, data);
 }
@@ -196,6 +201,24 @@ function openPractice(s: Session, mode: PracticeMode, seed: number): void {
     onHome: () => openMap(s),
     onReplay: () => openPractice(s, mode, newSeed()),
     practice: { mode, walkAssist: settings.walkAssist() === 'sticky', onPractice: () => openPracticeSelect(s) },
+  };
+  startOnly(s.game, LevelScene.KEY, LevelScene, data);
+}
+
+/**
+ * The zen level (Task 020, D-063): an endless, calm free-play world with all four buttons and all power-ups. No flag, no
+ * stars, nothing is recorded; Home (hold) goes back to the map. A new seed each time, so every visit is different.
+ */
+function openZen(s: Session, seed: number): void {
+  s.arrival = null;
+  const level = parseLevelOrThrow(generateZen(seed, 'grass', true).config, `zen ${seed}`);
+  const data: LevelSceneData = {
+    level,
+    theme: themeForWorld(level.world),
+    option: currentOption(s),
+    look: s.look,
+    onHome: () => openMap(s),
+    zen: { seed },
   };
   startOnly(s.game, LevelScene.KEY, LevelScene, data);
 }

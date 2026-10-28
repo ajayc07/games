@@ -19,8 +19,8 @@ import { HoldButton } from '../ui/HoldButton';
 import { PARENT_HOLD_MS } from '../ui/hold';
 import { clampScroll, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
-import { addPracticeBadge } from '../practice/icons';
-import { MAP_PRACTICE, mapPracticeSpot } from '../practice/practiceLayout';
+import { addPracticeBadge, addZenBadge } from '../practice/icons';
+import { MAP_PRACTICE, mapPracticeSpot, mapZenSpot } from '../practice/practiceLayout';
 
 export type TeaserIcon = 'cave' | 'sky' | 'castle';
 
@@ -39,6 +39,8 @@ export interface MapSceneData {
   onParent?: () => void;
   /** Combo Practice (Task 011): a fixed button (bottom-right) opens the practice selector. Always open. */
   onPractice?: () => void;
+  /** The endless zen level (Task 020): a second fixed button, left of Practice. Always open. */
+  onZen?: () => void;
 }
 
 interface DotView {
@@ -73,6 +75,8 @@ export class MapScene extends Phaser.Scene {
   /** The Practice button (Task 011), screen-fixed bottom-right; its face bobs inside it. */
   private practiceBtn: Phaser.GameObjects.Container | null = null;
   private practiceFace: Phaser.GameObjects.Container | null = null;
+  private zenBtn: Phaser.GameObjects.Container | null = null;
+  private zenFace: Phaser.GameObjects.Container | null = null;
   private driver!: AvatarDriver;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private dots: DotState[] = [];
@@ -150,6 +154,18 @@ export class MapScene extends Phaser.Scene {
     }
     this.practiceBtn = null;
     this.practiceFace = null;
+    this.zenBtn = null;
+    this.zenFace = null;
+    if (this.data0.onZen) {
+      const face = this.add.container(0, 0);
+      addZenBadge(this, face, MAP_PRACTICE.r);
+      const btn = this.add.container(0, 0, [face]).setDepth(DEPTH.ui).setSize(MAP_PRACTICE.hit, MAP_PRACTICE.hit);
+      btn.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, () => this.openZen());
+      // Out of step with the Practice button's bob.
+      this.tweens.add({ targets: face, y: -MAP_PRACTICE.bob, duration: MAP_PRACTICE.bobMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 400 });
+      this.zenBtn = btn;
+      this.zenFace = face;
+    }
     if (this.data0.onPractice) {
       // Bottom-right, below the dots and their stars, far from the gear (top-left) and the palette (top-right).
       const face = this.add.container(0, 0);
@@ -330,6 +346,10 @@ export class MapScene extends Phaser.Scene {
       const s = mapPracticeSpot(l.width, l.height, l.insets);
       this.practiceBtn.setPosition(s.x, s.y);
     }
+    if (this.zenBtn) {
+      const s = mapZenSpot(l.width, l.height, l.insets);
+      this.zenBtn.setPosition(s.x, s.y);
+    }
     this.scrollTarget = scrollFor(this.geo.width, l.width, this.pos.x);
     this.scroll = this.scrollTarget;
   }
@@ -337,7 +357,7 @@ export class MapScene extends Phaser.Scene {
   // ---------- input ----------
 
   private onDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
-    if (over.includes(this.palette) || (this.practiceBtn && over.includes(this.practiceBtn))) return;
+    if (over.includes(this.palette) || (this.practiceBtn && over.includes(this.practiceBtn)) || (this.zenBtn && over.includes(this.zenBtn))) return;
     const at = this.logical(pointer);
     if (this.gear?.contains(at.x, at.y)) return;
     const { x } = at;
@@ -467,6 +487,18 @@ export class MapScene extends Phaser.Scene {
     this.time.delayedCall(240, () => this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onPractice?.()));
   }
 
+  private openZen(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    audio.play('pick');
+    const face = this.zenFace;
+    if (face) {
+      this.tweens.killTweensOf(face);
+      this.tweens.add({ targets: face, scale: 1.15, duration: 110, yoyo: true, ease: 'Back.easeOut' });
+    }
+    this.time.delayedCall(240, () => this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onZen?.()));
+  }
+
   private openPicker(): void {
     if (this.leaving) return;
     this.leaving = true;
@@ -542,6 +574,7 @@ export class MapScene extends Phaser.Scene {
         avatar: { x: this.pos.x - this.scroll, y: this.pos.y - this.lift },
         palette: { x: this.palette.x, y: this.palette.y, r: PALETTE_R },
         gear: this.gear?.state ?? null,
+        zen: this.zenBtn && { x: this.zenBtn.x, y: this.zenBtn.y, r: MAP_PRACTICE.r, hit: MAP_PRACTICE.hit },
         practice: this.practiceBtn && { x: this.practiceBtn.x, y: this.practiceBtn.y, r: MAP_PRACTICE.r, hit: MAP_PRACTICE.hit, faceY: this.practiceFace?.y ?? 0 },
         scroll: this.scroll,
         mapWidth: this.geo.width,

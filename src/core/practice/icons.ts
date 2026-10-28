@@ -67,3 +67,21 @@ export function addPracticeBadge(scene: Phaser.Scene, parent: Phaser.GameObjects
   miniButton(scene, parent, 'power', r * 0.36, r * 0.12, br);
   sparkle(scene, parent, 0, -r * 0.42, r * 0.24);
 }
+
+/** The map's Zen button face (Task 020): a lying figure-eight (the endless sign) on a round violet badge, with a sparkle. */
+export function addZenBadge(scene: Phaser.Scene, parent: Phaser.GameObjects.Container, r: number): void {
+  const base = scene.add.circle(0, 0, r, 0x7e57c2).setStrokeStyle(Math.max(4, r * 0.16), 0xffffff);
+  parent.add(base);
+  const g = scene.add.graphics();
+  g.lineStyle(Math.max(5, r * 0.15), 0xffffff, 1);
+  const a = r * 0.62;
+  const pts: Phaser.Types.Math.Vector2Like[] = [];
+  for (let i = 0; i <= 48; i++) {
+    const t = (i / 48) * Math.PI * 2;
+    const d = 1 + Math.sin(t) ** 2;
+    pts.push({ x: (a * Math.cos(t)) / d, y: r * 0.06 + (a * Math.sin(t) * Math.cos(t)) / d });
+  }
+  g.strokePoints(pts, true);
+  parent.add(g);
+  sparkle(scene, parent, r * 0.0, -r * 0.5, r * 0.2);
+}

@@ -98,6 +98,11 @@ export interface LevelData {
   practice?: true;
   /** `false` keeps the level's coins and bubbles where they are on replays (Task 012). Absent = replays may shuffle them. */
   variety?: false;
+  /**
+   * The endless free-play level (Task 020, D-063): no flag is drawn and the scene swaps in fresh segments as he walks
+   * (the grid still has its `S` and, far off, an `F` that is never reached). Nothing is saved for it.
+   */
+  zen?: true;
 }
 
 export type ParseResult = { ok: true; level: LevelData } | { ok: false; errors: string[] };
@@ -122,6 +127,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
   if (raw.walkSpeed !== undefined && !isPositive(raw.walkSpeed)) err('"walkSpeed" must be a positive number');
   if (raw.practice !== undefined && typeof raw.practice !== 'boolean') err('"practice" must be true or false');
   if (raw.variety !== undefined && typeof raw.variety !== 'boolean') err('"variety" must be true or false');
+  if (raw.zen !== undefined && typeof raw.zen !== 'boolean') err('"zen" must be true or false');
 
   // controls
   const c = raw.controls;
@@ -217,6 +223,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       grid: [...(g as string[])],
       ...(raw.practice === true ? { practice: true as const } : {}),
       ...(raw.variety === false ? { variety: false as const } : {}),
+      ...(raw.zen === true ? { zen: true as const } : {}),
     },
   };
 }

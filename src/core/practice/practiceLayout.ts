@@ -79,6 +79,12 @@ export const MAP_PRACTICE = {
   bobMs: 1500,
 } as const;
 
+/** The map's Zen button (Task 020): the same size as Practice, directly to its left on the same line. */
+export function mapZenSpot(width: number, height: number, insets: Insets): { x: number; y: number; r: number; hit: number } {
+  const p = mapPracticeSpot(width, height, insets);
+  return { ...p, x: p.x - (MAP_PRACTICE.hit + 24) };
+}
+
 export function mapPracticeSpot(width: number, height: number, insets: Insets): { x: number; y: number; r: number; hit: number } {
   return {
     x: width - insets.right - MAP_PRACTICE.inset,

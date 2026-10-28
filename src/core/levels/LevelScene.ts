@@ -34,6 +34,7 @@ import { BubbleField } from './BubbleField';
 import { SHOT } from './shots';
 import { resolveAvatar } from '../avatar/config';
 import type { PracticeMode } from './practice';
+import { generateZen, zenRebase, zenSegmentSeed } from './zen';
 import { PracticeRun } from '../practice/PracticeRun';
 import { resultHandlerFor, walkAssistOn } from '../practice/practiceResult';
 
@@ -58,6 +59,8 @@ export interface LevelSceneData {
   onReplay?: () => void;
   /** Combo Practice (Task 011): only for levels with `practice: true`. */
   practice?: { mode: PracticeMode; walkAssist: boolean; onPractice: () => void };
+  /** The endless zen level (Task 020, D-063): only for levels with `zen: true`; the seed of its first segment. */
+  zen?: { seed: number };
 }
 
 /** demo: the ghost shows the control; turn: "your turn" cue; then the real run. */
@@ -153,6 +156,10 @@ export class LevelScene extends Phaser.Scene {
   private bubbles!: BubbleField;
   /** Combo Practice (Task 011): star row, combos, coach and walk assist. Only on practice levels. */
   private practice: PracticeRun | null = null;
+  /** Zen (Task 020): the first segment's seed, the segment number (up when he walks out on the right), and how far the background was moved. */
+  private zenSeed = 0;
+  private zenLap = 0;
+  private bgShift = 0;
 
   private mode: Mode = 'play';
   private coinCount = 0;
@@ -209,6 +216,9 @@ export class LevelScene extends Phaser.Scene {
     this.ghostBlaster = null;
     this.ghostPower = false;
     this.practice = null;
+    this.zenSeed = data.zen?.seed ?? 0;
+    this.zenLap = 0;
+    this.bgShift = 0;
   }
 
   preload(): void {
@@ -232,7 +242,8 @@ export class LevelScene extends Phaser.Scene {
     this.buildGround();
     this.buildObstacles();
     this.buildCoins();
-    this.buildGoal();
+    if (this.level.zen) this.goalX = Number.POSITIVE_INFINITY; // no flag: the world never ends
+    else this.buildGoal();
     this.lookName = this.data0.look ?? lookFromUrl();
     this.size = sizeFromUrl();
     this.motionFx = new MotionFx(this, DEPTH.player - 1, this.size);
@@ -240,15 +251,7 @@ export class LevelScene extends Phaser.Scene {
     this.buildEffects();
     this.buildNight();
     this.buildPickups();
-    this.bubbles = new BubbleField(this, {
-      cells: this.grid.bubbles,
-      solid: this.grid.solid,
-      tile: this.tile,
-      gridTop: this.gridTop,
-      coinTexture: themeKey(theme, 'coin'),
-      depth: { bubbles: DEPTH.bubbles, coins: DEPTH.popCoins },
-      sparkle: this.sparkle,
-    });
+    this.bubbles = this.makeBubbleField();
     if (this.level.controls.enabled.includes('power')) this.blaster = this.makeBlaster();
     this.buildHud();
     // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
@@ -299,7 +302,7 @@ export class LevelScene extends Phaser.Scene {
     this.exitBtn.update(time);
     this.demoCues?.update();
     this.updateCamera(dt);
-    this.bg.update(this.camX, dt);
+    this.bg.update(this.camX + this.bgShift, dt);
     if (this.lamp) this.lamp.setPosition(this.player.body.center.x + this.player.facing * 30, this.player.body.center.y - 8);
     if (this.hint) this.hint.setPosition(this.player.body.center.x + 80, this.player.body.bottom - 150);
   }
@@ -401,6 +404,18 @@ export class LevelScene extends Phaser.Scene {
       pad.plate.setY(baseY + pad.plate.displayHeight * 0.35);
       this.tweens.add({ targets: pad.plate, y: baseY, duration: PAD.squashMs, ease: 'Back.easeOut' });
     }
+  }
+
+  private makeBubbleField(): BubbleField {
+    return new BubbleField(this, {
+      cells: this.grid.bubbles,
+      solid: this.grid.solid,
+      tile: this.tile,
+      gridTop: this.gridTop,
+      coinTexture: themeKey(this.data0.theme, 'coin'),
+      depth: { bubbles: DEPTH.bubbles, coins: DEPTH.popCoins },
+      sparkle: this.sparkle,
+    });
   }
 
   private buildCoins(): void {
@@ -525,11 +540,12 @@ export class LevelScene extends Phaser.Scene {
 
   /** Glowing orbs with a little car on them; touching one turns the robot into a car for a while. */
   private buildPickups(): void {
-    if (this.grid.pickups.length === 0) return;
+    if (this.grid.pickups.length === 0 && !this.level.zen) return;
     const pal = resolveAvatar(this.data0.option).palette;
     makeCarTextures(this, pal.accent, pal.joint);
     makePowerOrbTextures(this);
-    if (this.grid.pickups.some((p) => p.kind === 'car')) this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
+    // Zen swaps its segments, so the car is built once, whichever segment has the first orb.
+    if (!this.car && (this.level.zen || this.grid.pickups.some((p) => p.kind === 'car'))) this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
     const orbOf = (kind: PickupKind) => (kind === 'car' ? carTextureKeys(pal.accent, pal.joint).orb : POWER_ORB_KEYS[kind]);
     this.pickups = this.grid.pickups.map((c, i) => {
       const { x, y } = this.cellCenter(c);
@@ -927,6 +943,7 @@ export class LevelScene extends Phaser.Scene {
     this.collectCoins();
     this.updatePads(now);
     this.updatePickups(now);
+    if (this.level.zen) this.updateZen();
 
     const body = this.player.body;
     if (body.center.x >= this.goalX - PHYSICS.body.width / 2) this.reachGoal();
@@ -1075,6 +1092,55 @@ export class LevelScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.scrollX = this.camX;
     cam.scrollY = 0;
+  }
+
+  // ---------- zen: the endless world (Task 020, D-063) ----------
+
+  /** He walked out of the content at either end: swap in a fresh segment, moving everything back by the same distance. */
+  private updateZen(): void {
+    const r = zenRebase(this.player.body.center.x, this.tile);
+    if (r) this.rebaseZen(r.dir, r.dx);
+  }
+
+  /**
+   * Both ends of a segment are empty ground for 22+ tiles around the swap, so nothing on screen changes: the old content
+   * is gone behind him, the new content is far ahead. Coins still flying from a popped bubble land first (they count);
+   * shots in the air simply stop. The ground, the power-up timers and his speed carry on untouched.
+   */
+  private rebaseZen(dir: 1 | -1, dx: number): void {
+    this.zenLap += dir;
+    this.addCoins(this.bubbles.flushCoins());
+    this.blaster?.clear();
+    this.clearContent();
+    const seg = generateZen(zenSegmentSeed(this.zenSeed, this.zenLap), this.level.world);
+    this.level = { ...this.level, grid: seg.config.grid };
+    this.grid = extractEntities(seg.config.grid);
+    this.player.shiftX(dx);
+    this.camX += dx;
+    this.bgShift -= dx;
+    this.cameras.main.scrollX = this.camX;
+    this.buildCoins();
+    this.buildObstacles();
+    this.buildPickups();
+    this.bubbles = this.makeBubbleField();
+  }
+
+  /** Removes the coins, pads, power-up orbs and bubbles of the current segment (the ground stays). */
+  private clearContent(): void {
+    const kill = (o: Phaser.GameObjects.GameObject) => {
+      this.tweens.killTweensOf(o);
+      o.destroy();
+    };
+    for (const c of this.coins) kill(c.img);
+    for (const p of this.pads) {
+      kill(p.plate);
+      kill(p.spring);
+    }
+    for (const k of this.pickups) kill(k.img);
+    this.coins = [];
+    this.pads = [];
+    this.pickups = [];
+    this.bubbles.destroy();
   }
 
   // ---------- falling (D-019) ----------
@@ -1300,6 +1366,7 @@ export class LevelScene extends Phaser.Scene {
         stars: this.mode === 'result' ? starsFor(true, this.coinCount, this.level.stars) : 0,
         resultStars: this.result?.starCounts ?? null,
         practice: this.practice?.debug() ?? null,
+        zen: this.level.zen ? { lap: this.zenLap, seed: this.zenSeed, bgShift: this.bgShift } : null,
         layoutWidth: this.layout.width,
         hint: this.hint !== null,
         camX: this.camX,

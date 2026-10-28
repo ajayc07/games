@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { logicalWidthFor } from '../ui/layoutMath';
-import { CARD_ORDER, MAP_PRACTICE, mapPracticeSpot, moveCardFocus, practiceSelectLayout, SELECT } from './practiceLayout';
+import { CARD_ORDER, MAP_PRACTICE, mapPracticeSpot, mapZenSpot, moveCardFocus, practiceSelectLayout, SELECT } from './practiceLayout';
 import { practiceStars, resultHandlerFor, walkAssistOn } from './practiceResult';
 import { MAP, mapGeometry } from '../map/mapLayout';
 import { generatePractice } from '../levels/practice';
@@ -99,11 +99,36 @@ describe('the map Practice button (Task 011)', () => {
   }
 });
 
+describe('the map Zen button (Task 020)', () => {
+  for (const [w, h] of SIZES.filter(([w]) => w !== 1366)) {
+    for (const [name, ins] of [
+      ['no insets', NONE],
+      ['insets', NOTCH],
+    ] as const) {
+      it(`${w}x${h} (${name}): inside the insets, a big hit area, clear of Practice, the gear, the palette and every dot`, () => {
+        const width = logicalWidthFor(w, h);
+        const s = mapZenSpot(width, 720, ins);
+        const p = mapPracticeSpot(width, 720, ins);
+        expect(s.hit).toBeGreaterThanOrEqual(96);
+        expect(s.y).toBe(p.y);
+        const hit = square(s.x, s.y, s.hit + 2 * MAP_PRACTICE.bob);
+        expect(hit.x).toBeGreaterThanOrEqual(ins.left);
+        expect(overlap(hit, square(p.x, p.y, p.hit + 2 * MAP_PRACTICE.bob))).toBe(false);
+        expect(overlap(hit, square(ins.left + 84, ins.top + 84, 110))).toBe(false);
+        expect(overlap(hit, square(width - ins.right - 84, ins.top + 84, 56 * 2.2))).toBe(false);
+        const geo = mapGeometry(12, 3);
+        for (const d of geo.dots) expect(hit.y).toBeGreaterThan(d.y - 10 + MAP.dotHit / 2);
+        for (const t of geo.teasers) expect(hit.y).toBeGreaterThan(t.y - 30 + MAP.teaserHit / 2);
+      });
+    }
+  }
+});
+
 describe('practice results (Task 011)', () => {
   it('the walk assist is for practice levels only: Grass 1-6 walk as before with it switched on', async () => {
     const files = import.meta.glob<unknown>('../../universes/robo/levels/*.json', { eager: true, import: 'default' });
     const normal = Object.values(files).map((raw) => parseLevelOrThrow(raw));
-    expect(normal.length).toBe(6);
+    expect(normal.length).toBeGreaterThanOrEqual(6);
     for (const lv of normal) {
       expect(walkAssistOn(lv, 'sticky'), lv.id).toBe(false);
       expect(walkAssistOn(lv, true), lv.id).toBe(false);

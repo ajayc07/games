@@ -206,6 +206,15 @@ export class Player {
     this.avatar.placed(now, x);
   }
 
+  /** Moves him sideways by `dx` px without touching his speed or state (the zen world swaps its segment, Task 020). */
+  shiftX(dx: number): void {
+    this.zone.x += dx;
+    this.body.position.x += dx;
+    this.body.prev.x += dx;
+    this.body.prevFrame.x += dx;
+    this.body.updateCenter();
+  }
+
   /** Hidden and frozen (the real player during the demo). */
   setPresent(present: boolean): void {
     this.body.enable = present;

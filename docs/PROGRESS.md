@@ -12,7 +12,7 @@ Grass 4 Power (pop bubbles into coins), Grass 5 walk and jump over gaps, Grass 6
 combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey gear (top-left, held 3 s) opens the parent view
 (sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
-`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
+`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?zen=1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
 Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-014b are all pushed.
 
 ## Roadmap
@@ -35,7 +35,8 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 017 | Car power-up: orb pickup, car transform for 10 s, new level car-1 "Zoom Car" (D-061) | Done (uncommitted until the parent commits) |
 | 018 | Magnet and rocket boots: two pickups, new levels magnet-1 and boots-1 (D-062) | Done (uncommitted until the parent commits) |
 | 019 | Polish bundle (footsteps, landing thump, idle wave), not drafted | Optional |
-| post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, endless free-play level, surprise map dot, polish bundle (Task 019: footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
+| 020 | Zen free play: endless level with every button and power-up, a Zen button on the map (D-063) | Done (uncommitted until the parent commits) |
+| post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, surprise map dot, polish bundle (Task 019: footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
 1. Task 014 (charging pad, hex-nut coin, rainbow rim) is done and pushed (D-056). Task 014b (bigger pad with a light column, `?rainbow=1` proof) is done and pushed (D-057). The planned work is complete.
@@ -46,7 +47,8 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 4. Real-device checks for Task 016 (D-060): is the night level too dark or the headlamp too busy, do bubbles read on the pale hills, do all eight colour options stay visible.
 5. Real-device checks for Task 017 (D-061): does he notice the orb, is 10 s as a car right, is x1.25 speed fun or too fast, does the change back confuse him.
 6. Real-device checks for Task 018 (D-062): is the magnet ring noticed (it is faint), is the boots jump fun or too floaty, can he reach the high coins in Rocket Boots.
-7. Real-device checks for D-058: the rainbow bubble now on every play of Grass 4 and 6; the big bubble's 3 hits (feel of the shrink sizes `BUBBLE.bigScales`, sound). Star thresholds not retuned for the +5 rainbow coins; optional idea: a coin or two per big-bubble hit.
+7. Real-device checks for Task 020 (D-063): does he find the purple infinity button, does he stay with zen (how long), is a power-up about every 60-70 tiles too busy or too quiet, does a big bubble in the path frustrate him, does the world ever look wrong at a swap (it should not).
+8. Real-device checks for D-058: the rainbow bubble now on every play of Grass 4 and 6; the big bubble's 3 hits (feel of the shrink sizes `BUBBLE.bigScales`, sound). Star thresholds not retuned for the +5 rainbow coins; optional idea: a coin or two per big-bubble hit.
 
 ## In progress
 _(nothing)_
