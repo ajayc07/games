@@ -3,6 +3,7 @@ import { config } from './config';
 import { loadUniverse } from './universes/registry';
 import { installBrowserGuards } from './shell/browserGuards';
 import { keepScreenAwake } from './shell/wakeLock';
+import { installIdleSleep } from './shell/idleSleep';
 import { registerServiceWorker } from './shell/pwa';
 import { audio } from './core/audio/AudioManager';
 import { installFullscreenOnFirstGesture } from './core/ui/fullscreen';
@@ -36,6 +37,8 @@ const game = new Phaser.Game({
   disableContextMenu: true,
   banner: false,
 });
+
+installIdleSleep(game);
 
 game.events.once(Phaser.Core.Events.READY, () => {
   initLayout(game, parent);
