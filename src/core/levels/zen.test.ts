@@ -76,7 +76,11 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
         expect(e.bubbles.filter((b) => b.kind === 'rainbow').length, `seed ${seed}`).toBeGreaterThanOrEqual(1);
         expect(e.pickups.length, `seed ${seed} first=${first}`).toBeGreaterThanOrEqual(3);
         const cols = e.pickups.map((p) => p.col).sort((a, b) => a - b);
-        for (let i = 1; i < cols.length; i++) expect(cols[i] - cols[i - 1], `seed ${seed}: orbs ${cols}`).toBeGreaterThanOrEqual(36);
+        for (let i = 1; i < cols.length; i++) {
+          const d = cols[i] - cols[i - 1];
+          // A double power-up is two orbs two tiles apart (Task 029); otherwise sets are far apart.
+          expect(d === 2 || d >= 36, `seed ${seed}: orbs ${cols}`).toBe(true);
+        }
         for (const p of e.pickups) {
           kinds.add(p.kind);
           expect(p.row).toBe(8);
@@ -121,7 +125,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
         expect(row, `seed ${seed}`).toBeGreaterThanOrEqual(1);
         if (row >= 6) continue;
         const abovePad = pads.some((p) => Math.abs(p.col - col) <= 1);
-        const inSet = (kind: string, minRow: number, maxRow = 9) => orbs.some((o) => o.ch === kind && col >= o.col + 4 && col <= o.col + 4 + 46 && row >= minRow && row <= maxRow);
+        const inSet = (kind: string, minRow: number, maxRow = 9) => orbs.some((o) => o.ch === kind && col >= o.col + 3 && col <= o.col + 3 + 50 && row >= minRow && row <= maxRow);
         // Boots: a wave of coins from the ground to the sky, which only flying reaches (Task 028).
         const ok = abovePad || inSet('M', 4) || inSet('J', 1);
         expect(ok, `seed ${seed}: coin at ${col}:${row}`).toBe(true);

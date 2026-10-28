@@ -56,7 +56,8 @@ export class RobotLook implements AvatarLook {
   readonly ready = Promise.resolve();
   readonly shadowScale: number;
   /** Option scale x visual size factor (`?size=`). */
-  private readonly k: number;
+  private k: number;
+  private readonly k0: number;
   readonly avatar: ResolvedAvatar;
   private readonly parts: RobotParts;
   private readonly img: {
@@ -103,6 +104,7 @@ export class RobotLook implements AvatarLook {
   constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number, size = 1) {
     this.avatar = resolveAvatar(avatar);
     this.k = this.avatar.scale * size;
+    this.k0 = this.k;
     this.shadowScale = 0.95 * size;
     this.parts = robotParts(scene, this.avatar.palette);
     const p = this.parts;
@@ -271,6 +273,11 @@ export class RobotLook implements AvatarLook {
     this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
     this.root.setRotation(s.rotation);
     this.muzzlePoint = { x: s.x + rig.tip.x * S, y: s.y - s.lift + rig.tip.y * S };
+  }
+
+  /** Mega Robo (Task 030): the whole body drawn this many times bigger (1 = normal). */
+  setBoost(f: number): void {
+    this.k = this.k0 * f;
   }
 
   setAlpha(alpha: number): void {

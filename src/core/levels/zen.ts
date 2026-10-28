@@ -64,6 +64,8 @@ const QUIET: readonly Motif[] = ['arc', 'pad', 'rest', 'steps', 'gap'];
 /** How long a power-up's reward stretch is (tiles): the car lasts about 43 tiles, the others about 10 s of walking. */
 const SET_LEN = 34;
 const BOOTS_SET_LEN = 46;
+/** Share of power-up stretches that carry two orbs (Task 029). */
+const DOUBLE_CHANCE = 0.3;
 /** Tiles of ground at least between two gaps (as in Practice). */
 const MIN_GROUND = 7;
 
@@ -87,7 +89,7 @@ export interface ZenSegment {
     grid: string[];
   };
   /** What was placed, in order (for tests). */
-  motifs: Array<Motif | `power-${PickupKind}`>;
+  motifs: Array<Motif | 'double' | `power-${PickupKind}`>;
   /** The gaps in the ground (for tests). */
   gaps: Array<{ col: number; width: 1 | 2 }>;
   /** The generated range, [from, to) in tiles. */
@@ -223,9 +225,13 @@ function gap(c: Cells, from: number): number {
 const PICKUP_CHAR: Record<PickupKind, string> = { car: 'P', magnet: 'M', boots: 'J' };
 
 /** A power-up orb at walking height, then the stretch that rewards it (no bubbles in it). */
-function powerSet(c: Cells, from: number, kind: PickupKind): number {
-  c.put(from + 1, 8, PICKUP_CHAR[kind]);
-  const start = from + 5;
+function powerSet(c: Cells, from: number, orb: PickupKind, second?: PickupKind): number {
+  c.put(from + 1, 8, PICKUP_CHAR[orb]);
+  // A double power-up (Task 029): a second orb two tiles on, so he takes both together (car + rocket is a flying car).
+  if (second) c.put(from + 3, 8, PICKUP_CHAR[second]);
+  // The stretch that suits the pair: the longest one wins (flight, then the magnet's field, then the car's trail).
+  const kind: PickupKind = orb === 'boots' || second === 'boots' ? 'boots' : orb === 'magnet' || second === 'magnet' ? 'magnet' : 'car';
+  const start = from + (second ? 6 : 5);
   // The boots stretch is longer: 12 s of flight is about 47 tiles.
   const end = Math.min(start + (kind === 'boots' ? BOOTS_SET_LEN : SET_LEN), c.hi);
   if (kind === 'car') {
@@ -295,14 +301,20 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   while (hi - col >= 8) {
     if (col >= setDue && hi - col >= SET_LEN + 8 && !c.hitsSkip(col, SET_LEN + 8)) {
       const kind = nextKind();
+      let second: PickupKind | undefined;
+      if (c.chance(DOUBLE_CHANCE)) {
+        const others = (['car', 'magnet', 'boots'] as PickupKind[]).filter((k) => k !== kind);
+        second = others[c.int(0, 1)];
+      }
       // The boots stretch is longer: if it will not fit here, the orb waits for the next segment.
-      if (kind === 'boots' && (hi - col < BOOTS_SET_LEN + 8 || c.hitsSkip(col, BOOTS_SET_LEN + 8))) {
+      if ((kind === 'boots' || second === 'boots') && (hi - col < BOOTS_SET_LEN + 8 || c.hitsSkip(col, BOOTS_SET_LEN + 8))) {
         kinds.push(kind);
         col = Math.min(col + 6, hi - 8);
         continue;
       }
       motifs.push(`power-${kind}`);
-      col = powerSet(c, col, kind) + c.int(2, 4);
+      if (second) motifs.push('double');
+      col = powerSet(c, col, kind, second) + c.int(2, 4);
       setDue = col + c.int(24, 44);
       needBubbles = true;
       continue;

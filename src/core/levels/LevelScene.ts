@@ -20,6 +20,8 @@ import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS }
 import { BOOTS, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
 import { FLY, flyDirection, plainGround } from './flight';
 import { PowerBars, type BarEntry } from './PowerBars';
+import { MEGA, addToBar, barCapacity, barFraction, narrowGaps } from './mega';
+import { CoinBar, MEGA_ICON } from './CoinBar';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
@@ -212,6 +214,13 @@ export class LevelScene extends Phaser.Scene {
     this.carTimer.stop();
     this.magnetTimer.stop();
     this.bootsTimer.stop();
+    this.megaTimer.stop();
+    this.megaOn = false;
+    this.megaPending = false;
+    this.megaGlow = null;
+    this.coinBar = null;
+    this.barCoins = 0;
+    this.bridges = [];
     this.badge = null;
     this.bars = null;
     this.carOrbKey = '';
@@ -259,6 +268,8 @@ export class LevelScene extends Phaser.Scene {
     this.bubbles = this.makeBubbleField();
     if (this.level.controls.enabled.includes('power')) this.blaster = this.makeBlaster();
     this.buildHud();
+    this.barCap = barCapacity(this.coins.length + this.bubbles.totalCoins, !!this.level.zen);
+    this.coinBar = new CoinBar(this, DEPTH.hud);
     // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
     this.exitBtn = new HoldButton(this, () => this.afterStep(this.data0.onHome), DEPTH.exit);
     this.exitBtn.setEnabled(false);
@@ -362,6 +373,8 @@ export class LevelScene extends Phaser.Scene {
     // Filled in place: the player's colliders hold this very array (the zen swap rebuilds the ground, Task 022).
     this.groundBodies.length = 0;
     this.groundBodies.push(...bodies);
+    // Mega Robo steps over narrow gaps: the zen swap rebuilds the ground, so the bridges are rebuilt with it.
+    if (this.megaOn) this.buildBridges();
   }
 
   private groundBodies: Phaser.GameObjects.Zone[] = [];
@@ -585,6 +598,17 @@ export class LevelScene extends Phaser.Scene {
   private readonly magnetTimer = new CarTimer();
   private readonly bootsTimer = new CarTimer(BOOTS.durationMs);
   private bars: PowerBars | null = null;
+  // Mega Robo (Task 030, D-073)
+  private readonly megaTimer = new CarTimer(MEGA.durationMs);
+  private megaOn = false;
+  private megaPending = false;
+  private megaGlow: Phaser.GameObjects.Image | null = null;
+  private coinBar: CoinBar | null = null;
+  private barCoins = 0;
+  private barCap = 40;
+  private bridges: Phaser.GameObjects.Zone[] = [];
+  private lastPopAt = 0;
+  private lastHumAt = 0;
   private carOrbKey = '';
   private badge: Phaser.GameObjects.Image | null = null;
   private field: Phaser.GameObjects.Arc | null = null;
@@ -592,6 +616,7 @@ export class LevelScene extends Phaser.Scene {
   private lastFlameAt = 0;
 
   private startPower(kind: PickupKind, now: number): void {
+    this.makeRoom(kind, now);
     if (kind === 'car') {
       this.startCar(now);
       return;
@@ -645,7 +670,12 @@ export class LevelScene extends Phaser.Scene {
     // Time is up: he lands at the next stretch of plain ground; the flames and the arrows stay until then.
     if (!timed && this.player.flying && !this.player.landing) this.player.beginLanding();
     const boots = timed || this.player.flying;
+    this.updateMega(now);
     this.updateBars(now);
+    if (this.player.flying && this.mode === 'play' && now - this.lastHumAt > 380) {
+      this.lastHumAt = now;
+      audio.play('flyHum');
+    }
     if (!magnet && !boots) {
       if (this.badge?.visible || this.flames.some((f) => f.visible)) this.endPowers();
       return;
@@ -676,15 +706,113 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
+  /** At most two timed powers at once (Task 029): a third one replaces the one with the least time left. */
+  private makeRoom(kind: PickupKind, now: number): void {
+    const act: Array<{ kind: PickupKind; left: number }> = [];
+    if (this.carOn()) act.push({ kind: 'car', left: this.carTimer.remaining(now) });
+    if (this.magnetTimer.active(now)) act.push({ kind: 'magnet', left: this.magnetTimer.remaining(now) });
+    if (this.bootsTimer.active(now)) act.push({ kind: 'boots', left: this.bootsTimer.remaining(now) });
+    if (act.length < 2 || act.some((a) => a.kind === kind)) return;
+    const drop = act.sort((a, b) => a.left - b.left)[0].kind;
+    if (drop === 'car') this.endCar(false);
+    else if (drop === 'magnet') {
+      this.magnetTimer.stop();
+      this.field?.setVisible(false);
+    } else this.bootsTimer.stop();
+  }
+
+  /** Speed: the car and Mega Robo each make him faster (together faster still). */
+  private applySpeed(car: boolean): void {
+    this.player.speedScale = (car ? CAR.speedScale : 1) * (this.megaOn ? MEGA.speedScale : 1);
+  }
+
+  /** The bar is full: he turns into Mega Robo (Task 030). */
+  private startMega(now: number): void {
+    if (this.carOn()) this.endCar(false);
+    this.megaOn = true;
+    this.megaTimer.start(now);
+    this.player.look.setBoost(MEGA.boost);
+    this.applySpeed(false);
+    audio.play('megaTransform');
+    const b = this.player.body;
+    this.sparkle.explode(44, b.center.x, b.center.y);
+    this.poof(b.center.x, b.bottom - 60);
+    this.cameras.main.flash(260, 255, 255, 255);
+    this.buildBridges();
+  }
+
+  /** Mega Robo to robot (time is up, a fall or the goal). */
+  private endMega(sound = true): void {
+    if (!this.megaOn) return;
+    this.megaOn = false;
+    this.megaTimer.stop();
+    this.player.look.setBoost(1);
+    this.applySpeed(this.carOn());
+    this.clearBridges();
+    this.megaGlow?.setVisible(false);
+    if (sound) audio.play('transformBack');
+    const b = this.player.body;
+    this.sparkle.explode(18, b.center.x, b.center.y);
+    this.poof(b.center.x, b.bottom - 40);
+  }
+
+  /** Gaps of one or two tiles get an invisible floor while he is Mega Robo: he just steps over them. */
+  private buildBridges(): void {
+    this.clearBridges();
+    const T = this.tile;
+    for (const g of narrowGaps(this.grid.solid)) {
+      const z = this.add.zone(g.col * T + (g.width * T) / 2, this.gridTop + 10 * T, g.width * T, 2 * T);
+      this.physics.add.existing(z, true);
+      this.bridges.push(z);
+      this.groundBodies.push(z);
+    }
+  }
+
+  private clearBridges(): void {
+    for (const z of this.bridges) {
+      const i = this.groundBodies.indexOf(z);
+      if (i >= 0) this.groundBodies.splice(i, 1);
+      z.destroy();
+    }
+    this.bridges = [];
+  }
+
+  /** Every frame: the big robot's glow, popping bubbles he walks into, and the end of the time. */
+  private updateMega(now: number): void {
+    if (this.megaPending && this.mode === 'play' && !this.megaOn) {
+      this.megaPending = false;
+      this.startMega(now);
+    }
+    if (!this.megaOn) return;
+    if (!this.megaTimer.active(now)) {
+      this.endMega();
+      return;
+    }
+    const b = this.player.body;
+    this.megaGlow ??= this.add.image(0, 0, 'fx-glow').setTint(0xab47bc).setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.player - 1.5);
+    this.megaGlow.setVisible(true).setDisplaySize(300, 300).setPosition(b.center.x, b.center.y - 30).setAlpha((0.45 + 0.15 * Math.sin(now / 160)) * carAlpha(this.megaTimer.remaining(now)));
+    if (this.mode === 'play' && now - this.lastPopAt >= MEGA.popEveryMs) {
+      const f = this.player.facing;
+      const hit = this.bubbles.tryHit(b.center.x + f * 20, b.center.y - 10, MEGA.popReach, now, true) >= 0 || this.bubbles.tryHit(b.center.x + f * 20, b.top - 60, MEGA.popReach, now, true) >= 0;
+      if (hit) this.lastPopAt = now;
+    }
+  }
+
   /** The time bars (Task 028): one row for each timed power that is on. */
   private updateBars(now: number): void {
     const entries: BarEntry[] = [];
     const add = (key: string, tex: string, timer: CarTimer, color: number) => {
       if (timer.active(now)) entries.push({ key, tex, frac: timer.fraction(now), color, alpha: carAlpha(timer.remaining(now)) });
     };
+    if (this.megaOn) add('mega', MEGA_ICON, this.megaTimer, 0xab47bc);
     if (this.carOn()) add('car', this.carOrbKey, this.carTimer, 0x29b6f6);
     add('magnet', POWER_ORB_KEYS.magnet, this.magnetTimer, 0xff5252);
     add('boots', POWER_ORB_KEYS.boots, this.bootsTimer, 0xff9800);
+    if (this.coinBar) {
+      this.coinBar.layout(this.layout, this.hud.icon.x, this.hud.icon.y);
+      this.coinBar.setVisible(!this.megaOn);
+      this.coinBar.update(now, barFraction(this.barCoins, this.barCap));
+    }
     if (entries.length === 0 && !this.bars) return;
     this.bars ??= new PowerBars(this, DEPTH.hud);
     this.bars.layout(this.layout);
@@ -718,6 +846,7 @@ export class LevelScene extends Phaser.Scene {
   private startCar(now: number): void {
     const car = this.car;
     if (!car) return;
+    if (this.megaOn) this.endMega(false);
     const wasCar = this.carOn();
     this.carTimer.start(now);
     if (wasCar) {
@@ -728,7 +857,7 @@ export class LevelScene extends Phaser.Scene {
     car.reset(body.center.x);
     car.setVisible(true);
     this.player.look.setAlpha(0);
-    this.player.speedScale = CAR.speedScale;
+    this.applySpeed(true);
     audio.play('transform');
     this.sparkle.explode(26, body.center.x, body.bottom - 30);
     this.poof(body.center.x, body.bottom - 30);
@@ -737,7 +866,7 @@ export class LevelScene extends Phaser.Scene {
   /** Car to robot (time is up, a fall, or the goal): a small poof, and the soft chime when `sound`. */
   private endCar(sound = true): void {
     this.carTimer.stop();
-    this.player.speedScale = 1;
+    this.applySpeed(false);
     if (!this.carOn()) return;
     this.car!.setVisible(false);
     this.player.look.setAlpha(this.player.alphaWanted);
@@ -980,7 +1109,7 @@ export class LevelScene extends Phaser.Scene {
     const pressed = input.justPressed('jump');
     // Flying (Task 028): Left (or the Jump key) is up, Right is down; nothing else steers him.
     const fly = this.player.flying ? flyDirection(input.isDown('left') || input.isDown('jump'), input.isDown('right')) : undefined;
-    const r = this.player.step(now, { move: fly === undefined ? move : 0, jumpPressed: pressed && fly === undefined, fly, walls: fly === undefined ? this.bubbleWalls(this.player) : undefined }, dtMs);
+    const r = this.player.step(now, { move: fly === undefined ? move : 0, jumpPressed: pressed && fly === undefined, fly, walls: fly === undefined && !this.megaOn ? this.bubbleWalls(this.player) : undefined }, dtMs);
     if (r.jumped) this.onJump();
 
     this.pullCoins(now, dtMs);
@@ -1038,6 +1167,19 @@ export class LevelScene extends Phaser.Scene {
     this.hud.count.setScale(1);
     // A rainbow coin gives a bigger bump (Task 024).
     this.tweens.add({ targets: this.hud.count, scale: special ? 1.7 : 1.3, duration: special ? 150 : 110, yoyo: true });
+    this.feedBar(n);
+  }
+
+  /** Every coin also fills the Mega Robo bar (it never drains, not even on a fall). */
+  private feedBar(n: number): void {
+    const now = this.time.now;
+    if (this.megaOn || this.megaPending || (this.mode !== 'play' && this.mode !== 'respawn')) return;
+    const r = addToBar(this.barCoins, n, this.barCap);
+    this.barCoins = r.coins;
+    this.coinBar?.pulse(now);
+    if (!r.full) return;
+    if (this.mode === 'play') this.startMega(now);
+    else this.megaPending = true;
   }
 
   /**
@@ -1226,6 +1368,7 @@ export class LevelScene extends Phaser.Scene {
 
   private startRespawn(): void {
     this.endCar(false);
+    this.endMega(false);
     this.endPowers(false);
     this.mode = 'respawn';
     this.respawns++;
@@ -1272,6 +1415,7 @@ export class LevelScene extends Phaser.Scene {
 
   private reachGoal(): void {
     this.endCar(false);
+    this.endMega(false);
     this.endPowers(false);
     this.mode = 'finish';
     this.exitBtn.setEnabled(false);

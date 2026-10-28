@@ -61,6 +61,8 @@ export interface AvatarLook {
   setFacing(facing: 1 | -1): void;
   /** One-shot events. */
   trigger(event: AvatarEvent, now: number): void;
+  /** Mega Robo (Task 030): draw the body this many times bigger (1 = normal); physics never changes. */
+  setBoost(f: number): void;
   setAlpha(alpha: number): void;
   setDepth(depth: number): void;
   setVisible(visible: boolean): void;

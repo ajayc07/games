@@ -42,6 +42,18 @@ export const DEFAULT_RECIPES = {
       { freq: 392, at: 0.18, dur: 0.16, type: 'triangle', gain: 0.8 },
     ],
   },
+  // Mega Robo (Task 030): a deep power-up sweep with a big bright chord on top.
+  megaTransform: {
+    tones: [
+      { freq: 110, to: 330, dur: 0.45, type: 'triangle', gain: 0.9 },
+      { freq: 262, at: 0.2, dur: 0.5, type: 'triangle', gain: 0.7 },
+      { freq: 392, at: 0.26, dur: 0.5, type: 'triangle', gain: 0.7 },
+      { freq: 523, at: 0.32, dur: 0.55, type: 'triangle', gain: 0.7 },
+      { freq: 1047, at: 0.36, dur: 0.4, type: 'sine', gain: 0.35 },
+    ],
+  },
+  // A low soft engine puff, played every so often while the rocket boots fly (Task 028).
+  flyHum: { tones: [{ freq: 85, to: 120, dur: 0.34, type: 'triangle', gain: 0.35 }, { freq: 170, to: 200, dur: 0.3, type: 'sine', gain: 0.1 }] },
   // Springy "boing" for a bounce pad (Task 015): a quick rising glide with a bright tail.
   boing: {
     tones: [

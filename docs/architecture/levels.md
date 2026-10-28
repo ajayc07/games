@@ -205,3 +205,6 @@ Colours: deep blue sky (0x0b1445 to 0x3a3f9a), pale periwinkle moonlit hills (ke
 ### Day / night and vibration settings (Task 025, D-068)
 `ProgressSettings.dayNight` and `vibration`; `resolveDayNight` (`?time=`), `resolveVibration` (`?vibrate=`), `pickLook(mode, { nightLevel, varied, roll })`; `themeForRun(worldId, varied)` in `manifest.ts` picks `nightTheme` or the world theme at each level start. `haptics.ts`: `vibrate(pattern, force)` obeys the setting, `vibrationSupported()`, `FALL_BUZZ`. Parent view: `page` 1 or 2; `parentLayout` returns `more` (the page button) and `page2` (two rows of three controls over the full width, and a note area).
 
+### Mega Robo and the coin bar (Task 030, D-073)
+`levels/mega.ts` (pure, tested), `CoinBar.ts` (bar and the Mega icon). `LevelScene`: `feedBar` (from `addCoins`), `startMega` / `endMega` / `updateMega`, `buildBridges` (invisible floors over gaps of up to two tiles, pushed into `groundBodies`, rebuilt in `buildGround`), `applySpeed`, `makeRoom` (at most two timed powers). `AvatarLook.setBoost` draws the body bigger without touching physics.
+
