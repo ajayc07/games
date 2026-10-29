@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-28 (rainbow bubble on every play, big bubble takes 3 shots, D-058)_
+_Last updated: 2026-10-29 (Tasks 021-032 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **FEATURE FREEZE: from now on only optimisation and bug fixes until the parent decides otherwise.**_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -38,7 +38,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 020 | Zen free play: endless level with every button and power-up, a Zen button on the map (D-063) | Done and committed |
 | 021 | Hold to run (x1.45 after 350 ms) and a vibration on a fall (D-064) | Done and committed |
 | 022 | Zen: seamless swap with no empty stretches, stairs and gaps (D-065) | Done (uncommitted until the parent commits) |
-| 023 | Rocket boots fly like Iron Man: hold Jump (D-066) | Done (uncommitted) |
+| 023 | Rocket boots fly like Iron Man: hold Jump (D-066, replaced by Task 028 / D-071) | Done (uncommitted) |
 | 024 | Rainbow coins: special look, chime and counter bump (D-067) | Done (uncommitted) |
 | 025 | Day / night setting (random by default), vibration switch and test, firmer buzz (D-068) | Done (uncommitted) |
 | 026 | Power button icon: a toy blaster firing a ball instead of a star (D-069) | Done (uncommitted) |
@@ -97,6 +97,8 @@ _(nothing)_
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Tasks 028-032 (D-071..D-075)**: rocket boots fly by themselves (Left = up, Right = down, 12 s): is it smooth for him, is 250 px/s too fast, does he understand he lands by himself? Do the time bars (top middle) make sense to him? Zen double power-ups (car + rocket = flying car): fun or confusing? Coin bar under the counter: does he notice it fills? Mega Robo (1.7x, 12 s, pops bubbles by walking, steps over small gaps): does he love it, is it too big or too fast, do the footsteps and screen shake feel good or scary? Stickers: does he notice the pop-up, find the sticker book button (map, left of Zen), want to collect them? Parent page 2: Volume row works, the tablet's real loudness at Low / Medium / High.
+  - **Tasks 021-027 (D-064..D-070)**: hold-to-run feel; fall buzz on Android (needs a fresh PWA build: close the app fully and reopen once online); zen swap (no empty screens, gaps and stairs); rainbow coins; day / night random (parent page 2); the blaster icon; auto-pause after 150 s and wake lock released (does the screen then sleep by itself?).
   - **Charging pad (014)**: does it still get "is it Mario?"; does he understand the pad is the end; does he enjoy the charge effect (beam, rings, bolts); is the pad easy to spot from far away; is the rainbow bubble now easy to spot; does the hex-nut coin still read as a coin? The charge sound is just the existing win chime.
   - **Replay variety (012)** (`?level=grass-4&variety=1&demo=0` forces it; `&seed=1` always gives a rainbow bubble in Grass 4 and 6): does a replay feel different to him? Does he notice and enjoy the rainbow bubble (about 1 in 3
     replays of Grass 4 and 6; 8 coins, rising chime, coloured rings; the chime is not yet heard by ear)? Does any level feel unfair, too empty or too crowded after shuffling (coins and small bubbles only; arcs, gaps, big and high bubbles stay)?
@@ -115,6 +117,7 @@ _(nothing)_
 
 ## Device test notes (parent fills in after trying on the tablet)
 Format: date, device, what he did, what confused him, what bored him, what he loved.
+- 2026-10-28, tablet (Tasks 021-027): he got excited when the robot transformed into a car; with the rocket boots he was excited but tapping Jump to stay up was not smooth for him (led to Task 028: automatic flight with Up / Down buttons), and the idea of double power-ups, a coin bar and a big robot (Tasks 029-030). 2026-10-29: mostly working as expected; asked for rewards (stickers), steps and sound control (Tasks 031-032). Feature freeze declared.
 - 2026-10-24, tablet (D-037): compared the looks; liked the robot best and loves its shooting. Bored by auto-run and tap-to-jump (Grass 1 and 2); liked Grass 3 (walking). The running robot faced the
   player, so it looked like it ran backwards (fixed in 005c).
 - 2026-10-24 evening, tablet (D-044): Grass 1-4, map and picker all worked; he enjoyed popping the bubbles; after repeated play of the same level he got bored.

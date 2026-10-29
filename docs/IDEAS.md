@@ -65,3 +65,11 @@ Today the eight colour options differ only in colour, small size (0.92-1.12), an
 - A small unique win dance or antenna wiggle per colour.
 - A trail or dust colour per colour while running.
 Rule: nothing may change gameplay, fairness or hit boxes (levels stay identical for every option), and every extra must work with both looks (robot and ball) and be unit-tested like the existing option data.
+
+## 2026-10-29: Parked after the feature freeze (nothing here is planned; the parent decides)
+1. **Parent play report:** log levels played, where he falls most, session length and powers used, stored on the device only, shown on the parent page. Would make tuning (flight speed, Mega Robo length, bar size) evidence-based.
+2. **Adaptive difficulty:** after repeated falls in the same place quietly help (wider platform, a coin trail, an assist); if he breezes through, make things richer. Parent settings stay as overrides.
+3. **More rewards:** robot hats and colours as unlockable sticker prizes, a "my stuff" screen with more than stickers.
+4. **A parent switch for the old hold-Jump flight** (D-066), proposed with Task 028 but not built.
+5. **More sounds:** a looping engine hum (today a short puff every 0.4 s), a step sound for the small robot, real recorded sounds instead of tones.
+
