@@ -126,7 +126,7 @@ describe('parent view second page (Task 025)', () => {
         const w = logicalWidthFor(cw, ch);
         const l = parentLayout(w, 720, insets);
         const ctrls = l.page2.rows.flatMap((r) => r.controls);
-        expect(ctrls).toHaveLength(6);
+        expect(ctrls).toHaveLength(9);
         for (const c of ctrls) {
           expect(c.width).toBeGreaterThanOrEqual(80);
           expect(c.height).toBeGreaterThanOrEqual(80);

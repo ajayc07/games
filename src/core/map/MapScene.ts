@@ -20,7 +20,8 @@ import { PARENT_HOLD_MS } from '../ui/hold';
 import { clampScroll, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
 import { addPracticeBadge, addZenBadge } from '../practice/icons';
-import { MAP_PRACTICE, mapPracticeSpot, mapZenSpot } from '../practice/practiceLayout';
+import { MAP_PRACTICE, mapPracticeSpot, mapStickerSpot, mapZenSpot } from '../practice/practiceLayout';
+import { addStickerBadge } from '../rewards/stickerArt';
 
 export type TeaserIcon = 'cave' | 'sky' | 'castle';
 
@@ -41,6 +42,8 @@ export interface MapSceneData {
   onPractice?: () => void;
   /** The endless zen level (Task 020): a second fixed button, left of Practice. Always open. */
   onZen?: () => void;
+  /** The sticker book (Task 031): a third fixed button, left of Zen. */
+  onStickers?: () => void;
 }
 
 interface DotView {
@@ -77,6 +80,8 @@ export class MapScene extends Phaser.Scene {
   private practiceFace: Phaser.GameObjects.Container | null = null;
   private zenBtn: Phaser.GameObjects.Container | null = null;
   private zenFace: Phaser.GameObjects.Container | null = null;
+  private stickerBtn: Phaser.GameObjects.Container | null = null;
+  private stickerFace: Phaser.GameObjects.Container | null = null;
   private driver!: AvatarDriver;
   private sparkle!: Phaser.GameObjects.Particles.ParticleEmitter;
   private dots: DotState[] = [];
@@ -156,6 +161,17 @@ export class MapScene extends Phaser.Scene {
     this.practiceFace = null;
     this.zenBtn = null;
     this.zenFace = null;
+    this.stickerBtn = null;
+    this.stickerFace = null;
+    if (this.data0.onStickers) {
+      const face = this.add.container(0, 0);
+      addStickerBadge(this, face, MAP_PRACTICE.r);
+      const btn = this.add.container(0, 0, [face]).setDepth(DEPTH.ui).setSize(MAP_PRACTICE.hit, MAP_PRACTICE.hit);
+      btn.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, () => this.openStickers());
+      this.tweens.add({ targets: face, y: -MAP_PRACTICE.bob, duration: MAP_PRACTICE.bobMs / 2, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 800 });
+      this.stickerBtn = btn;
+      this.stickerFace = face;
+    }
     if (this.data0.onZen) {
       const face = this.add.container(0, 0);
       addZenBadge(this, face, MAP_PRACTICE.r);
@@ -350,6 +366,10 @@ export class MapScene extends Phaser.Scene {
       const s = mapZenSpot(l.width, l.height, l.insets);
       this.zenBtn.setPosition(s.x, s.y);
     }
+    if (this.stickerBtn) {
+      const s = mapStickerSpot(l.width, l.height, l.insets);
+      this.stickerBtn.setPosition(s.x, s.y);
+    }
     this.scrollTarget = scrollFor(this.geo.width, l.width, this.pos.x);
     this.scroll = this.scrollTarget;
   }
@@ -357,7 +377,7 @@ export class MapScene extends Phaser.Scene {
   // ---------- input ----------
 
   private onDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
-    if (over.includes(this.palette) || (this.practiceBtn && over.includes(this.practiceBtn)) || (this.zenBtn && over.includes(this.zenBtn))) return;
+    if (over.includes(this.palette) || (this.practiceBtn && over.includes(this.practiceBtn)) || (this.zenBtn && over.includes(this.zenBtn)) || (this.stickerBtn && over.includes(this.stickerBtn))) return;
     const at = this.logical(pointer);
     if (this.gear?.contains(at.x, at.y)) return;
     const { x } = at;
@@ -487,6 +507,18 @@ export class MapScene extends Phaser.Scene {
     this.time.delayedCall(240, () => this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onPractice?.()));
   }
 
+  private openStickers(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    audio.play('pick');
+    const face = this.stickerFace;
+    if (face) {
+      this.tweens.killTweensOf(face);
+      this.tweens.add({ targets: face, scale: 1.15, duration: 110, yoyo: true, ease: 'Back.easeOut' });
+    }
+    this.time.delayedCall(240, () => this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onStickers?.()));
+  }
+
   private openZen(): void {
     if (this.leaving) return;
     this.leaving = true;
@@ -574,6 +606,7 @@ export class MapScene extends Phaser.Scene {
         avatar: { x: this.pos.x - this.scroll, y: this.pos.y - this.lift },
         palette: { x: this.palette.x, y: this.palette.y, r: PALETTE_R },
         gear: this.gear?.state ?? null,
+        stickers: this.stickerBtn && { x: this.stickerBtn.x, y: this.stickerBtn.y, r: MAP_PRACTICE.r, hit: MAP_PRACTICE.hit },
         zen: this.zenBtn && { x: this.zenBtn.x, y: this.zenBtn.y, r: MAP_PRACTICE.r, hit: MAP_PRACTICE.hit },
         practice: this.practiceBtn && { x: this.practiceBtn.x, y: this.practiceBtn.y, r: MAP_PRACTICE.r, hit: MAP_PRACTICE.hit, faceY: this.practiceFace?.y ?? 0 },
         scroll: this.scroll,

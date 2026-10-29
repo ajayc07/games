@@ -153,6 +153,17 @@ export function nearestScaleStep(scale: number): number {
   return best;
 }
 
+// ---- volume (Task 032) ----
+
+export type Volume = 'low' | 'medium' | 'high';
+export const VOLUMES: readonly Volume[] = ['low', 'medium', 'high'];
+/** Master gain for each step. Medium is what the game always used (0.8). */
+export const VOLUME_GAIN: Record<Volume, number> = { low: 0.4, medium: 0.8, high: 1 };
+
+export function resolveVolume(saved: { volume?: Volume }): Volume {
+  return saved.volume ?? 'medium';
+}
+
 // ---- runtime binding ----
 
 let source: () => SettingsInput = () => ({ search: typeof location === 'undefined' ? '' : location.search, saved: {}, savedLook: null });
@@ -178,4 +189,5 @@ export const settings = {
   fullscreen: (): boolean => resolveFullscreen(source()),
   dayNight: (): DayNight => resolveDayNight(source()),
   vibration: (): boolean => resolveVibration(source()),
+  volume: (): Volume => resolveVolume(source().saved),
 };

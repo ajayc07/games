@@ -208,3 +208,6 @@ Colours: deep blue sky (0x0b1445 to 0x3a3f9a), pale periwinkle moonlit hills (ke
 ### Mega Robo and the coin bar (Task 030, D-073)
 `levels/mega.ts` (pure, tested), `CoinBar.ts` (bar and the Mega icon). `LevelScene`: `feedBar` (from `addCoins`), `startMega` / `endMega` / `updateMega`, `buildBridges` (invisible floors over gaps of up to two tiles, pushed into `groundBodies`, rebuilt in `buildGround`), `applySpeed`, `makeRoom` (at most two timed powers). `AvatarLook.setBoost` draws the body bigger without touching physics.
 
+### Stickers (Task 031, D-074)
+`core/rewards/`: catalogue and rules (`stickers.ts`), drawing (`stickerArt.ts`), the earned pop-up (`StickerPop.ts`), the book (`StickerScene.ts`, `stickerLayout.ts`). `LevelSceneData.onSticker(reason, stars)` asks the universe for the id to show; the robo manifest's `awardSticker` saves it with `ProgressStore.addSticker`. `MapSceneData.onStickers` adds the map button (`mapStickerSpot`).
+

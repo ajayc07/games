@@ -42,6 +42,19 @@ export const DEFAULT_RECIPES = {
       { freq: 392, at: 0.18, dur: 0.16, type: 'triangle', gain: 0.8 },
     ],
   },
+  // A sticker is earned (Task 031): a happy little fanfare.
+  stickerGet: {
+    tones: [
+      { freq: 659, dur: 0.1, type: 'triangle' },
+      { freq: 784, at: 0.09, dur: 0.1, type: 'triangle' },
+      { freq: 988, at: 0.18, dur: 0.1, type: 'triangle' },
+      { freq: 1319, at: 0.27, dur: 0.3, type: 'triangle' },
+      { freq: 2637, at: 0.3, dur: 0.22, type: 'sine', gain: 0.15 },
+    ],
+  },
+  // Mega Robo's footstep and the pop of a bubble he walks into (Task 032): low and soft, never harsh.
+  megaStep: { tones: [{ freq: 90, to: 55, dur: 0.14, type: 'triangle', gain: 0.8 }, { freq: 180, to: 110, dur: 0.08, type: 'sine', gain: 0.2 }] },
+  megaPop: { tones: [{ freq: 220, to: 120, dur: 0.16, type: 'triangle', gain: 0.7 }, { freq: 660, to: 880, at: 0.02, dur: 0.12, type: 'sine', gain: 0.35 }] },
   // Mega Robo (Task 030): a deep power-up sweep with a big bright chord on top.
   megaTransform: {
     tones: [

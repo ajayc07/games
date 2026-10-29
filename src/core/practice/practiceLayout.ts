@@ -85,6 +85,12 @@ export function mapZenSpot(width: number, height: number, insets: Insets): { x: 
   return { ...p, x: p.x - (MAP_PRACTICE.hit + 24) };
 }
 
+/** The map's Sticker button (Task 031): the same size, left of Zen on the same line. */
+export function mapStickerSpot(width: number, height: number, insets: Insets): { x: number; y: number; r: number; hit: number } {
+  const z = mapZenSpot(width, height, insets);
+  return { ...z, x: z.x - (MAP_PRACTICE.hit + 24) };
+}
+
 export function mapPracticeSpot(width: number, height: number, insets: Insets): { x: number; y: number; r: number; hit: number } {
   return {
     x: width - insets.right - MAP_PRACTICE.inset,

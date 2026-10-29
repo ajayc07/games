@@ -12,6 +12,8 @@ import { generateZen, zenFromSearch } from '../../core/levels/zen';
 import { parseLevelOrThrow, type LevelData } from '../../core/levels/format';
 import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowBubble, withRainbowHook } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
+import { StickerScene, type StickerSceneData } from '../../core/rewards/StickerScene';
+import { earnsSticker, nextSticker, type StickerReason } from '../../core/rewards/stickers';
 import {
   bindSettings,
   resolveButtonScale,
@@ -23,6 +25,8 @@ import {
   pickLook,
   resolveDayNight,
   resolveVibration,
+  resolveVolume,
+  VOLUME_GAIN,
   settings,
   urlOverrides,
 } from '../../core/settings/settings';
@@ -79,6 +83,7 @@ async function boot(game: Phaser.Game): Promise<void> {
   // Settings (Task 010): URL parameter, then the saved value, then the default; everything reads them through the module.
   bindSettings(() => ({ saved: store.record.settings, savedLook: store.record.look }), search);
   audio.setMuted(!settings.soundOn()); // before the first sound, including the first tap
+  audio.setMasterVolume(VOLUME_GAIN[settings.volume()]);
   // ?look= overrides and is saved (the tablet remembers the last comparison); else the saved look.
   if (params.has('look')) {
     const parsed = parseLook(search);
@@ -177,8 +182,29 @@ function openMap(s: Session): void {
     onParent: () => openParent(s),
     onPractice: () => openPracticeSelect(s),
     onZen: () => openZen(s, newSeed()),
+    onStickers: () => openStickers(s),
   };
   startOnly(s.game, MapScene.KEY, MapScene, data);
+}
+
+/** The sticker book (Task 031): the stickers he has earned; Back returns to the map. */
+function openStickers(s: Session): void {
+  s.arrival = null;
+  const data: StickerSceneData = { owned: [...s.store.record.stickers], onBack: () => openMap(s) };
+  startOnly(s.game, StickerScene.KEY, StickerScene, data);
+}
+
+/**
+ * A sticker for this event (Task 031): the next one he does not have, saved at once. Null when it earns none or he has them
+ * all. `before` is the level's best result before this run (for a finish).
+ */
+function awardSticker(s: Session, reason: StickerReason, before: { stars: number } | null, stars: number): string | null {
+  if (!earnsSticker(reason, before, stars)) return null;
+  const id = nextSticker(s.store.record.stickers);
+  if (!id) return null;
+  s.store.addSticker(id);
+  void s.store.flush();
+  return id;
 }
 
 /** The Combo Practice selector (Task 011): always open, reached from the map's Practice button. */
@@ -230,6 +256,7 @@ function openZen(s: Session, seed: number): void {
     look: s.look,
     onHome: () => openMap(s),
     zen: { seed },
+    onSticker: (reason) => awardSticker(s, reason, null, 0),
   };
   startOnly(s.game, LevelScene.KEY, LevelScene, data);
 }
@@ -255,6 +282,7 @@ function openParent(s: Session): void {
         dayNight: saved.dayNight ?? resolveDayNight(input),
         vibration: saved.vibration ?? resolveVibration(input),
         vibrationSupported: vibrationSupported(),
+        volume: resolveVolume(saved),
         pinned: urlOverrides(input.search),
       };
     },
@@ -280,6 +308,11 @@ function openParent(s: Session): void {
     setVibration: (on) => {
       store.updateSettings({ vibration: on });
       if (on) vibrate(FALL_BUZZ, true); // a buzz right away, so the parent feels that it is on
+    },
+    setVolume: (v) => {
+      store.updateSettings({ volume: v });
+      audio.setMasterVolume(VOLUME_GAIN[v]);
+      audio.play('stickerGet'); // a happy sound at the new volume, so the parent hears it
     },
     testBuzz: () => vibrate(FALL_BUZZ, true),
     showDemosAgain: () => LevelScene.forgetDemos(),
@@ -327,6 +360,8 @@ function openLevel(s: Session, levelId: string, replay = false): void {
       s.arrival = { levelId: here, before };
     },
     // Next (D-025) only when the next level exists and is open after this result.
+    // Stickers (Task 031): when the coin bar fills, and the first time a level is cleared or gets three stars.
+    onSticker: (reason, stars) => awardSticker(s, reason, s.arrival?.before.levels[here] ?? null, stars),
     onNext: nextId && levels.has(nextId) ? () => openLevel(s, nextId) : undefined,
     nextAvailable: () => {
       const w = nextId ? worldOf(nextId) : undefined;

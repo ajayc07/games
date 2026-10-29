@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { freshRecord, mergeResult, parseRecord, PROGRESS_VERSION, serializeRecord } from './progress';
+import { freshRecord, mergeResult, parseRecord, PROGRESS_VERSION, resetLevels, serializeRecord } from './progress';
 import { progressKey, ProgressStore, SAVE_DEBOUNCE_MS } from './store';
 import { MemoryBackend, type KVBackend } from './backends';
 
 describe('progress record', () => {
   it('a fresh record has the D-036 shape', () => {
-    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {} });
+    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [] });
   });
 
   it('keeps the best stars and coins, never lowers them', () => {
@@ -140,5 +140,17 @@ describe('ProgressStore', () => {
     const { before, after } = store.recordResult('g1', { stars: 2, coins: 1 });
     expect(before.levels.g1.stars).toBe(1);
     expect(after.levels.g1).toEqual({ stars: 2, bestCoins: 3 });
+  });
+});
+
+describe('stickers and volume in the record (Tasks 031, 032)', () => {
+  it('saved stickers are cleaned on load, volume is checked, and a reset keeps the stickers', () => {
+    const raw = JSON.stringify({ version: 1, stickers: ['s03', 'bad', 's01', 's01'], settings: { volume: 'high' } });
+    const { record } = parseRecord(raw);
+    expect(record.stickers).toEqual(['s01', 's03']);
+    expect(record.settings.volume).toBe('high');
+    expect(parseRecord(JSON.stringify({ version: 1, settings: { volume: 'loud' } })).record.settings.volume).toBeUndefined();
+    expect(parseRecord(JSON.stringify({ version: 1 })).record.stickers).toEqual([]);
+    expect(resetLevels({ ...record, levels: { a: { stars: 2, bestCoins: 5 } } }).stickers).toEqual(['s01', 's03']);
   });
 });

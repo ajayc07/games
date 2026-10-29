@@ -1,6 +1,7 @@
 // ProgressStore (Task 006, D-036): one universe's progress record behind a chain of backends
 // (IndexedDB -> localStorage -> memory). A backend that is missing or throws is skipped silently; the game
 // never waits on or crashes because of storage. Writes are coalesced and flushed on page hide.
+import { cleanStickers } from '../rewards/stickers';
 import { defaultBackends, MemoryBackend, type KVBackend } from './backends';
 import { mergeResult, parseRecord, resetLevels, serializeRecord, type LevelProgress, type ParseStatus, type ProgressRecord, type ProgressSettings } from './progress';
 
@@ -95,6 +96,14 @@ export class ProgressStore {
     this.current = mergeResult(before, levelId, result);
     this.scheduleSave();
     return { before, after: this.current };
+  }
+
+  /** Adds a sticker he has earned (kept in catalogue order) and saves. Returns false if he already had it. */
+  addSticker(id: string): boolean {
+    if (this.current.stickers.includes(id)) return false;
+    this.current = { ...this.current, stickers: cleanStickers([...this.current.stickers, id]) };
+    this.scheduleSave();
+    return true;
   }
 
   setChosenCharacter(id: string): void {

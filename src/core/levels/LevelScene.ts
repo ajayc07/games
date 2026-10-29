@@ -22,6 +22,7 @@ import { FLY, flyDirection, plainGround } from './flight';
 import { PowerBars, type BarEntry } from './PowerBars';
 import { MEGA, addToBar, barCapacity, barFraction, narrowGaps } from './mega';
 import { CoinBar, MEGA_ICON } from './CoinBar';
+import { showStickerPop } from '../rewards/StickerPop';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
 import { gaitFor } from '../avatar/clips';
@@ -56,6 +57,8 @@ export interface LevelSceneData {
   nextAvailable?: () => boolean;
   /** Called at the goal, before the win screen, so progress is kept even if the child quits right away. */
   onResult?: (result: { stars: number; coins: number }) => void;
+  /** A sticker is earned (Task 031): called when the coin bar fills (`mega`) and at a finish (`finish`, after onResult) with the stars; returns the sticker id to show, or null for none. */
+  onSticker?: (reason: 'mega' | 'finish', stars: number) => string | null;
   /** How the player is drawn; default `?look=` / robot. */
   look?: LookName;
   /** Reopen the avatar picker (small icon on the win screen) until the map has its own button. */
@@ -609,6 +612,7 @@ export class LevelScene extends Phaser.Scene {
   private bridges: Phaser.GameObjects.Zone[] = [];
   private lastPopAt = 0;
   private lastHumAt = 0;
+  private lastStepAt = 0;
   private carOrbKey = '';
   private badge: Phaser.GameObjects.Image | null = null;
   private field: Phaser.GameObjects.Arc | null = null;
@@ -739,6 +743,9 @@ export class LevelScene extends Phaser.Scene {
     this.poof(b.center.x, b.bottom - 60);
     this.cameras.main.flash(260, 255, 255, 255);
     this.buildBridges();
+    // A sticker for filling the bar (Task 031): it pops up a moment after the flash.
+    const sticker = this.data0.onSticker?.('mega', 0);
+    if (sticker) this.time.delayedCall(900, () => showStickerPop(this, sticker, DEPTH.hud + 5, this.layout.width / 2, this.layout.height * 0.36));
   }
 
   /** Mega Robo to robot (time is up, a fall or the goal). */
@@ -794,7 +801,16 @@ export class LevelScene extends Phaser.Scene {
     if (this.mode === 'play' && now - this.lastPopAt >= MEGA.popEveryMs) {
       const f = this.player.facing;
       const hit = this.bubbles.tryHit(b.center.x + f * 20, b.center.y - 10, MEGA.popReach, now, true) >= 0 || this.bubbles.tryHit(b.center.x + f * 20, b.top - 60, MEGA.popReach, now, true) >= 0;
-      if (hit) this.lastPopAt = now;
+      if (hit) {
+        this.lastPopAt = now;
+        audio.play('megaPop');
+      }
+    }
+    // Heavy footsteps (Task 032): a low thud and a tiny shake of the screen with each stride.
+    if (this.mode === 'play' && this.player.grounded && Math.abs(b.velocity.x) > 60 && now - this.lastStepAt > 300) {
+      this.lastStepAt = now;
+      audio.play('megaStep');
+      this.cameras.main.shake(80, 0.0025);
     }
   }
 
@@ -1441,8 +1457,12 @@ export class LevelScene extends Phaser.Scene {
     this.settleOnPad();
     const stars = starsFor(true, this.coinCount, this.level.stars);
     // Keep progress now, before the win screen, so quitting right after still saves it. Practice saves nothing (Task 011).
-    resultHandlerFor(this.level, this.data0.onResult)?.({ stars, coins: this.coinCount });
+    const handler = resultHandlerFor(this.level, this.data0.onResult);
+    handler?.({ stars, coins: this.coinCount });
+    // A sticker for a first clear or a first three stars (Task 031), shown once the stars have filled in.
+    const sticker = handler ? this.data0.onSticker?.('finish', stars) : null;
     const practice = this.practice && this.data0.practice ? { combos: this.practice.combo.total } : undefined;
+    if (sticker) this.time.delayedCall(arrivalTotalMs() + ResultScreen.fillMs(stars, practice) + 300, () => showStickerPop(this, sticker, DEPTH.hud + 5, this.layout.width / 2, this.layout.height * 0.34));
     this.time.delayedCall(arrivalTotalMs(), () => {
       // A joyful bounce on the spot while the stars fill, ending as the buttons appear.
       player.celebrate(this.time.now, ResultScreen.fillMs(stars, practice));

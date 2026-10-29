@@ -1,6 +1,8 @@
 // The per-universe progress record (D-036, Task 006). Pure: parsing, defaults and the best-value merge.
 // No browser APIs here; ProgressStore (store.ts) does the saving.
 
+import { cleanStickers } from '../rewards/stickers';
+
 export const PROGRESS_VERSION = 1;
 
 export interface LevelProgress {
@@ -25,6 +27,8 @@ export interface ProgressSettings {
   dayNight?: 'random' | 'day' | 'night';
   /** The fall buzz (Task 021, Task 025). Missing = on. */
   vibration?: boolean;
+  /** How loud the game is (Task 032). Missing = medium. */
+  volume?: 'low' | 'medium' | 'high';
 }
 
 export interface ProgressRecord {
@@ -35,12 +39,14 @@ export interface ProgressRecord {
   look: string | null;
   levels: Record<string, LevelProgress>;
   settings: ProgressSettings;
+  /** The stickers he has earned (Task 031), in the order of the catalogue. */
+  stickers: string[];
 }
 
 export type ParseStatus = 'ok' | 'empty' | 'corrupt' | 'unknown-version';
 
 export function freshRecord(): ProgressRecord {
-  return { version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {} };
+  return { version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [] };
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -81,7 +87,9 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
     if (typeof s.fullscreen === 'boolean') record.settings.fullscreen = s.fullscreen;
     if (s.dayNight === 'random' || s.dayNight === 'day' || s.dayNight === 'night') record.settings.dayNight = s.dayNight;
     if (typeof s.vibration === 'boolean') record.settings.vibration = s.vibration;
+    if (s.volume === 'low' || s.volume === 'medium' || s.volume === 'high') record.settings.volume = s.volume;
   }
+  record.stickers = cleanStickers(data.stickers);
   return { record, status: 'ok' };
 }
 
@@ -106,5 +114,6 @@ export function starsOf(r: ProgressRecord, levelId: string): number {
 
 /** Reset progress (Task 010): stars, best coins and the unlock record go; colour, look and settings stay. Returns a new record. */
 export function resetLevels(r: ProgressRecord): ProgressRecord {
+  // Stickers stay: he earned them (like the colour and the look).
   return { ...r, levels: {} };
 }
