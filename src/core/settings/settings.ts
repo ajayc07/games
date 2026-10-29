@@ -3,6 +3,7 @@
 // lets code that has no store at hand (TouchControls, the Input Lab) ask the same questions.
 import { DEFAULT_LOOK, LOOK_NAMES, type LookName } from '../avatar/config';
 import type { ProgressSettings } from '../storage/progress';
+import { resolveZenLimit, type ZenLimit } from './zenTime';
 
 /** Button size steps offered in the parent view; any stored or URL value is clamped to MIN..MAX. */
 export const BUTTON_SCALE_STEPS = [0.8, 1, 1.2, 1.4] as const;
@@ -190,4 +191,5 @@ export const settings = {
   dayNight: (): DayNight => resolveDayNight(source()),
   vibration: (): boolean => resolveVibration(source()),
   volume: (): Volume => resolveVolume(source().saved),
+  zenLimit: (): ZenLimit => resolveZenLimit(source().search, source().saved),
 };

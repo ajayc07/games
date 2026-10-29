@@ -20,7 +20,7 @@ import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS }
 import { BOOTS, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
 import { FLY, flyDirection, plainGround } from './flight';
 import { PowerBars, type BarEntry } from './PowerBars';
-import { MEGA, addToBar, barCapacity, barFraction, narrowGaps } from './mega';
+import { MEGA, addToBar, barFraction, megaPlan, narrowGaps, type MegaPlan } from './mega';
 import { CoinBar, MEGA_ICON } from './CoinBar';
 import { showStickerPop } from '../rewards/StickerPop';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
@@ -68,11 +68,11 @@ export interface LevelSceneData {
   /** Combo Practice (Task 011): only for levels with `practice: true`. */
   practice?: { mode: PracticeMode; walkAssist: boolean; onPractice: () => void };
   /** The endless zen level (Task 020, D-063): only for levels with `zen: true`; the seed of its first segment. */
-  zen?: { seed: number };
+  zen?: { seed: number; /** Zen time left today in ms, or null for no limit (Task 033). */ remainingMs?: number | null; /** Told how much zen time was played (ms), every few seconds and on leaving. */ onSpent?: (ms: number) => void };
 }
 
 /** demo: the ghost shows the control; turn: "your turn" cue; then the real run. */
-type Mode = 'demo' | 'turn' | 'play' | 'respawn' | 'finish' | 'result';
+type Mode = 'demo' | 'turn' | 'play' | 'respawn' | 'finish' | 'result' | 'rest';
 
 interface Coin {
   img: Phaser.GameObjects.Image;
@@ -218,7 +218,12 @@ export class LevelScene extends Phaser.Scene {
     this.magnetTimer.stop();
     this.bootsTimer.stop();
     this.megaTimer.stop();
+    this.zenPlayed = 0;
+    this.zenReported = 0;
+    this.moonHint = null;
+    this.restLeaving = false;
     this.megaOn = false;
+    this.megaFills = 0;
     this.megaPending = false;
     this.megaGlow = null;
     this.coinBar = null;
@@ -271,7 +276,7 @@ export class LevelScene extends Phaser.Scene {
     this.bubbles = this.makeBubbleField();
     if (this.level.controls.enabled.includes('power')) this.blaster = this.makeBlaster();
     this.buildHud();
-    this.barCap = barCapacity(this.coins.length + this.bubbles.totalCoins, !!this.level.zen);
+    this.plan = megaPlan({ zen: !!this.level.zen, practice: !!this.data0.practice, buttons: this.level.controls.enabled, hasPickups: this.grid.pickups.length > 0, totalCoins: this.coins.length + this.bubbles.totalCoins });
     this.coinBar = new CoinBar(this, DEPTH.hud);
     // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
     this.exitBtn = new HoldButton(this, () => this.afterStep(this.data0.onHome), DEPTH.exit);
@@ -304,11 +309,14 @@ export class LevelScene extends Phaser.Scene {
     } else {
       this.startPlay();
     }
+    // The zen minutes played so far are reported when the scene closes (Task 033).
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.flushZen());
     this.installDebugHook();
   }
 
   override update(time: number, deltaMs: number): void {
     const dt = Math.min(deltaMs, 50) / 1000;
+    if (this.mode === 'play' && this.level.zen) this.tickZen(Math.min(deltaMs, 1000), time);
     if (this.mode === 'demo') this.updateDemo(time, dt * 1000);
     else if (this.mode === 'play') this.updatePlay(time, dt * 1000);
     else if (this.mode === 'finish') this.updateFinish();
@@ -324,6 +332,87 @@ export class LevelScene extends Phaser.Scene {
     this.bg.update(this.camX + this.bgShift, dt);
     if (this.lamp) this.lamp.setPosition(this.player.body.center.x + this.player.facing * 30, this.player.body.center.y - 8);
     if (this.hint) this.hint.setPosition(this.player.body.center.x + 80, this.player.body.bottom - 150);
+  }
+
+  // ---------- zen time (Task 033, D-076) ----------
+
+  /** Counts zen play time, reports it to the universe, shows a small moon in the last minute, and ends the session when the day's time is used up. */
+  private tickZen(deltaMs: number, now: number): void {
+    const z = this.data0.zen;
+    if (!z) return;
+    this.zenPlayed += deltaMs;
+    if (this.zenPlayed - this.zenReported >= 5000) this.flushZen();
+    if (z.remainingMs === null || z.remainingMs === undefined) return;
+    const left = z.remainingMs - this.zenPlayed;
+    if (left <= 60_000) this.showMoonHint(now);
+    if (left <= 0) this.zenTimeUp();
+  }
+
+  private flushZen(): void {
+    const ms = this.zenPlayed - this.zenReported;
+    if (ms <= 0) return;
+    this.zenReported = this.zenPlayed;
+    this.data0.zen?.onSpent?.(ms);
+  }
+
+  /** A small moon at the bottom middle: bedtime is near. */
+  private showMoonHint(now: number): void {
+    if (!this.moonHint) {
+      const g = this.add.graphics().setScrollFactor(0).setDepth(DEPTH.hud);
+      g.fillStyle(0xfff59d, 1).fillCircle(0, 0, 26);
+      g.fillStyle(0x3949ab, 1).fillCircle(11, -7, 22);
+      g.lineStyle(4, 0xffffff, 0.9).strokeCircle(0, 0, 30);
+      this.moonHint = g;
+      this.tweens.add({ targets: g, scale: 1.15, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+    void now;
+    this.moonHint.setPosition(this.layout.width / 2, this.layout.height - 52);
+  }
+
+  /** Today's zen time is used up: a calm night screen with a moon, then back to the map. Powers end; the screen is not a punishment. */
+  private zenTimeUp(): void {
+    this.flushZen();
+    this.endCar(false);
+    this.endMega(false);
+    this.endPowers(false);
+    this.moonHint?.destroy();
+    this.moonHint = null;
+    this.mode = 'rest';
+    audio.play('lullaby');
+    const w = this.layout.width;
+    const h = this.layout.height;
+    const root = this.add.container(0, 0).setScrollFactor(0).setDepth(2000).setAlpha(0);
+    root.add(this.add.rectangle(w / 2, h / 2, w * 2, h * 2, 0x1a237e).setScrollFactor(0));
+    const mx = w / 2;
+    const my = h * 0.4;
+    root.add(this.add.circle(mx, my, 118, 0xfff59d).setScrollFactor(0));
+    root.add(this.add.circle(mx + 52, my - 28, 100, 0x1a237e).setScrollFactor(0));
+    for (let i = 0; i < 10; i++) {
+      const star = this.add.star(w * (0.1 + 0.08 * i), h * (0.1 + 0.55 * ((i * 37) % 10) / 10), 5, 4, 11, 0xffffff).setScrollFactor(0);
+      root.add(star);
+      this.tweens.add({ targets: star, alpha: { from: 0.3, to: 1 }, duration: 800 + i * 90, yoyo: true, repeat: -1, delay: i * 120 });
+    }
+    const z = this.add.graphics().setScrollFactor(0);
+    z.lineStyle(10, 0xffffff, 0.9);
+    [[mx + 150, my - 120, 30], [mx + 205, my - 165, 22], [mx + 250, my - 200, 16]].forEach(([x, y, s]) => z.strokePoints([{ x: x - s, y: y - s }, { x: x + s, y: y - s }, { x: x - s, y: y + s }, { x: x + s, y: y + s }], false));
+    root.add(z);
+    // A big Home button: tap to leave now; otherwise the map comes back by itself.
+    const btn = this.add.container(w / 2, h * 0.82).setScrollFactor(0).setSize(160, 160);
+    const base = this.add.circle(0, 0, 70, 0x1e88e5).setStrokeStyle(10, 0xffffff).setScrollFactor(0);
+    const roof = this.add.graphics().setScrollFactor(0);
+    roof.fillStyle(0xffffff, 1).fillPoints([{ x: -38, y: -4 }, { x: 0, y: -40 }, { x: 38, y: -4 }], true).fillRect(-26, -4, 52, 38);
+    btn.add([base, roof]);
+    btn.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, () => this.leaveRest());
+    root.add(btn);
+    this.tweens.add({ targets: root, alpha: 1, duration: 700 });
+    this.tweens.add({ targets: btn, scale: 1.08, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.time.delayedCall(8000, () => this.leaveRest());
+  }
+
+  private leaveRest(): void {
+    if (this.restLeaving) return;
+    this.restLeaving = true;
+    this.game.events.once(Phaser.Core.Events.POST_STEP, () => this.data0.onHome());
   }
 
   // ---------- build ----------
@@ -608,11 +697,24 @@ export class LevelScene extends Phaser.Scene {
   private megaGlow: Phaser.GameObjects.Image | null = null;
   private coinBar: CoinBar | null = null;
   private barCoins = 0;
-  private barCap = 40;
+  private plan: MegaPlan = megaPlan({ zen: false, practice: true, buttons: [], hasPickups: false, totalCoins: 0 });
+  private megaFills = 0;
+  /** The bar is on screen: this level has one and he has not used it up. */
+  private barOn(): boolean {
+    return this.plan.enabled && this.megaFills < this.plan.maxFills;
+  }
+  private barCap(): number {
+    return this.plan.capacity(this.megaFills);
+  }
   private bridges: Phaser.GameObjects.Zone[] = [];
   private lastPopAt = 0;
   private lastHumAt = 0;
   private lastStepAt = 0;
+  // Zen time management (Task 033, D-076)
+  private zenPlayed = 0;
+  private zenReported = 0;
+  private moonHint: Phaser.GameObjects.Graphics | null = null;
+  private restLeaving = false;
   private carOrbKey = '';
   private badge: Phaser.GameObjects.Image | null = null;
   private field: Phaser.GameObjects.Arc | null = null;
@@ -734,6 +836,7 @@ export class LevelScene extends Phaser.Scene {
   private startMega(now: number): void {
     if (this.carOn()) this.endCar(false);
     this.megaOn = true;
+    this.megaFills++;
     this.megaTimer.start(now);
     this.player.look.setBoost(MEGA.boost);
     this.applySpeed(false);
@@ -826,8 +929,8 @@ export class LevelScene extends Phaser.Scene {
     add('boots', POWER_ORB_KEYS.boots, this.bootsTimer, 0xff9800);
     if (this.coinBar) {
       this.coinBar.layout(this.layout, this.hud.icon.x, this.hud.icon.y);
-      this.coinBar.setVisible(!this.megaOn);
-      this.coinBar.update(now, barFraction(this.barCoins, this.barCap));
+      this.coinBar.setVisible(!this.megaOn && this.barOn());
+      this.coinBar.update(now, barFraction(this.barCoins, this.barCap()));
     }
     if (entries.length === 0 && !this.bars) return;
     this.bars ??= new PowerBars(this, DEPTH.hud);
@@ -1189,8 +1292,8 @@ export class LevelScene extends Phaser.Scene {
   /** Every coin also fills the Mega Robo bar (it never drains, not even on a fall). */
   private feedBar(n: number): void {
     const now = this.time.now;
-    if (this.megaOn || this.megaPending || (this.mode !== 'play' && this.mode !== 'respawn')) return;
-    const r = addToBar(this.barCoins, n, this.barCap);
+    if (!this.barOn() || this.megaOn || this.megaPending || (this.mode !== 'play' && this.mode !== 'respawn')) return;
+    const r = addToBar(this.barCoins, n, this.barCap());
     this.barCoins = r.coins;
     this.coinBar?.pulse(now);
     if (!r.full) return;

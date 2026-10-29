@@ -85,3 +85,15 @@ export function addZenBadge(scene: Phaser.Scene, parent: Phaser.GameObjects.Cont
   parent.add(g);
   sparkle(scene, parent, r * 0.0, -r * 0.5, r * 0.2);
 }
+
+/** The map's Zen button when today's zen time is used up (Task 033): a sleepy night badge with a crescent moon and two stars. */
+export function addRestBadge(scene: Phaser.Scene, parent: Phaser.GameObjects.Container, r: number): void {
+  const base = scene.add.circle(0, 0, r, 0x3949ab).setStrokeStyle(Math.max(4, r * 0.16), 0xffffff);
+  parent.add(base);
+  const moon = scene.add.circle(-r * 0.06, 0, r * 0.52, 0xfff59d);
+  const bite = scene.add.circle(r * 0.2, -r * 0.14, r * 0.45, 0x3949ab);
+  const s1 = scene.add.star(r * 0.45, -r * 0.4, 5, r * 0.05, r * 0.14, 0xffffff);
+  const s2 = scene.add.star(r * 0.52, r * 0.2, 5, r * 0.04, r * 0.1, 0xffffff);
+  parent.add([moon, bite, s1, s2]);
+}
+

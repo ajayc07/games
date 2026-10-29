@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-29 (Tasks 021-032 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **FEATURE FREEZE: from now on only optimisation and bug fixes until the parent decides otherwise.**_
+_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **FEATURE FREEZE: from now on only optimisation and bug fixes until the parent decides otherwise.**_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -48,6 +48,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 030 | Coin progress bar and Mega Robo (D-073) | Done (uncommitted) |
 | 031 | Sticker rewards and the sticker book (D-074) | Done (uncommitted) |
 | 032 | Mega Robo steps, new sounds, Volume setting (D-075) | Done (uncommitted) |
+| 033 | Bug fixes: Mega Robo only late / rarer in zen, daily zen time limit (D-076) | Done (uncommitted) |
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, surprise map dot, polish bundle (Task 019: footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
@@ -97,6 +98,7 @@ _(nothing)_
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Task 033 (D-076)**: early levels show no coin bar; late levels fill once; zen Mega Robo is rarer (50, 50, 50, 75...); parent page 2 Zen time row (default 30 min a day): does the night screen feel calm, does the Zen moon button make sense to him.
   - **Tasks 028-032 (D-071..D-075)**: rocket boots fly by themselves (Left = up, Right = down, 12 s): is it smooth for him, is 250 px/s too fast, does he understand he lands by himself? Do the time bars (top middle) make sense to him? Zen double power-ups (car + rocket = flying car): fun or confusing? Coin bar under the counter: does he notice it fills? Mega Robo (1.7x, 12 s, pops bubbles by walking, steps over small gaps): does he love it, is it too big or too fast, do the footsteps and screen shake feel good or scary? Stickers: does he notice the pop-up, find the sticker book button (map, left of Zen), want to collect them? Parent page 2: Volume row works, the tablet's real loudness at Low / Medium / High.
   - **Tasks 021-027 (D-064..D-070)**: hold-to-run feel; fall buzz on Android (needs a fresh PWA build: close the app fully and reopen once online); zen swap (no empty screens, gaps and stairs); rainbow coins; day / night random (parent page 2); the blaster icon; auto-pause after 150 s and wake lock released (does the screen then sleep by itself?).
   - **Charging pad (014)**: does it still get "is it Mario?"; does he understand the pad is the end; does he enjoy the charge effect (beam, rings, bolts); is the pad easy to spot from far away; is the rainbow bubble now easy to spot; does the hex-nut coin still read as a coin? The charge sound is just the existing win chime.

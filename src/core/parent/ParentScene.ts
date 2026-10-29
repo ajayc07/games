@@ -9,6 +9,7 @@ import { placeButtons } from '../ui/buttonLayout';
 import { STYLES, drawActionIcon } from '../ui/TouchControls';
 import { BUTTON_SCALE_STEPS, nearestScaleStep, type ButtonsPrimary, type DayNight, type Volume, type WalkAssist } from '../settings/settings';
 import { LOOK_NAMES, type LookName } from '../avatar/config';
+import { ZEN_LIMITS, minutesText, type ZenLimit } from '../settings/zenTime';
 import { parentLayout, previewFit, type ParentLayout, type Rect } from './parentLayout';
 
 export interface ParentState {
@@ -30,6 +31,9 @@ export interface ParentState {
   vibrationSupported: boolean;
   /** How loud the game is (Task 032). */
   volume: Volume;
+  /** Zen minutes allowed per day (0 = no limit) and the zen time played today in ms (Task 033). */
+  zenLimit: ZenLimit;
+  zenSpentMs: number;
   /** Settings the URL pins for this visit (a change is saved but this visit still uses the URL value). */
   pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean; fullscreen: boolean; dayNight: boolean; vibration: boolean };
 }
@@ -48,6 +52,7 @@ export interface ParentSceneData {
   setVibration(on: boolean): void;
   /** Saves the volume and plays a sound at that volume, so the parent hears it. */
   setVolume(v: Volume): void;
+  setZenLimit(v: ZenLimit): void;
   /** Buzzes now, whatever the switch says; true if the browser accepted it. */
   testBuzz(): boolean;
   showDemosAgain(): void;
@@ -193,7 +198,7 @@ export class ParentScene extends Phaser.Scene {
 
   /** The second page (Task 025): the look of the levels (bright, dark or random) and the fall buzz with a test button. */
   private buildPage2(st: ParentState): void {
-    const [dn, vib, vol] = this.pl.page2.rows;
+    const [dn, vib, vol, zen] = this.pl.page2.rows;
     this.rowLabel(dn, 'Day / night');
     ([['random', 'Random'], ['day', 'Day'], ['night', 'Night']] as const).forEach(([v, name], i) =>
       this.choice(dn.controls[i], name, st.dayNight === v, () => this.change(() => this.data0.setDayNight(v))),
@@ -210,15 +215,17 @@ export class ParentScene extends Phaser.Scene {
     ([['low', 'Low'], ['medium', 'Medium'], ['high', 'High']] as const).forEach(([v, name], i) =>
       this.choice(vol.controls[i], name, st.volume === v, () => this.change(() => this.data0.setVolume(v))),
     );
+    this.rowLabel(zen, 'Zen time');
+    ZEN_LIMITS.forEach((v, i) => this.choice(zen.controls[i], v === 0 ? 'No limit' : `${v} min`, st.zenLimit === v, () => this.change(() => this.data0.setZenLimit(v))));
     const lines = [
-      'Random: each time he starts a level it is bright or dark by chance. The first time through a level is always bright; Night 1 is always dark.',
-      'Vibration: a firm buzz when he falls into a gap. Not felt? Check that the phone is not on silent or battery saver, and that touch vibration is on in its settings.',
+      `Zen time: a daily limit (today ${minutesText(st.zenSpentMs)}${st.zenLimit > 0 ? ` of ${st.zenLimit} min` : ', no limit'}). When it is used up a calm moon screen appears and Zen rests until tomorrow.`,
+      'Random: bright or dark by chance (first play bright, Night 1 dark). Vibration: a buzz on a fall; if not felt, check silent mode and battery saver.',
       st.vibrationSupported ? '' : 'This browser cannot vibrate at all (iPhone and iPad cannot).',
     ];
     const pinned = [st.pinned.dayNight && 'day / night', st.pinned.vibration && 'vibration'].filter(Boolean);
     if (pinned.length > 0) lines.push(`The web address sets ${pinned.join(' and ')} for this visit.`);
     const n = this.pl.page2.note;
-    this.root!.add(this.text(lines.filter(Boolean).join('\n\n'), n.x, n.y, 20, C.soft).setWordWrapWidth(n.width));
+    this.root!.add(this.text(lines.filter(Boolean).join('\n'), n.x, n.y, 18, C.soft).setWordWrapWidth(n.width));
     this.buildMore('‹  Settings');
     this.buildBack();
   }

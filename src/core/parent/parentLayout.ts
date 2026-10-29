@@ -37,7 +37,7 @@ export interface ParentLayout {
   /** The "More settings ›" button at the top of the right column; on the second page it reads "‹ Settings" (Task 025). */
   more: Rect;
   /** The second page (Task 025): Day / night, Vibration and Volume (Task 032), one row each across the whole width, and a note under them. */
-  page2: { rows: Array<{ id: 'daynight' | 'vibration' | 'volume'; rect: Rect; label: Rect; controls: Rect[] }>; note: Rect };
+  page2: { rows: Array<{ id: 'daynight' | 'vibration' | 'volume' | 'zen'; rect: Rect; label: Rect; controls: Rect[] }>; note: Rect };
   /** The preview panel (the mini screen is drawn inside it, see `previewFit`). */
   preview: Rect;
   reset: Rect;
@@ -136,18 +136,22 @@ export function parentLayout(width: number, height: number, insets: Insets, with
   const p2Ctrl = cx + labelW + P.gap;
   const p2W = contentW - labelW - P.gap;
   const w3 = Math.floor((p2W - P.gap * 2) / 3);
-  const p2Row = (id: 'daynight' | 'vibration' | 'volume', i: number) => {
+  const p2Row = (id: 'daynight' | 'vibration' | 'volume' | 'zen', i: number, n = 3) => {
     const y = top + P.moreH + P.gap + i * (P.rowH + P.gap);
     return {
       id,
       rect: { x: cx, y, width: contentW, height: P.rowH },
       label: { x: cx, y, width: labelW, height: P.rowH },
-      controls: [0, 1, 2].map((k) => ({ x: p2Ctrl + k * (w3 + P.gap), y, width: w3, height: P.rowH })),
+      controls: Array.from({ length: n }, (_, k) => {
+        const w = n === 3 ? w3 : Math.floor((p2W - P.gap * (n - 1)) / n);
+        return { x: p2Ctrl + k * (w + P.gap), y, width: w, height: P.rowH };
+      }),
     };
   };
-  const p2rows = [p2Row('daynight', 0), p2Row('vibration', 1), p2Row('volume', 2)];
-  const noteY = p2rows[2].rect.y + P.rowH + P.gap;
-  const note = { x: cx, y: noteY, width: contentW, height: Math.max(60, bottomY - P.gap - noteY) };
+  const p2rows = [p2Row('daynight', 0), p2Row('vibration', 1), p2Row('volume', 2), p2Row('zen', 3, 4)];
+  // The note sits beside Back (bottom-right), so four rows still leave it room.
+  const noteY = p2rows[3].rect.y + P.rowH + P.gap;
+  const note = { x: cx, y: noteY, width: contentW - P.backW - P.gap, height: Math.max(60, bottom - noteY) };
   return { rows, sizeLabel, sizeSteps, fullscreen, more, page2: { rows: p2rows, note }, preview, reset, back };
 }
 

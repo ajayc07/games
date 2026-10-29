@@ -13,6 +13,7 @@ import { parseLevelOrThrow, type LevelData } from '../../core/levels/format';
 import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowBubble, withRainbowHook } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
 import { StickerScene, type StickerSceneData } from '../../core/rewards/StickerScene';
+import { spentToday, todayKey, zenRemainingMs, resolveZenLimit } from '../../core/settings/zenTime';
 import { earnsSticker, nextSticker, type StickerReason } from '../../core/rewards/stickers';
 import {
   bindSettings,
@@ -183,8 +184,14 @@ function openMap(s: Session): void {
     onPractice: () => openPracticeSelect(s),
     onZen: () => openZen(s, newSeed()),
     onStickers: () => openStickers(s),
+    zenLocked: zenBudget(s) === 0,
   };
   startOnly(s.game, MapScene.KEY, MapScene, data);
+}
+
+/** Zen time left today in ms, or null when there is no limit (Task 033). */
+function zenBudget(s: Session): number | null {
+  return zenRemainingMs(settings.zenLimit(), spentToday(s.store.record.zenDay, todayKey()));
 }
 
 /** The sticker book (Task 031): the stickers he has earned; Back returns to the map. */
@@ -248,6 +255,9 @@ function openPractice(s: Session, mode: PracticeMode, seed: number): void {
  */
 function openZen(s: Session, seed: number): void {
   s.arrival = null;
+  const remaining = zenBudget(s);
+  // Today's zen time is used up: back to the map, where the Zen button is resting (Task 033).
+  if (remaining === 0) return openMap(s);
   const level = parseLevelOrThrow(generateZen(seed, 'grass', { first: true }).config, `zen ${seed}`);
   const data: LevelSceneData = {
     level,
@@ -255,7 +265,7 @@ function openZen(s: Session, seed: number): void {
     option: currentOption(s),
     look: s.look,
     onHome: () => openMap(s),
-    zen: { seed },
+    zen: { seed, remainingMs: remaining, onSpent: (ms) => s.store.addZenTime(ms) },
     onSticker: (reason) => awardSticker(s, reason, null, 0),
   };
   startOnly(s.game, LevelScene.KEY, LevelScene, data);
@@ -283,6 +293,8 @@ function openParent(s: Session): void {
         vibration: saved.vibration ?? resolveVibration(input),
         vibrationSupported: vibrationSupported(),
         volume: resolveVolume(saved),
+        zenLimit: saved.zenLimit ?? resolveZenLimit('', {}),
+        zenSpentMs: spentToday(store.record.zenDay, todayKey()),
         pinned: urlOverrides(input.search),
       };
     },
@@ -314,6 +326,7 @@ function openParent(s: Session): void {
       audio.setMasterVolume(VOLUME_GAIN[v]);
       audio.play('stickerGet'); // a happy sound at the new volume, so the parent hears it
     },
+    setZenLimit: (v) => store.updateSettings({ zenLimit: v }),
     testBuzz: () => vibrate(FALL_BUZZ, true),
     showDemosAgain: () => LevelScene.forgetDemos(),
     resetProgress: async () => {

@@ -2,6 +2,7 @@
 // (IndexedDB -> localStorage -> memory). A backend that is missing or throws is skipped silently; the game
 // never waits on or crashes because of storage. Writes are coalesced and flushed on page hide.
 import { cleanStickers } from '../rewards/stickers';
+import { addZenMs, todayKey } from '../settings/zenTime';
 import { defaultBackends, MemoryBackend, type KVBackend } from './backends';
 import { mergeResult, parseRecord, resetLevels, serializeRecord, type LevelProgress, type ParseStatus, type ProgressRecord, type ProgressSettings } from './progress';
 
@@ -104,6 +105,13 @@ export class ProgressStore {
     this.current = { ...this.current, stickers: cleanStickers([...this.current.stickers, id]) };
     this.scheduleSave();
     return true;
+  }
+
+  /** Adds zen time played (ms) to today's total and saves. */
+  addZenTime(ms: number, today: string = todayKey()): void {
+    if (ms <= 0) return;
+    this.current = { ...this.current, zenDay: addZenMs(this.current.zenDay, ms, today) };
+    this.scheduleSave();
   }
 
   setChosenCharacter(id: string): void {

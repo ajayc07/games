@@ -19,7 +19,7 @@ import { HoldButton } from '../ui/HoldButton';
 import { PARENT_HOLD_MS } from '../ui/hold';
 import { clampScroll, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
-import { addPracticeBadge, addZenBadge } from '../practice/icons';
+import { addPracticeBadge, addRestBadge, addZenBadge } from '../practice/icons';
 import { MAP_PRACTICE, mapPracticeSpot, mapStickerSpot, mapZenSpot } from '../practice/practiceLayout';
 import { addStickerBadge } from '../rewards/stickerArt';
 
@@ -44,6 +44,8 @@ export interface MapSceneData {
   onZen?: () => void;
   /** The sticker book (Task 031): a third fixed button, left of Zen. */
   onStickers?: () => void;
+  /** Today's zen time is used up (Task 033): the Zen button shows a sleeping moon and does not open. */
+  zenLocked?: boolean;
 }
 
 interface DotView {
@@ -174,7 +176,8 @@ export class MapScene extends Phaser.Scene {
     }
     if (this.data0.onZen) {
       const face = this.add.container(0, 0);
-      addZenBadge(this, face, MAP_PRACTICE.r);
+      if (this.data0.zenLocked) addRestBadge(this, face, MAP_PRACTICE.r);
+      else addZenBadge(this, face, MAP_PRACTICE.r);
       const btn = this.add.container(0, 0, [face]).setDepth(DEPTH.ui).setSize(MAP_PRACTICE.hit, MAP_PRACTICE.hit);
       btn.setInteractive({ useHandCursor: true }).on(Phaser.Input.Events.POINTER_DOWN, () => this.openZen());
       // Out of step with the Practice button's bob.
@@ -521,6 +524,12 @@ export class MapScene extends Phaser.Scene {
 
   private openZen(): void {
     if (this.leaving) return;
+    if (this.data0.zenLocked) {
+      // Resting: a soft bump and no more (Task 033).
+      audio.play('tap');
+      if (this.zenFace) this.tweens.add({ targets: this.zenFace, scale: 0.88, duration: 100, yoyo: true });
+      return;
+    }
     this.leaving = true;
     audio.play('pick');
     const face = this.zenFace;

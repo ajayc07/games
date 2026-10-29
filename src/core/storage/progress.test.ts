@@ -5,7 +5,7 @@ import { MemoryBackend, type KVBackend } from './backends';
 
 describe('progress record', () => {
   it('a fresh record has the D-036 shape', () => {
-    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [] });
+    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null });
   });
 
   it('keeps the best stars and coins, never lowers them', () => {
@@ -154,3 +154,26 @@ describe('stickers and volume in the record (Tasks 031, 032)', () => {
     expect(resetLevels({ ...record, levels: { a: { stars: 2, bestCoins: 5 } } }).stickers).toEqual(['s01', 's03']);
   });
 });
+
+describe('zen time in the record (Task 033)', () => {
+  it('the limit and today\'s zen time are checked on load; the store adds time', () => {
+    const { record } = parseRecord(JSON.stringify({ version: 1, settings: { zenLimit: 15 }, zenDay: { date: '2026-10-29', ms: 12345 } }));
+    expect(record.settings.zenLimit).toBe(15);
+    expect(record.zenDay).toEqual({ date: '2026-10-29', ms: 12345 });
+    expect(parseRecord(JSON.stringify({ version: 1, settings: { zenLimit: 20 } })).record.settings.zenLimit).toBeUndefined();
+    expect(parseRecord(JSON.stringify({ version: 1, zenDay: { date: 'yesterday', ms: 5 } })).record.zenDay).toBeNull();
+    expect(parseRecord(JSON.stringify({ version: 1, settings: { zenLimit: 0 } })).record.settings.zenLimit).toBe(0);
+  });
+
+  it('ProgressStore.addZenTime adds to today and starts again on a new day', async () => {
+    const store = await ProgressStore.open('zt', { backends: [new MemoryBackend()] });
+    store.addZenTime(4000, '2026-10-29');
+    store.addZenTime(6000, '2026-10-29');
+    expect(store.record.zenDay).toEqual({ date: '2026-10-29', ms: 10_000 });
+    store.addZenTime(1000, '2026-10-30');
+    expect(store.record.zenDay).toEqual({ date: '2026-10-30', ms: 1000 });
+    store.addZenTime(0, '2026-10-30');
+    expect(store.record.zenDay?.ms).toBe(1000);
+  });
+});
+

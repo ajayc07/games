@@ -42,6 +42,15 @@ export const DEFAULT_RECIPES = {
       { freq: 392, at: 0.18, dur: 0.16, type: 'triangle', gain: 0.8 },
     ],
   },
+  // Zen time is up (Task 033): a soft falling lullaby.
+  lullaby: {
+    tones: [
+      { freq: 784, dur: 0.4, type: 'sine', gain: 0.7 },
+      { freq: 659, at: 0.35, dur: 0.4, type: 'sine', gain: 0.65 },
+      { freq: 523, at: 0.7, dur: 0.45, type: 'sine', gain: 0.6 },
+      { freq: 392, at: 1.1, dur: 0.8, type: 'sine', gain: 0.55 },
+    ],
+  },
   // A sticker is earned (Task 031): a happy little fanfare.
   stickerGet: {
     tones: [

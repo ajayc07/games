@@ -1,11 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { MEGA, addToBar, barCapacity, barFraction, narrowGaps } from './mega';
+import { MEGA, addToBar, barFraction, megaPlan, narrowGaps, zenCapacity } from './mega';
 
 describe('Mega Robo rules (Task 030, D-073)', () => {
-  it('about two fills per level, never fewer than 8 coins, a fixed number in zen', () => {
-    expect(barCapacity(60, false)).toBe(30);
-    expect(barCapacity(10, false)).toBe(MEGA.minCapacity);
-    expect(barCapacity(999, true)).toBe(MEGA.zenCapacity);
+  it('zen: 50 coins for the first three fills, then 75, then 100, and so on up to a limit', () => {
+    expect([0, 1, 2].map(zenCapacity)).toEqual([50, 50, 50]);
+    expect([3, 4, 5].map(zenCapacity)).toEqual([75, 75, 75]);
+    expect([6, 9].map(zenCapacity)).toEqual([100, 125]);
+    expect(zenCapacity(500)).toBe(MEGA.zenMax);
+    expect(zenCapacity(-1)).toBe(50);
+  });
+
+  it('stages: no Mega Robo in the early levels, in power-up levels or in Practice; late levels fill once at 70% of the coins', () => {
+    const base = { zen: false, practice: false, hasPickups: false, totalCoins: 100 };
+    expect(megaPlan({ ...base, buttons: ['jump'] }).enabled).toBe(false);
+    expect(megaPlan({ ...base, buttons: ['left', 'right', 'jump'] }).enabled).toBe(false);
+    expect(megaPlan({ ...base, buttons: ['left', 'right', 'jump', 'power'], hasPickups: true }).enabled).toBe(false);
+    expect(megaPlan({ ...base, buttons: ['left', 'right', 'jump', 'power'], practice: true }).enabled).toBe(false);
+    const late = megaPlan({ ...base, buttons: ['left', 'right', 'jump', 'power'] });
+    expect(late.enabled).toBe(true);
+    expect(late.capacity(0)).toBe(70);
+    expect(late.maxFills).toBe(1);
+    expect(megaPlan({ ...base, buttons: ['left', 'right', 'jump', 'power'], totalCoins: 5 }).capacity(0)).toBe(MEGA.minCapacity);
+    const zen = megaPlan({ ...base, zen: true, buttons: ['left', 'right', 'jump', 'power'], hasPickups: true });
+    expect(zen.enabled).toBe(true);
+    expect(zen.capacity(0)).toBe(50);
+    expect(zen.capacity(3)).toBe(75);
+    expect(zen.maxFills).toBe(Infinity);
   });
 
   it('the bar only grows, and fills exactly once per capacity, keeping the leftover', () => {

@@ -211,3 +211,6 @@ Colours: deep blue sky (0x0b1445 to 0x3a3f9a), pale periwinkle moonlit hills (ke
 ### Stickers (Task 031, D-074)
 `core/rewards/`: catalogue and rules (`stickers.ts`), drawing (`stickerArt.ts`), the earned pop-up (`StickerPop.ts`), the book (`StickerScene.ts`, `stickerLayout.ts`). `LevelSceneData.onSticker(reason, stars)` asks the universe for the id to show; the robo manifest's `awardSticker` saves it with `ProgressStore.addSticker`. `MapSceneData.onStickers` adds the map button (`mapStickerSpot`).
 
+
+### Mega availability and zen time (Task 033, D-076)
+`megaPlan` decides per level whether the coin bar exists and its capacity (`LevelScene.plan`, `barOn()`, `barCap()`, `megaFills`). Zen time: `LevelScene.tickZen` adds clamped frame time while playing and reports to `data.zen.onSpent` (store `addZenTime`); `zenTimeUp` switches to mode `rest`. Rules and URL override in `settings/zenTime.ts`.

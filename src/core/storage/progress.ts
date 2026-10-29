@@ -2,6 +2,7 @@
 // No browser APIs here; ProgressStore (store.ts) does the saving.
 
 import { cleanStickers } from '../rewards/stickers';
+import type { ZenDay, ZenLimit } from '../settings/zenTime';
 
 export const PROGRESS_VERSION = 1;
 
@@ -29,6 +30,8 @@ export interface ProgressSettings {
   vibration?: boolean;
   /** How loud the game is (Task 032). Missing = medium. */
   volume?: 'low' | 'medium' | 'high';
+  /** Minutes of zen allowed per day; 0 = no limit (Task 033). Missing = 30. */
+  zenLimit?: ZenLimit;
 }
 
 export interface ProgressRecord {
@@ -41,12 +44,14 @@ export interface ProgressRecord {
   settings: ProgressSettings;
   /** The stickers he has earned (Task 031), in the order of the catalogue. */
   stickers: string[];
+  /** Zen minutes played today (Task 033). */
+  zenDay: ZenDay | null;
 }
 
 export type ParseStatus = 'ok' | 'empty' | 'corrupt' | 'unknown-version';
 
 export function freshRecord(): ProgressRecord {
-  return { version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [] };
+  return { version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null };
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -87,9 +92,12 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
     if (typeof s.fullscreen === 'boolean') record.settings.fullscreen = s.fullscreen;
     if (s.dayNight === 'random' || s.dayNight === 'day' || s.dayNight === 'night') record.settings.dayNight = s.dayNight;
     if (typeof s.vibration === 'boolean') record.settings.vibration = s.vibration;
+    if (s.zenLimit === 0 || s.zenLimit === 15 || s.zenLimit === 30 || s.zenLimit === 60) record.settings.zenLimit = s.zenLimit;
     if (s.volume === 'low' || s.volume === 'medium' || s.volume === 'high') record.settings.volume = s.volume;
   }
   record.stickers = cleanStickers(data.stickers);
+  const zd = data.zenDay;
+  if (isObj(zd) && typeof zd.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(zd.date) && typeof zd.ms === 'number' && Number.isFinite(zd.ms)) record.zenDay = { date: zd.date, ms: int(zd.ms, 0, 86_400_000) };
   return { record, status: 'ok' };
 }
 

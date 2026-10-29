@@ -10,21 +10,46 @@ export const MEGA = {
   speedScale: 1.35,
   /** He steps over gaps this wide (in tiles) or narrower. */
   stepGapMax: 2,
-  /** A level's bar fills after this share of its coins (about two fills per level). */
-  fillShare: 0.5,
+  /** In a stage the bar fills after this share of the level's coins, so it fills late and only once (Task 033). */
+  fillShare: 0.7,
   /** The bar never needs fewer coins than this. */
-  minCapacity: 8,
-  /** Zen has no end, so a fixed number. */
-  zenCapacity: 40,
+  minCapacity: 12,
+  /** Zen: the first fills need this many coins, and every `zenTierFills` fills the need grows by `zenStep`, up to `zenMax`. */
+  zenBase: 50,
+  zenStep: 25,
+  zenTierFills: 3,
+  zenMax: 200,
   /** Walking into a bubble pops it: how far from his chest a bubble counts as touched, and how often it can pop. */
   popReach: 120,
   popEveryMs: 150,
 } as const;
 
-/** Coins that fill the bar once. */
-export function barCapacity(totalCoins: number, zen: boolean): number {
-  if (zen) return MEGA.zenCapacity;
-  return Math.max(MEGA.minCapacity, Math.round(totalCoins * MEGA.fillShare));
+/** Coins the zen bar needs for its next fill, after `fills` fills so far: 50, 50, 50, then 75 x3, then 100 x3, and so on. */
+export function zenCapacity(fills: number): number {
+  const tier = Math.floor(Math.max(0, fills) / MEGA.zenTierFills);
+  return Math.min(MEGA.zenMax, MEGA.zenBase + MEGA.zenStep * tier);
+}
+
+export interface MegaPlan {
+  /** Does this level have a coin bar at all? */
+  enabled: boolean;
+  /** Coins for the next fill after `fills` fills so far. */
+  capacity(fills: number): number;
+  /** No more fills after this many (Infinity in zen). */
+  maxFills: number;
+}
+
+/**
+ * Where Mega Robo can appear (Task 033, D-076). Not in the early stages: only in a level with all four buttons and no power-up
+ * orbs of its own, and then the bar fills once, late (70% of the level's coins). Never in Practice. In zen it is a treat that
+ * gets harder to earn as he plays on.
+ */
+export function megaPlan(o: { zen: boolean; practice: boolean; buttons: readonly string[]; hasPickups: boolean; totalCoins: number }): MegaPlan {
+  if (o.practice) return { enabled: false, capacity: () => Infinity, maxFills: 0 };
+  if (o.zen) return { enabled: true, capacity: zenCapacity, maxFills: Number.POSITIVE_INFINITY };
+  const allFour = ['left', 'right', 'jump', 'power'].every((b) => o.buttons.includes(b));
+  const cap = Math.max(MEGA.minCapacity, Math.round(o.totalCoins * MEGA.fillShare));
+  return { enabled: allFour && !o.hasPickups, capacity: () => cap, maxFills: 1 };
 }
 
 export interface BarStep {
