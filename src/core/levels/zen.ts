@@ -7,6 +7,7 @@
 // window always give the same segment. The scene does the swapping (LevelScene.rebaseZen).
 import type { Action } from '../types';
 import type { PickupKind } from './powerups';
+import { excludes } from './powerRules';
 import { makeRng, ROW } from './practice';
 
 const COLS = 320;
@@ -64,6 +65,8 @@ const QUIET: readonly Motif[] = ['arc', 'pad', 'rest', 'steps', 'gap'];
 /** How long a power-up's reward stretch is (tiles): the car lasts about 43 tiles, the others about 10 s of walking. */
 const SET_LEN = 34;
 const BOOTS_SET_LEN = 46;
+/** Flash runs about 10 s at 1.7 times the walking speed: about 58 tiles of road, of which the first 44 carry coins. */
+const FLASH_SET_LEN = 44;
 /** Share of power-up stretches that carry two orbs (Task 029). */
 const DOUBLE_CHANCE = 0.3;
 /** Tiles of ground at least between two gaps (as in Practice). */
@@ -222,7 +225,7 @@ function gap(c: Cells, from: number): number {
   return g + width + 3;
 }
 
-const PICKUP_CHAR: Record<PickupKind, string> = { car: 'P', magnet: 'M', boots: 'J' };
+const PICKUP_CHAR: Record<PickupKind, string> = { car: 'P', magnet: 'M', boots: 'J', flash: 'L' };
 
 /** A power-up orb at walking height, then the stretch that rewards it (no bubbles in it). */
 function powerSet(c: Cells, from: number, orb: PickupKind, second?: PickupKind): number {
@@ -230,11 +233,16 @@ function powerSet(c: Cells, from: number, orb: PickupKind, second?: PickupKind):
   // A double power-up (Task 029): a second orb two tiles on, so he takes both together (car + rocket is a flying car).
   if (second) c.put(from + 3, 8, PICKUP_CHAR[second]);
   // The stretch that suits the pair: the longest one wins (flight, then the magnet's field, then the car's trail).
-  const kind: PickupKind = orb === 'boots' || second === 'boots' ? 'boots' : orb === 'magnet' || second === 'magnet' ? 'magnet' : 'car';
+  const has = (k: PickupKind) => orb === k || second === k;
+  const kind: PickupKind = has('flash') ? 'flash' : has('boots') ? 'boots' : has('magnet') ? 'magnet' : 'car';
   const start = from + (second ? 6 : 5);
-  // The boots stretch is longer: 12 s of flight is about 47 tiles.
-  const end = Math.min(start + (kind === 'boots' ? BOOTS_SET_LEN : SET_LEN), c.hi);
-  if (kind === 'car') {
+  // The boots stretch is longer: 12 s of flight is about 47 tiles; Flash's road is longer still.
+  const end = Math.min(start + (kind === 'flash' ? FLASH_SET_LEN : kind === 'boots' ? BOOTS_SET_LEN : SET_LEN), c.hi);
+  if (kind === 'flash') {
+    // A long low coin line to run along, with a small bubble now and then that he pops by running into it (Task 034).
+    for (let x = start; x < end; x += 2) c.put(x, ROW.up, 'c');
+    for (let x = start + 5, i = 0; x < end - 3; x += 9, i++) c.put(x, i % 2 === 0 ? ROW.low : ROW.up, 'o');
+  } else if (kind === 'car') {
     // A head-height trail to drive along, with a few higher coins.
     for (let x = start; x < end; x += 2) c.put(x, ROW.up, 'c');
     for (let x = start + 7; x < end - 3; x += 9) c.put(x, ROW.high, 'c');
@@ -283,7 +291,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   const kinds: PickupKind[] = [];
   const nextKind = (): PickupKind => {
     if (kinds.length === 0) {
-      kinds.push('car', 'magnet', 'boots');
+      kinds.push('car', 'magnet', 'boots', 'flash');
       for (let i = kinds.length - 1; i > 0; i--) {
         const j = c.int(0, i);
         [kinds[i], kinds[j]] = [kinds[j], kinds[i]];
@@ -303,11 +311,13 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
       const kind = nextKind();
       let second: PickupKind | undefined;
       if (c.chance(DOUBLE_CHANCE)) {
-        const others = (['car', 'magnet', 'boots'] as PickupKind[]).filter((k) => k !== kind);
-        second = others[c.int(0, 1)];
+        // A second orb that suits the first: never the other fast one (car and Flash exclude each other, D-078).
+        const others = (['car', 'magnet', 'boots', 'flash'] as PickupKind[]).filter((k) => k !== kind && !excludes(kind, k));
+        second = others[c.int(0, others.length - 1)];
       }
-      // The boots stretch is longer: if it will not fit here, the orb waits for the next segment.
-      if ((kind === 'boots' || second === 'boots') && (hi - col < BOOTS_SET_LEN + 8 || c.hitsSkip(col, BOOTS_SET_LEN + 8))) {
+      // A long stretch (boots, Flash) that will not fit here: the orb waits for the next segment.
+      const need = kind === 'flash' || second === 'flash' ? FLASH_SET_LEN : kind === 'boots' || second === 'boots' ? BOOTS_SET_LEN : 0;
+      if (need > 0 && (hi - col < need + 8 || c.hitsSkip(col, need + 8))) {
         kinds.push(kind);
         col = Math.min(col + 6, hi - 8);
         continue;
@@ -357,7 +367,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
     const carried: number[] = [];
     if (win && options.carry) {
       for (let i = 0; i < win.width; i++) {
-        for (let row = 0; row < ROW.ground; row++) if (/[cohrOPMJ]/.test(options.carry.grid[row][win.from + i])) carried.push(win.to + i);
+        for (let row = 0; row < ROW.ground; row++) if (/[cohrOPMJL]/.test(options.carry.grid[row][win.from + i])) carried.push(win.to + i);
       }
     }
     // Content right at the edges of the range keeps the carried window from leaving a hole beside it.

@@ -89,7 +89,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
         expect(e.bubbles.length, `seed ${seed}`).toBeGreaterThanOrEqual(12);
       }
     }
-    expect([...kinds].sort()).toEqual(['boots', 'car', 'magnet']);
+    expect([...kinds].sort()).toEqual(['boots', 'car', 'flash', 'magnet']);
   });
 
   it('never leaves the screen empty: something to do in every 24 tiles, in every segment of a walk back and forth', () => {
@@ -97,7 +97,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
       const grids = chain(seed);
       // The first segment's left end is the world's start; skip its first 2 tiles. Others: everywhere but the very ends.
       grids.forEach((grid, i) => {
-        const has = new Set(find(grid.slice(0, 9), 'cohrOPMJ').map((x) => x.col));
+        const has = new Set(find(grid.slice(0, 9), 'cohrOPMJL').map((x) => x.col));
         for (let from = 4; from + 24 <= ZEN.cols - 4; from++) {
           let any = false;
           for (let c = from; c < from + 24 && !any; c++) any = has.has(c);
@@ -105,6 +105,43 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
         }
       });
     }
+  });
+
+  it('a double power-up never pairs the car with Flash, and the bag deals all four kinds (Task 034)', () => {
+    const seen = new Set<string>();
+    let pairs = 0;
+    for (const seed of SEEDS) {
+      const e = extractEntities(generateZen(seed).config.grid);
+      const orbs = [...e.pickups].sort((a, b) => a.col - b.col);
+      orbs.forEach((o, i) => {
+        seen.add(o.kind);
+        const next = orbs[i + 1];
+        if (next && next.col - o.col === 2) {
+          pairs++;
+          expect([o.kind, next.kind].sort(), `seed ${seed}`).not.toEqual(['car', 'flash']);
+        }
+      });
+    }
+    expect([...seen].sort()).toEqual(['boots', 'car', 'flash', 'magnet']);
+    expect(pairs).toBeGreaterThan(20);
+  });
+
+  it('a Flash orb is followed by a long low coin line with small bubbles on the way (and no gap in it)', () => {
+    let seenSets = 0;
+    for (const seed of SEEDS) {
+      const seg = generateZen(seed);
+      const { grid } = seg.config;
+      for (const o of find(grid, 'L')) {
+        seenSets++;
+        const from = o.col + 5;
+        const line = find(grid.slice(0, 9), 'c').filter((c) => c.row === 7 && c.col >= from && c.col < from + 40);
+        expect(line.length, `seed ${seed}: coin line after the Flash orb at ${o.col}`).toBeGreaterThanOrEqual(12);
+        const smalls = find(grid.slice(0, 9), 'or').filter((b) => b.col >= from && b.col < from + 44);
+        expect(smalls.length, `seed ${seed}: bubbles on the Flash road`).toBeGreaterThanOrEqual(2);
+        for (let c = o.col; c < from + 36; c++) expect(grid[9][c], `seed ${seed}: ground at ${c}`).toBe('#');
+      }
+    }
+    expect(seenSets).toBeGreaterThan(30);
   });
 
   it('the first segment has something to do close to the start, and no orb at his feet', () => {
@@ -119,7 +156,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
   it('keeps every coin reachable: high rows only above a pad, a block, in a magnet field or the boots stretch', () => {
     for (const seed of SEEDS) {
       const { grid } = generateZen(seed).config;
-      const orbs = find(grid, 'PMJ');
+      const orbs = find(grid, 'PMJL');
       const pads = find(grid, '^');
       for (const { row, col } of find(grid, 'c')) {
         expect(row, `seed ${seed}`).toBeGreaterThanOrEqual(1);
@@ -142,7 +179,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
       }
       for (const { row } of find(grid, 'O')) expect([7, 8]).toContain(row);
       const bubbles = find(grid, 'ohrO');
-      for (const spot of find(grid, '^PMJ')) {
+      for (const spot of find(grid, '^PMJL')) {
         for (const b of bubbles) expect(Math.abs(b.col - spot.col), `seed ${seed}: ${spot.ch} at ${spot.col} near bubble at ${b.col}`).toBeGreaterThanOrEqual(3);
         expect(cell(grid, spot.row, spot.col)).toBe(spot.ch);
         expect(spot.row).toBe(8);
@@ -180,7 +217,7 @@ describe('zen free play (Task 020, D-063; Task 022, D-065): the segment generato
     for (const seed of SEEDS.slice(0, 40)) {
       // The bot starts at the start tile and walks right: ground filled in, blocks and pads gone, content to its left gone.
       const stripped = generateZen(seed, 'grass', { first: true }).config.grid.map((r, row) =>
-        row >= 9 ? r.replace(/\./g, '#') : '.'.repeat(ZEN.startCol) + r.slice(ZEN.startCol).replace(/[\^PMJB]/g, '.'),
+        row >= 9 ? r.replace(/\./g, '#') : '.'.repeat(ZEN.startCol) + r.slice(ZEN.startCol).replace(/[\^PMJLB]/g, '.'),
       );
       const r = runBot(extractEntities(stripped), { jumpForCoins: true });
       expect(r.fell, `seed ${seed}`).toBe(false);

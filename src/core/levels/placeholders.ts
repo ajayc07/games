@@ -296,7 +296,9 @@ export function makeCarTextures(scene: Phaser.Scene, accent: number, joint: numb
 }
 
 /** Pickup orbs for the magnet and the rocket boots (Task 018): the same glowing orb as the car's, with their own icon. */
-export const POWER_ORB_KEYS = { magnet: 'orb-magnet', boots: 'orb-boots' } as const;
+export const POWER_ORB_KEYS = { magnet: 'orb-magnet', boots: 'orb-boots', flash: 'orb-flash' } as const;
+/** The afterimage of the Flash streak: a soft yellow-white robot-shaped silhouette. */
+export const FLASH_GHOST_KEY = 'fx-flash-ghost';
 
 export function makePowerOrbTextures(scene: Phaser.Scene): void {
   const once = (key: string, paint: (g: Phaser.GameObjects.Graphics) => void) => {
@@ -325,6 +327,18 @@ export function makePowerOrbTextures(scene: Phaser.Scene): void {
     g.fillStyle(0xe53935, 1).fillTriangle(30, 24, 42, 24, 36, 12);
     g.fillStyle(0x4fc3f7, 1).fillCircle(36, 33, 3.5);
   });
+  // A yellow-white lightning bolt (Task 034).
+  once(POWER_ORB_KEYS.flash, (g) => {
+    const bolt = [[40, 12], [24, 38], [34, 38], [29, 60], [50, 30], [39, 30], [47, 12]];
+    g.fillStyle(0xfdd835, 1).fillPoints(bolt.map(([x, y]) => new Phaser.Geom.Point(x, y)), true);
+    g.lineStyle(2.5, 0xff8f00, 1).strokePoints(bolt.map(([x, y]) => new Phaser.Geom.Point(x, y)), true, true);
+    g.fillStyle(0xffffff, 0.9).fillTriangle(38, 17, 31, 32, 36, 32);
+  });
+  if (!scene.textures.exists(FLASH_GHOST_KEY)) {
+    generate(scene, FLASH_GHOST_KEY, 64, 96, (g) => {
+      g.fillStyle(0xffffff, 1).fillRoundedRect(14, 36, 36, 46, 12).fillCircle(32, 24, 18).fillRoundedRect(18, 78, 10, 16, 4).fillRoundedRect(36, 78, 10, 16, 4);
+    });
+  }
 }
 
 function generate(

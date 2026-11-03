@@ -22,7 +22,8 @@ import night1 from './night-1.json';
 import car1 from './car-1.json';
 import magnet1 from './magnet-1.json';
 import boots1 from './boots-1.json';
-import { MAGNET, bootsPeak, normalPeak } from '../../../core/levels/powerups';
+import flash1 from './flash-1.json';
+import { FLASH, MAGNET, bootsPeak, normalPeak } from '../../../core/levels/powerups';
 import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
 import { SHOT, SHOT_HEIGHT } from '../../../core/levels/shots';
@@ -361,14 +362,15 @@ describe('Robo World level files', () => {
     expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('the grass world lists grass-1..7, night-1, car-1, magnet-1 and boots-1: Next goes on in that order and is hidden on boots-1', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1', 'magnet-1', 'boots-1']);
+  it('the grass world lists grass-1..7, night-1, car-1, magnet-1, boots-1 and flash-1: Next goes on in that order and is hidden on flash-1', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1', 'magnet-1', 'boots-1', 'flash-1']);
     for (let i = 1; i < 7; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
     expect(nextLevelId(worlds, 'grass-7')).toBe('night-1');
     expect(nextLevelId(worlds, 'night-1')).toBe('car-1');
     expect(nextLevelId(worlds, 'car-1')).toBe('magnet-1');
     expect(nextLevelId(worlds, 'magnet-1')).toBe('boots-1');
-    expect(nextLevelId(worlds, 'boots-1')).toBeNull();
+    expect(nextLevelId(worlds, 'boots-1')).toBe('flash-1');
+    expect(nextLevelId(worlds, 'flash-1')).toBeNull();
   });
 
   it('night-1 "Night Walk" (Task 016, D-060): night world, walking, all four buttons, gaps of 1-2 tiles, small bubbles and arcs', () => {
@@ -536,6 +538,57 @@ describe('Robo World level files', () => {
     expect(level.stars.three).toBeGreaterThan(low.length);
     expect(level.stars.three).toBeLessThanOrEqual(e.coins.length);
     for (const c of e.coins) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('flash-1 "Flash Run" (Task 034, D-078): a Flash orb early, a long coin line, 1-tile gaps far apart, a few small bubbles, no demo', () => {
+    const level = parseLevelOrThrow(flash1, 'flash-1');
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump']);
+    expect(level.controls.demo).toBe(false);
+    expect(level.variety).toBe(false);
+    const e = extractEntities(level.grid);
+    expect(e.pickups.map((p) => p.kind)).toEqual(['flash']);
+    const orb = e.pickups[0];
+    expect(orb.col - e.start.col).toBeGreaterThanOrEqual(3);
+    expect(orb.col - e.start.col).toBeLessThanOrEqual(6);
+    expect(e.solid[orb.row + 1][orb.col]).toBe(true);
+    // Gaps: 1 tile only, at least 7 tiles of ground between them and from the orb and the goal, each with coins above.
+    const gaps = e.solid[e.start.row + 1].flatMap((s, c) => (s ? [] : [c]));
+    expect(gaps.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < gaps.length; i++) expect(gaps[i] - gaps[i - 1] - 1, `ground before gap ${i + 1}`).toBeGreaterThanOrEqual(7);
+    for (const g of gaps) {
+      expect(Math.abs(g - orb.col)).toBeGreaterThanOrEqual(8);
+      expect(e.goal.col - g).toBeGreaterThanOrEqual(8);
+      expect(e.solid[e.start.row + 1][g - 1] && e.solid[e.start.row + 1][g + 1], `ground beside gap ${g}`).toBe(true);
+      expect(e.coins.some((c) => c.col === g && c.row < e.start.row), `arc over gap ${g}`).toBe(true);
+      // A jump from the edge flies over the next two columns at head height: no walking coin right behind a gap.
+      expect(e.coins.filter((c) => c.row === e.start.row - 1 && c.col > g && c.col <= g + 2), `behind gap ${g}`).toEqual([]);
+      // The gap is crossable at Flash speed from a standing start too (gaps are only 1 tile).
+      expect(walkingJumpReach(PHYSICS.walkSpeed * FLASH.speedScale).standing).toBeGreaterThanOrEqual(gapNeed(1) + 40);
+    }
+    // The coin line: long, at head height, within Flash's 10 s of running (about 58 tiles) of the orb.
+    const line = e.coins.filter((c) => c.row === e.start.row - 1);
+    expect(line.length).toBeGreaterThanOrEqual(14);
+    const reachTiles = (FLASH.durationMs / 1000) * PHYSICS.walkSpeed * FLASH.speedScale / 64;
+    expect(reachTiles).toBeGreaterThan(50);
+    expect(line.filter((c) => c.col <= orb.col + reachTiles).length).toBeGreaterThanOrEqual(14);
+    // A few small bubbles in his path, none touching a coin or another bubble, none near a gap or the goal.
+    expect(e.bubbles.length).toBeGreaterThanOrEqual(3);
+    for (const b of e.bubbles) {
+      expect(b.kind).toBe('small');
+      expect([e.start.row, e.start.row - 1]).toContain(b.row);
+      for (const g of gaps) expect(Math.abs(b.col - g), `bubble ${b.col} vs gap ${g}`).toBeGreaterThanOrEqual(3);
+      for (const c of e.coins) expect(Math.abs(c.col - b.col) + Math.abs(c.row - b.row), `bubble ${b.col} vs coin ${c.col}:${c.row}`).toBeGreaterThan(1);
+      expect(Math.abs(b.col - e.goal.col)).toBeGreaterThanOrEqual(3);
+    }
+    for (const c of e.coins) {
+      expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+      expect(e.solid[c.row][c.col]).toBe(false);
+    }
+    // Stars 20 / 32 style: two for about half, three for most (bubbles count 3 coins each).
+    const total = e.coins.length + 3 * e.bubbles.length;
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
+    expect(level.stars.two).toBeGreaterThanOrEqual(Math.round(total * 0.4));
   });
 
   it('every level after the third is under a cloud on a fresh start (openAtATime 3); each clear opens the next one', () => {

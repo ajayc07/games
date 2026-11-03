@@ -110,8 +110,9 @@ export class BubbleField {
   }
 
   /** Pops the first unpopped bubble a shot at (x, y) with radius r touches; returns its index or -1. */
-  tryHit(x: number, y: number, r: number, now: number, counted = true): number {
-    const v = this.views.find((b) => !b.popped && shotHitsBubble(x, y, r, { r: b.spec.r * b.scale }, b.x, b.y));
+  tryHit(x: number, y: number, r: number, now: number, counted = true, smallOnly = false): number {
+    // `smallOnly` (Flash, Task 034): only small and rainbow bubbles; big and high ones are left alone.
+    const v = this.views.find((b) => !b.popped && (!smallOnly || b.spec.kind === 'small' || b.spec.kind === 'rainbow') && shotHitsBubble(x, y, r, { r: b.spec.r * b.scale }, b.x, b.y));
     if (!v) return -1;
     v.hits++;
     if (hitBursts(v.spec.kind, v.hits)) this.pop(v, now, counted);

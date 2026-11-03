@@ -79,4 +79,15 @@ describe('haptics', () => {
     expect(FALL_BUZZ[0]).toBeGreaterThanOrEqual(120);
     expect(FALL_BUZZ.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(500);
   });
+
+  it('Flash (Task 034) ignores the hold-to-run bonus and has its own ceiling', () => {
+    // Flash on: the hold bonus is never added on top, however long the arrow is held.
+    expect(totalScale(1, 1.7, true)).toBeCloseTo(1.7);
+    expect(totalScale(1.45, 1.7, true)).toBeCloseTo(1.7);
+    // The ceiling is Flash's own, a little higher than the car's total, and Flash's speed fits under it.
+    expect(RUN_HOLD.flashCap).toBeGreaterThan(RUN_HOLD.maxTotal);
+    expect(totalScale(1.45, 5, true)).toBe(RUN_HOLD.flashCap);
+    // Without Flash nothing changes.
+    expect(totalScale(1.45, 1.25)).toBe(RUN_HOLD.maxTotal);
+  });
 });

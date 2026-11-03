@@ -76,6 +76,8 @@ export class Player {
   alphaWanted = 1;
   /** Moving speed multiplier (1 normally; the car power-up makes it a little faster, Task 017). */
   speedScale = 1;
+  /** Flash is on (Task 034): he runs fast by himself while an arrow is held, and the hold-to-run bonus is not added on top. */
+  flash = false;
   /** Hold to run (Task 021): only the real player on Left/Right levels. Null = no running. */
   private readonly runHold: RunHold | null;
   /** Picture raised above the body's feet (px): standing on the goal pad. */
@@ -158,8 +160,8 @@ export class Player {
     // Walk mode ramps (D-029: about 60 ms up, 80 ms down, no sliding); auto-run sets the speed at once.
     // Hold to run (Task 021): the arrow held for a moment eases the speed up and switches to the running legs.
     const run = this.runHold ? this.runHold.update(intent.move, dtMs) : 1;
-    if (this.runHold) this.avatar.setGait(this.runHold.gaitRun ? 'run' : this.baseGait);
-    const speed = this.speed * (this.runHold ? totalScale(run, this.speedScale) : this.speedScale);
+    if (this.runHold) this.avatar.setGait(this.runHold.gaitRun || (this.flash && intent.move !== 0) ? 'run' : this.baseGait);
+    const speed = this.speed * (this.runHold ? totalScale(run, this.speedScale, this.flash) : this.speedScale);
     const target = intent.move * speed;
     this.walkV = this.ramp ? rampSpeed(this.walkV, target, dtMs, speed, PHYSICS.walkRampUpMs, PHYSICS.walkRampDownMs) : target;
     const minX = Math.max(this.minX, intent.walls?.minX ?? -Infinity);

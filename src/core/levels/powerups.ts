@@ -4,7 +4,7 @@
 import { PHYSICS, jumpPeak } from './physics';
 
 /** The pickup kinds and the grid letters that place them. */
-export const PICKUP_CHARS = { P: 'car', M: 'magnet', J: 'boots' } as const;
+export const PICKUP_CHARS = { P: 'car', M: 'magnet', J: 'boots', L: 'flash' } as const;
 export type PickupKind = (typeof PICKUP_CHARS)[keyof typeof PICKUP_CHARS];
 
 export const MAGNET = {
@@ -21,6 +21,24 @@ export const BOOTS = {
   jumpScale: 1.3,
   /** The most vertical speed the body allows (px/s). */
   maxSpeed: 1000,
+} as const;
+
+/**
+ * Flash (Task 034, D-078): for a while he runs fast by himself while an arrow is held (no 350 ms hold needed), and pops the small
+ * bubbles he runs into. Hit box, jump and everything else are unchanged.
+ */
+export const FLASH = {
+  durationMs: 10_000,
+  /** Walking speed as a multiple while an arrow is held. Never stacks with hold-to-run (`RUN_HOLD.flashCap` is the ceiling). */
+  speedScale: 1.7,
+  /** Small bubbles he runs into pop when they are this close to his chest (px) and not more often than `popEveryMs`. Big bubbles still block him. */
+  popReach: 70,
+  popEveryMs: 120,
+  /** The streak behind him: this many fading afterimages, one every `ghostEveryMs`. */
+  ghosts: 3,
+  ghostEveryMs: 55,
+  /** A quiet whoosh while he runs fast. */
+  whooshEveryMs: 400,
 } as const;
 
 /** Jump speed with the boots on (px/s), never more than the body's speed limit. */

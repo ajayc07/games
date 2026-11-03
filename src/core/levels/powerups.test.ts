@@ -23,9 +23,9 @@ describe('magnet and rocket boots (Task 018)', () => {
   });
 
   it('pickup letters map to kinds, and the grid reports them (not solid)', () => {
-    expect(PICKUP_CHARS).toEqual({ P: 'car', M: 'magnet', J: 'boots' });
-    const e = extractEntities(['.P.M.J.', '#######']);
-    expect(e.pickups.map((p) => p.kind)).toEqual(['car', 'magnet', 'boots']);
+    expect(PICKUP_CHARS).toEqual({ P: 'car', M: 'magnet', J: 'boots', L: 'flash' });
+    const e = extractEntities(['.P.M.J.L.', '#########']);
+    expect(e.pickups.map((p) => p.kind)).toEqual(['car', 'magnet', 'boots', 'flash']);
     expect(e.solid[0].some(Boolean)).toBe(false);
   });
 

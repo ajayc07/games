@@ -16,8 +16,9 @@ import { OBSTACLE_TEX, makeEffectTextures, makeObstacleTextures, makeThemeTextur
 import { PAD, PadTrigger } from './pads';
 import { CAR, CarTimer, carAlpha, touchesPickup } from './car';
 import { CarSprite } from './CarSprite';
-import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS } from './placeholders';
-import { BOOTS, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
+import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS, FLASH_GHOST_KEY } from './placeholders';
+import { BOOTS, FLASH, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
+import { dropsForMega, dropsForPickup, orbTakeable, powerFromSearch, type ActivePower } from './powerRules';
 import { FLY, flyDirection, plainGround } from './flight';
 import { PowerBars, type BarEntry } from './PowerBars';
 import { MEGA, addToBar, barFraction, megaPlan, narrowGaps, type MegaPlan } from './mega';
@@ -218,6 +219,10 @@ export class LevelScene extends Phaser.Scene {
     this.magnetTimer.stop();
     this.bootsTimer.stop();
     this.megaTimer.stop();
+    this.flashTimer.stop();
+    this.flashOn = false;
+    this.flashGhosts = [];
+    this.flashTrail = [];
     this.zenPlayed = 0;
     this.zenReported = 0;
     this.moonHint = null;
@@ -312,6 +317,9 @@ export class LevelScene extends Phaser.Scene {
     // The zen minutes played so far are reported when the scene closes (Task 033).
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.flushZen());
     this.installDebugHook();
+    // `?power=<kind>` (test hook, Task 034): start with that power already on.
+    const hookPower = powerFromSearch(location.search);
+    if (hookPower && this.mode === 'play') this.startPower(hookPower, this.time.now);
   }
 
   override update(time: number, deltaMs: number): void {
@@ -658,12 +666,14 @@ export class LevelScene extends Phaser.Scene {
 
   /** Glowing orbs with a little car on them; touching one turns the robot into a car for a while. */
   private buildPickups(): void {
-    if (this.grid.pickups.length === 0 && !this.level.zen) return;
+    // `?power=<kind>` (test hook, Task 034) needs the orb pictures and the car even on a level without pickups.
+    const hook = powerFromSearch(location.search);
+    if (this.grid.pickups.length === 0 && !this.level.zen && !hook) return;
     const pal = resolveAvatar(this.data0.option).palette;
     makeCarTextures(this, pal.accent, pal.joint);
     makePowerOrbTextures(this);
     // Zen swaps its segments, so the car is built once, whichever segment has the first orb.
-    if (!this.car && (this.level.zen || this.grid.pickups.some((p) => p.kind === 'car'))) this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
+    if (!this.car && (this.level.zen || hook === 'car' || this.grid.pickups.some((p) => p.kind === 'car'))) this.car = new CarSprite(this, pal.accent, pal.joint, this.size, DEPTH.player + 0.2);
     this.carOrbKey = carTextureKeys(pal.accent, pal.joint).orb;
     const orbOf = (kind: PickupKind) => (kind === 'car' ? this.carOrbKey : POWER_ORB_KEYS[kind]);
     this.pickups = this.grid.pickups.map((c, i) => {
@@ -677,6 +687,12 @@ export class LevelScene extends Phaser.Scene {
 
   private updatePickups(now: number): void {
     const b = this.player.body;
+    // Mega Robo combines with nothing (Task 034): while he is big the orbs wait, dimmed and shimmering, and can be taken afterwards.
+    const takeable = orbTakeable(this.megaOn);
+    this.pickups.forEach((p, i) => {
+      if (!p.taken) p.img.setAlpha(takeable ? 1 : 0.3 + 0.08 * Math.sin(now / 180 + i));
+    });
+    if (!takeable) return;
     for (const p of this.pickups) {
       if (p.taken || !touchesPickup(b, p.x, p.y)) continue;
       p.taken = true;
@@ -695,6 +711,15 @@ export class LevelScene extends Phaser.Scene {
   private megaOn = false;
   private megaPending = false;
   private megaGlow: Phaser.GameObjects.Image | null = null;
+  // Flash (Task 034, D-078)
+  private readonly flashTimer = new CarTimer(FLASH.durationMs);
+  private flashOn = false;
+  private flashGhosts: Phaser.GameObjects.Image[] = [];
+  private flashTrail: Array<{ x: number; y: number; face: number }> = [];
+  private lastGhostAt = 0;
+  private lastWhooshAt = 0;
+  private lastFlashPopAt = 0;
+  private lastSparkAt = 0;
   private coinBar: CoinBar | null = null;
   private barCoins = 0;
   private plan: MegaPlan = megaPlan({ zen: false, practice: true, buttons: [], hasPickups: false, totalCoins: 0 });
@@ -727,10 +752,19 @@ export class LevelScene extends Phaser.Scene {
       this.startCar(now);
       return;
     }
-    audio.play('transform');
+    makePowerOrbTextures(this);
+    audio.play(kind === 'flash' ? 'flashZip' : 'transform');
     const b = this.player.body;
     this.sparkle.explode(18, b.center.x, b.center.y);
     this.poof(b.center.x, b.center.y);
+    if (kind === 'flash') {
+      this.flashTimer.start(now);
+      this.flashOn = true;
+      this.applySpeed(this.carOn());
+      this.badge ??= this.add.image(0, 0, POWER_ORB_KEYS.flash).setDisplaySize(40, 40).setDepth(DEPTH.player + 0.3);
+      this.badge.setTexture(POWER_ORB_KEYS.flash).setVisible(true);
+      return;
+    }
     if (kind === 'magnet') {
       this.magnetTimer.start(now);
       this.field ??= this.add.circle(0, 0, MAGNET.radius).setStrokeStyle(4, 0xff5252, 0.45).setDepth(DEPTH.player - 2);
@@ -758,9 +792,10 @@ export class LevelScene extends Phaser.Scene {
 
   /** Both timed power-ups off (a fall, the goal, or time up). */
   private endPowers(sound = true): void {
-    const had = this.magnetTimer.active(this.time.now) || this.bootsTimer.active(this.time.now);
+    const had = this.magnetTimer.active(this.time.now) || this.bootsTimer.active(this.time.now) || this.flashOn;
     this.magnetTimer.stop();
     this.bootsTimer.stop();
+    this.endFlash(false);
     this.player.cancelFlight();
     this.touch.setFlightMode(false);
     this.field?.setVisible(false);
@@ -777,21 +812,24 @@ export class LevelScene extends Phaser.Scene {
     if (!timed && this.player.flying && !this.player.landing) this.player.beginLanding();
     const boots = timed || this.player.flying;
     this.updateMega(now);
+    this.updateFlash(now);
     this.updateBars(now);
     if (this.player.flying && this.mode === 'play' && now - this.lastHumAt > 380) {
       this.lastHumAt = now;
       audio.play('flyHum');
     }
-    if (!magnet && !boots) {
+    const flash = this.flashOn;
+    if (!magnet && !boots && !flash) {
       if (this.badge?.visible || this.flames.some((f) => f.visible)) this.endPowers();
       return;
     }
     const b = this.player.body;
-    const left = Math.min(magnet ? this.magnetTimer.remaining(now) : Infinity, timed ? this.bootsTimer.remaining(now) : Infinity);
+    const left = Math.min(magnet ? this.magnetTimer.remaining(now) : Infinity, timed ? this.bootsTimer.remaining(now) : Infinity, flash ? this.flashTimer.remaining(now) : Infinity);
     if (this.badge) {
       this.badge.setPosition(b.center.x, b.top - 34 + Math.sin(now / 250) * 3).setAlpha(carAlpha(left));
-      if (magnet && !boots) this.badge.setTexture(POWER_ORB_KEYS.magnet);
-      else if (boots && !magnet) this.badge.setTexture(POWER_ORB_KEYS.boots);
+      // One power on: its own picture. Two together: the picture of the one that started last stays.
+      const on = [magnet ? 'magnet' : null, boots ? 'boots' : null, flash ? 'flash' : null].filter((k): k is 'magnet' | 'boots' | 'flash' => k !== null);
+      if (on.length === 1) this.badge.setTexture(POWER_ORB_KEYS[on[0]]);
     }
     if (this.field) {
       const on = magnet;
@@ -812,29 +850,44 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** At most two timed powers at once (Task 029): a third one replaces the one with the least time left. */
-  private makeRoom(kind: PickupKind, now: number): void {
-    const act: Array<{ kind: PickupKind; left: number }> = [];
+  /** The timed powers that run now (the car, magnet, boots, Flash) with their time left. */
+  private activePowers(now: number): ActivePower[] {
+    const act: ActivePower[] = [];
     if (this.carOn()) act.push({ kind: 'car', left: this.carTimer.remaining(now) });
     if (this.magnetTimer.active(now)) act.push({ kind: 'magnet', left: this.magnetTimer.remaining(now) });
     if (this.bootsTimer.active(now)) act.push({ kind: 'boots', left: this.bootsTimer.remaining(now) });
-    if (act.length < 2 || act.some((a) => a.kind === kind)) return;
-    const drop = act.sort((a, b) => a.left - b.left)[0].kind;
-    if (drop === 'car') this.endCar(false);
-    else if (drop === 'magnet') {
+    if (this.flashOn) act.push({ kind: 'flash', left: this.flashTimer.remaining(now) });
+    return act;
+  }
+
+  /** Ends one timed power at once, quietly (the rules in powerRules.ts say which). */
+  private dropPower(kind: PickupKind): void {
+    if (kind === 'car') this.endCar(false);
+    else if (kind === 'flash') this.endFlash(false);
+    else if (kind === 'magnet') {
       this.magnetTimer.stop();
       this.field?.setVisible(false);
     } else this.bootsTimer.stop();
   }
 
-  /** Speed: the car and Mega Robo each make him faster (together faster still). */
+  /** Before a new power starts: what it excludes ends, and at most two timed powers run at once (Tasks 029 and 034, D-078). */
+  private makeRoom(kind: PickupKind, now: number): void {
+    for (const drop of dropsForPickup(this.activePowers(now), kind)) this.dropPower(drop);
+  }
+
+  /** Speed: the car, Mega Robo and Flash each make him faster (they never run together, D-078). */
   private applySpeed(car: boolean): void {
-    this.player.speedScale = (car ? CAR.speedScale : 1) * (this.megaOn ? MEGA.speedScale : 1);
+    this.player.speedScale = (car ? CAR.speedScale : 1) * (this.megaOn ? MEGA.speedScale : 1) * (this.flashOn ? FLASH.speedScale : 1);
+    this.player.flash = this.flashOn;
   }
 
   /** The bar is full: he turns into Mega Robo (Task 030). */
   private startMega(now: number): void {
-    if (this.carOn()) this.endCar(false);
+    // Mega Robo combines with nothing (Task 034): every other power ends at once, softly, and he becomes big.
+    const ending = dropsForMega(this.activePowers(now));
+    this.endCar(false);
+    this.endPowers(false);
+    if (ending.length > 0) audio.play('transformBack');
     this.megaOn = true;
     this.megaFills++;
     this.megaTimer.start(now);
@@ -917,6 +970,63 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
+  /** Flash to normal (time is up, a fall, the goal, or another power replaced it). */
+  private endFlash(sound = true): void {
+    if (!this.flashOn) return;
+    this.flashOn = false;
+    this.flashTimer.stop();
+    this.applySpeed(this.carOn());
+    for (const g of this.flashGhosts) g.setVisible(false);
+    this.flashTrail = [];
+    if (sound) audio.play('transformBack');
+  }
+
+  /** Every frame: the streak of afterimages and sparks, the whoosh, popping small bubbles he runs into, and the end of the time. */
+  private updateFlash(now: number): void {
+    if (!this.flashOn) return;
+    if (!this.flashTimer.active(now)) {
+      this.endFlash();
+      return;
+    }
+    const b = this.player.body;
+    const fast = Math.abs(b.velocity.x) > 120;
+    const fade = carAlpha(this.flashTimer.remaining(now));
+    if (this.flashGhosts.length === 0) {
+      for (let i = 0; i < FLASH.ghosts; i++) {
+        this.flashGhosts.push(this.add.image(0, 0, FLASH_GHOST_KEY).setTint(0xfff176).setDepth(DEPTH.player - 0.6).setDisplaySize(56, 92).setVisible(false));
+      }
+    }
+    // A new afterimage every few frames: the oldest is the faintest, and they only show while he runs.
+    if (fast && now - this.lastGhostAt >= FLASH.ghostEveryMs) {
+      this.lastGhostAt = now;
+      this.flashTrail.unshift({ x: b.center.x, y: b.center.y - 4, face: this.player.facing });
+      this.flashTrail.length = Math.min(this.flashTrail.length, FLASH.ghosts);
+    }
+    this.flashGhosts.forEach((g, i) => {
+      const t = this.flashTrail[i];
+      if (!fast || !t) {
+        g.setVisible(false);
+        return;
+      }
+      g.setVisible(true).setPosition(t.x, t.y).setFlipX(t.face < 0).setAlpha((0.75 - 0.2 * i) * fade);
+    });
+    if (fast && this.mode === 'play') {
+      if (now - this.lastSparkAt > 90) {
+        this.lastSparkAt = now;
+        this.sparkle.explode(2, b.center.x - this.player.facing * 22, b.bottom - 8 - Math.random() * 50);
+      }
+      if (this.player.grounded && now - this.lastWhooshAt > FLASH.whooshEveryMs) {
+        this.lastWhooshAt = now;
+        audio.play('flashWhoosh');
+      }
+    }
+    // Small bubbles pop when he runs into them; big ones still block him and need shots.
+    if (this.mode === 'play' && now - this.lastFlashPopAt >= FLASH.popEveryMs) {
+      const f = this.player.facing;
+      if (this.bubbles.tryHit(b.center.x + f * 20, b.center.y - 6, FLASH.popReach, now, true, true) >= 0) this.lastFlashPopAt = now;
+    }
+  }
+
   /** The time bars (Task 028): one row for each timed power that is on. */
   private updateBars(now: number): void {
     const entries: BarEntry[] = [];
@@ -927,6 +1037,7 @@ export class LevelScene extends Phaser.Scene {
     if (this.carOn()) add('car', this.carOrbKey, this.carTimer, 0x29b6f6);
     add('magnet', POWER_ORB_KEYS.magnet, this.magnetTimer, 0xff5252);
     add('boots', POWER_ORB_KEYS.boots, this.bootsTimer, 0xff9800);
+    if (this.flashOn) add('flash', POWER_ORB_KEYS.flash, this.flashTimer, 0xfdd835);
     if (this.coinBar) {
       this.coinBar.layout(this.layout, this.hud.icon.x, this.hud.icon.y);
       this.coinBar.setVisible(!this.megaOn && this.barOn());
@@ -965,7 +1076,6 @@ export class LevelScene extends Phaser.Scene {
   private startCar(now: number): void {
     const car = this.car;
     if (!car) return;
-    if (this.megaOn) this.endMega(false);
     const wasCar = this.carOn();
     this.carTimer.start(now);
     if (wasCar) {
@@ -1448,7 +1558,7 @@ export class LevelScene extends Phaser.Scene {
       if (this.coins[i]?.taken) clear(c.col, c.row, 'c');
     });
     this.grid.pickups.forEach((c, i) => {
-      if (this.pickups[i]?.taken) clear(c.col, c.row, 'PMJ');
+      if (this.pickups[i]?.taken) clear(c.col, c.row, 'PMJL');
     });
     for (const b of this.bubbles.state()) {
       if (!b.popped) continue;

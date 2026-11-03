@@ -23,6 +23,8 @@ export const LEGEND = {
   M: 'magnet pickup',
   /** Rocket boots pickup (Task 018): for 10 s his jump is about 1.3 times as strong, with flames at his feet. Not solid. */
   J: 'rocket boots pickup',
+  /** Flash pickup (Task 034): for 10 s he runs fast by himself while an arrow is held and pops small bubbles he runs into. Not solid. */
+  L: 'flash pickup',
   /** Step block (Task 015): a solid one-tile toy block, stacked at most 2 high; he jumps up onto it. */
   B: 'step block',
   /** Bounce pad (Task 015): a springy plate on the ground (not solid); stepping on it launches him high. */

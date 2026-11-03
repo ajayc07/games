@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **FEATURE FREEZE: from now on only optimisation and bug fixes until the parent decides otherwise.**_
+_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **Feature freeze lifted on 2026-11-03 for Tasks 034, 035 and 019 only (D-077). Task 034 done (Flash, power-up rules, flash-1).**_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -12,7 +12,7 @@ Grass 4 Power (pop bubbles into coins), Grass 5 walk and jump over gaps, Grass 6
 combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey gear (top-left, held 3 s) opens the parent view
 (sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
-`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?zen=1`, `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
+`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?zen=1`, `?power=car|magnet|boots|flash` (start with that power on; with `?demo=0` on levels that have a demo, also works with `?zen=1`), `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
 Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-014b are all pushed.
 
 ## Roadmap
@@ -34,7 +34,9 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 016 | Night world: stars, fireflies, headlamp glow and the new level night-1 "Night Walk" (D-060) | Done (uncommitted until the parent commits) |
 | 017 | Car power-up: orb pickup, car transform for 10 s, new level car-1 "Zoom Car" (D-061) | Done (uncommitted until the parent commits) |
 | 018 | Magnet and rocket boots: two pickups, new levels magnet-1 and boots-1 (D-062) | Done (uncommitted until the parent commits) |
-| 019 | Polish bundle (footsteps, landing thump, idle wave), not drafted | Optional |
+| 019 | Polish bundle (footsteps, landing thump, idle wave) (D-077), task file written | Ready, after 035 |
+| 034 | Flash power-up, new level flash-1 and the power-up rules: Mega Robo combines with nothing, car and Flash exclude each other (D-077, D-078) | Done (committed) |
+| 035 | Bolt Bug, a small harmless villain, and level bug-1 (D-077) | Ready (034 is done) (Opus 5.5) |
 | 020 | Zen free play: endless level with every button and power-up, a Zen button on the map (D-063) | Done and committed |
 | 021 | Hold to run (x1.45 after 350 ms) and a vibration on a fall (D-064) | Done and committed |
 | 022 | Zen: seamless swap with no empty stretches, stairs and gaps (D-065) | Done (uncommitted until the parent commits) |
@@ -98,6 +100,7 @@ _(nothing)_
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Task 034 (D-078)** (`?level=flash-1`, `?power=flash`): does he find the yellow bolt orb in Flash Run; is x1.7 (374 px/s) right for him or too fast; do the afterimages and sparks read, is the whoosh pleasant; does he notice that running pops the small bubbles; does the dimmed orb while Mega is on make sense (or does he try to take it); is it fine that a full coin bar ends the other powers?
   - **Task 033 (D-076)**: early levels show no coin bar; late levels fill once; zen Mega Robo is rarer (50, 50, 50, 75...); parent page 2 Zen time row (default 30 min a day): does the night screen feel calm, does the Zen moon button make sense to him.
   - **Tasks 028-032 (D-071..D-075)**: rocket boots fly by themselves (Left = up, Right = down, 12 s): is it smooth for him, is 250 px/s too fast, does he understand he lands by himself? Do the time bars (top middle) make sense to him? Zen double power-ups (car + rocket = flying car): fun or confusing? Coin bar under the counter: does he notice it fills? Mega Robo (1.7x, 12 s, pops bubbles by walking, steps over small gaps): does he love it, is it too big or too fast, do the footsteps and screen shake feel good or scary? Stickers: does he notice the pop-up, find the sticker book button (map, left of Zen), want to collect them? Parent page 2: Volume row works, the tablet's real loudness at Low / Medium / High.
   - **Tasks 021-027 (D-064..D-070)**: hold-to-run feel; fall buzz on Android (needs a fresh PWA build: close the app fully and reopen once online); zen swap (no empty screens, gaps and stairs); rainbow coins; day / night random (parent page 2); the blaster icon; auto-pause after 150 s and wake lock released (does the screen then sleep by itself?).

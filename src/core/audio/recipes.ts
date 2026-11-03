@@ -76,6 +76,15 @@ export const DEFAULT_RECIPES = {
   },
   // A low soft engine puff, played every so often while the rocket boots fly (Task 028).
   flyHum: { tones: [{ freq: 85, to: 120, dur: 0.34, type: 'triangle', gain: 0.35 }, { freq: 170, to: 200, dur: 0.3, type: 'sine', gain: 0.1 }] },
+  // Flash (Task 034): a quick bright zip when he takes the orb, and a quiet whoosh now and then while he runs fast.
+  flashZip: {
+    tones: [
+      { freq: 500, to: 1900, dur: 0.16, type: 'triangle', gain: 0.8 },
+      { freq: 1000, to: 3200, at: 0.05, dur: 0.14, type: 'sine', gain: 0.3 },
+      { freq: 1568, at: 0.2, dur: 0.18, type: 'sine', gain: 0.4 },
+    ],
+  },
+  flashWhoosh: { tones: [{ freq: 420, to: 160, dur: 0.22, type: 'triangle', gain: 0.18 }, { freq: 900, to: 300, dur: 0.16, type: 'sine', gain: 0.06 }] },
   // Springy "boing" for a bounce pad (Task 015): a quick rising glide with a bright tail.
   boing: {
     tones: [

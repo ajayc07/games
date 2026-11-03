@@ -10,6 +10,8 @@ export const RUN_HOLD = {
   scale: 1.45,
   /** However many boosts add up (run on top of the car), he never goes faster than this multiple of the walk speed. */
   maxTotal: 1.6,
+  /** Flash (Task 034) sets its own ceiling and ignores the hold bonus: he is at this multiple at most, however it adds up. */
+  flashCap: 1.8,
   /** The legs switch to the running gait above this scale and back to walking below the lower one (no flicker). */
   gaitOn: 1.2,
   gaitOff: 1.1,
@@ -22,8 +24,12 @@ export function runScale(heldMs: number): number {
   return 1 + (RUN_HOLD.scale - 1) * eased;
 }
 
-/** The run multiplier and other boosts (the car, `speedScale`) together, capped. */
-export function totalScale(run: number, other: number): number {
+/**
+ * The run multiplier and other boosts (the car, `speedScale`) together, capped. With Flash on, the hold-to-run bonus is not
+ * added on top: Flash's own speed counts, up to `flashCap`.
+ */
+export function totalScale(run: number, other: number, flash = false): number {
+  if (flash) return Math.min(RUN_HOLD.flashCap, other);
   return Math.min(RUN_HOLD.maxTotal, run * other);
 }
 

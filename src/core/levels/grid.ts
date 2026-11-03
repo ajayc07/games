@@ -32,7 +32,7 @@ export interface GridEntities {
   /** Step blocks (`B`, solid, Task 015) and bounce pads (`^`, not solid). */
   blocks: Cell[];
   pads: Cell[];
-  /** Power-up pickups (Task 017-018): car `P`, magnet `M`, rocket boots `J`. */
+  /** Power-up pickups (Task 017-018): car `P`, magnet `M`, rocket boots `J`, flash `L`. */
   pickups: Array<Cell & { kind: PickupKind }>;
 }
 
@@ -56,7 +56,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       line.push(ch === '#' || ch === 'B');
       if (ch === 'B') blocks.push({ col, row });
       else if (ch === '^') pads.push({ col, row });
-      else if (ch === 'P' || ch === 'M' || ch === 'J') pickups.push({ col, row, kind: PICKUP_CHARS[ch] });
+      else if (ch in PICKUP_CHARS) pickups.push({ col, row, kind: PICKUP_CHARS[ch as keyof typeof PICKUP_CHARS] });
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });
