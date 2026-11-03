@@ -19,6 +19,9 @@ import { CarSprite } from './CarSprite';
 import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS, FLASH_GHOST_KEY } from './placeholders';
 import { BOOTS, FLASH, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
 import { BugField } from './BugField';
+import type { AvatarSfx } from '../avatar/AvatarDriver';
+import { LAND_THUMP_ID, pickStepVariant, stepSoundId } from '../audio/steps';
+import { idleSecondsFrom } from '../../shell/idle';
 import { BugBump, bugTouches, bugsFromSearch } from './bugs';
 import { dropsForMega, dropsForPickup, orbTakeable, powerFromSearch, type ActivePower } from './powerRules';
 import { FLY, flyDirection, plainGround } from './flight';
@@ -321,6 +324,10 @@ export class LevelScene extends Phaser.Scene {
     }
     // The zen minutes played so far are reported when the scene closes (Task 033).
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.flushZen());
+    this.lastActivityAt = this.time.now;
+    this.input.on('pointerdown', () => this.noteActivity());
+    this.input.on('pointerup', () => this.noteActivity());
+    this.input.keyboard?.on('keydown', () => this.noteActivity());
     this.installDebugHook();
     // `?power=<kind>` (test hook, Task 034): start with that power already on.
     const hookPower = powerFromSearch(location.search);
@@ -333,6 +340,7 @@ export class LevelScene extends Phaser.Scene {
     if (this.mode === 'demo') this.updateDemo(time, dt * 1000);
     else if (this.mode === 'play') this.updatePlay(time, dt * 1000);
     else if (this.mode === 'finish') this.updateFinish();
+    this.feedIdle(time);
     this.player.updateAvatar(time, dt);
     this.updateCar(time);
     this.updatePowers(time);
@@ -644,7 +652,45 @@ export class LevelScene extends Phaser.Scene {
       fx: dust ? this.motionFx : undefined,
       // Hold to run (Task 021): the real player on Left/Right levels, never the demo ghost (its script is timed for walking).
       runOnHold: dust && !this.level.controls.autoRun,
+      // Footsteps and the landing thump (Task 019): the real player only.
+      sfx: dust ? this.makeSfx() : undefined,
     });
+  }
+
+  /** Footsteps and the landing thump (Task 019, D-081). Not in the car, while flying or as Mega Robo (it has its own step); the thump never on a bounce pad. */
+  private lastStepVariant = -1;
+  private lastActivityAt = 0;
+  private readonly sleepMs = idleSecondsFrom(location.search) * 1000;
+  private makeSfx(): AvatarSfx {
+    return {
+      step: (running) => {
+        if (this.mode !== 'play' || this.megaOn || this.carOn() || this.player.flying) return;
+        const kind = running ? 'run' : 'walk';
+        this.lastStepVariant = pickStepVariant(kind, Math.random(), this.lastStepVariant);
+        audio.play(stepSoundId(kind, this.lastStepVariant));
+      },
+      thump: (x) => {
+        if (this.mode !== 'play' || this.carOn() || this.player.flying) return;
+        const col = Math.floor(x / this.tile);
+        if (this.grid.pads.some((p) => p.col === col)) return;
+        audio.play(LAND_THUMP_ID);
+      },
+    };
+  }
+
+  /** Any touch, key or held button counts as activity for the idle wave (Task 019). */
+  private noteActivity(): void {
+    this.lastActivityAt = this.time.now;
+  }
+
+  /** Tells the player how long it has been quiet, and whether the idle wave may happen now. */
+  private feedIdle(now: number): void {
+    const input = this.input2;
+    const held = (['left', 'right', 'jump', 'power'] as const).some((a) => input.isDown(a)) || this.input.manager.pointers.some((p) => p.isDown);
+    if (held) this.lastActivityAt = now;
+    this.player.idleMs = now - this.lastActivityAt;
+    this.player.sleepMs = this.sleepMs;
+    this.player.calm = this.mode === 'play' && !this.carOn() && !this.megaOn && !this.flashOn && !this.player.flying && !this.magnetTimer.active(now) && !this.bootsTimer.active(now);
   }
 
   private makeBlaster(): Blaster {

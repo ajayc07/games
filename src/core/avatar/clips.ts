@@ -209,6 +209,16 @@ export function winClip(t: number): RobotPose {
   };
 }
 
+// ---------- idle wave (Task 019) ----------
+
+/** The idle pose with the near arm raised and waving. Continuous in `t`. */
+export function waveClip(t: number): RobotPose {
+  const k = C.wave;
+  const base = idleClip(t);
+  const w = (TAU * t) / k.periodMs;
+  return { ...base, head: base.head + k.head * Math.sin(w / 2), armN: limb(k.arm, 0.3, k.spread + k.swing * Math.sin(w)) };
+}
+
 // ---------- shoot ----------
 
 export interface ShootState {

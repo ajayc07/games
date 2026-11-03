@@ -7,7 +7,7 @@ import { PHYSICS } from './physics';
 import { FLY, FlightState, type FlightEnv, type FlyDir } from './flight';
 import { edgeLimit, nextFacing, rampSpeed, type FacingState } from './walk';
 import { RunHold, totalScale } from './runHold';
-import { AvatarDriver } from '../avatar/AvatarDriver';
+import { AvatarDriver, type AvatarSfx } from '../avatar/AvatarDriver';
 import type { Gait } from '../avatar/clips';
 import type { AvatarLook, MotionFxSink } from '../avatar/types';
 
@@ -56,6 +56,8 @@ export interface PlayerOptions {
   fx?: MotionFxSink;
   /** Hold to run (Task 021, D-064): holding an arrow breaks into a faster run. The real player on Left/Right levels only. */
   runOnHold?: boolean;
+  /** Footsteps and the landing thump (Task 019): the real player only. */
+  sfx?: AvatarSfx;
 }
 
 export class Player {
@@ -84,6 +86,10 @@ export class Player {
   private readonly runHold: RunHold | null;
   /** Picture raised above the body's feet (px): standing on the goal pad. */
   lift = 0;
+  /** Idle life (Task 019), set by the scene each frame: time since his last touch, whether it may happen now, and the auto-pause time. */
+  idleMs = 0;
+  calm = false;
+  sleepMs = Infinity;
 
   private readonly baseGait: Gait;
   private jumpUsed = false;
@@ -126,6 +132,8 @@ export class Player {
       gait: opts.gait,
       groundAt: opts.groundAt,
       fx: opts.fx,
+      sfx: opts.sfx,
+      tile: opts.tile,
     });
     this.lastGroundedAt = scene.time.now;
   }
@@ -326,6 +334,9 @@ export class Player {
       jumped: this.jumpUsed,
       ride: this.ride,
       facing: this.facing,
+      idleMs: this.idleMs,
+      calm: this.calm,
+      sleepMs: this.sleepMs,
     });
   }
 

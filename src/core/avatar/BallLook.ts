@@ -2,7 +2,8 @@
 // and looks where it is going. Numbers live in robotSpec.ts (BALL).
 import type Phaser from 'phaser';
 import { widthFor } from '../levels/animation';
-import { BLINK_MS, blinkOpen, eyeLook, nextBlinkAt, rollAngle, turnToward } from './clips';
+import { IDLE_WAVE } from './polish';
+import { BLINK_MS, approachWeight, blinkOpen, eyeLook, nextBlinkAt, rollAngle, turnToward } from './clips';
 import { resolveAvatar, type AvatarDef, type ResolvedAvatar } from './config';
 import { PART_RES, ballParts, partImage, type BallParts, type Part } from './parts';
 import { BALL } from './robotSpec';
@@ -35,6 +36,10 @@ export class BallLook implements AvatarLook {
   private blinkAt: number;
   private shootAt = NEVER;
   private winning = false;
+  /** Idle wave (Task 019): a few small bounces. */
+  private waving = false;
+  private waveAt = -1e9;
+  private waveW = 0;
   private muzzlePoint = { x: 0, y: 0 };
 
   constructor(scene: Phaser.Scene, avatar: AvatarDef | undefined, x: number, feet: number, size = 1) {
@@ -67,6 +72,10 @@ export class BallLook implements AvatarLook {
     if (event === 'shoot') this.shootAt = now;
     else if (event === 'win') this.winning = true;
     else if (event === 'rest') this.winning = false;
+    else if (event === 'wave') {
+      this.waving = true;
+      this.waveAt = now;
+    } else if (event === 'waveEnd') this.waving = false;
   }
 
   update(s: AvatarState): void {
@@ -113,7 +122,9 @@ export class BallLook implements AvatarLook {
     }
 
     const S = this.k;
-    this.root.setPosition(s.x, s.y - s.lift);
+    this.waveW = approachWeight(this.waveW, this.waving && s.grounded && !this.winning, s.dtMs, 200, 260);
+    const bounce = this.waveW > 0 ? IDLE_WAVE.ballBounce * this.waveW * Math.abs(Math.sin((Math.PI * (t - this.waveAt)) / 450)) : 0;
+    this.root.setPosition(s.x, s.y - s.lift - bounce);
     this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
     this.root.setRotation(0);
     this.muzzlePoint = { x: s.x + s.facing * R * 0.95 * S, y: s.y - s.lift + (-R + BALL.mouthY) * S };

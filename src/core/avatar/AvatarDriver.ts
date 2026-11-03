@@ -25,10 +25,24 @@ import {
   strideStretch,
   type Pulse,
 } from '../levels/animation';
+import { STEP } from '../audio/steps';
 import type { Gait } from './clips';
+import { IdleWave, landingThump } from './polish';
 import type { AvatarLook, AvatarState, MotionFxSink } from './types';
 
+/** Sounds the driver asks for (Task 019): the real player only. The scene decides when they may play (not in the car, flying or as Mega Robo). */
+export interface AvatarSfx {
+  /** A footstep: `running` for the lighter, quicker patter. */
+  step(running: boolean): void;
+  /** A soft landing thump at world x. */
+  thump(x: number): void;
+}
+
 export interface DriverOptions {
+  /** Footsteps and the landing thump (the real player only). */
+  sfx?: AvatarSfx;
+  /** Tile size (px), for the landing thump's height rule. */
+  tile?: number;
   look: AvatarLook;
   x: number;
   feet: number;
@@ -62,6 +76,11 @@ export interface DriveInput {
   /** Cloud ride point, or null. */
   ride: { x: number; y: number } | null;
   facing: 1 | -1;
+  /** Time since his last touch (ms), and whether the scene lets idle life happen now (the real player in play, not as a car or Mega). Default: no idle wave. */
+  idleMs?: number;
+  calm?: boolean;
+  /** The auto-pause time (ms; Infinity when off), so he does not wave right before it. */
+  sleepMs?: number;
 }
 
 /** Edge of the celebration bounce envelope (ms), so it fades in and out instead of popping. */
@@ -95,11 +114,20 @@ export class AvatarDriver {
   private alpha: number;
   private facing: 1 | -1 = 1;
   private lastBottom = 0;
+  private readonly sfx: AvatarSfx | undefined;
+  private readonly tile: number;
+  private lastStepAt = -1e9;
+  /** The highest point (smallest y of the feet) of this stay in the air, and whether he flew (no thump after a flight). */
+  private airTop = Infinity;
+  private airFlown = false;
+  private readonly wave = new IdleWave();
 
   constructor(scene: Phaser.Scene, opts: DriverOptions) {
     this.look = opts.look;
     this.groundAt = opts.groundAt;
     this.fx = opts.fx;
+    this.sfx = opts.sfx;
+    this.tile = opts.tile ?? 64;
     this.refSpeed = opts.refSpeed;
     this.gait = opts.gait;
     this.alpha = opts.alpha ?? 1;
@@ -124,6 +152,10 @@ export class AvatarDriver {
 
   land(now: number, x: number, feet: number): void {
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.landing);
+    // The soft thump after a drop of at least a tile (a jump peak is 2.5 tiles), never after a flight.
+    if (this.sfx && !this.airFlown && Number.isFinite(this.airTop) && landingThump(feet - this.airTop, this.tile)) this.sfx.thump(x);
+    this.airTop = Infinity;
+    this.airFlown = false;
     if (this.fx) {
       this.fx.landing(x, feet);
       this.fxCount.landing++;
@@ -148,6 +180,12 @@ export class AvatarDriver {
     this.pulse = kickPulse(this.pulse, now, ANIM.pulse.placed);
     this.lastX = x;
     this.stridePhase = 0;
+    this.airTop = Infinity;
+    this.airFlown = false;
+    if (this.wave.active) {
+      this.wave.reset();
+      this.look.trigger('waveEnd', now);
+    }
   }
 
   shoot(now: number): void {
@@ -239,6 +277,25 @@ export class AvatarDriver {
 
     this.updateShadow(x, y - lift, input.bottom, riding);
     if (running && this.fx) this.emitDust(time, before, x, input.bottom);
+
+    // Footsteps (Task 019): one tap per footfall while he walks or runs on the ground, never while flying.
+    if (running && this.sfx && !this.flying && crossedFootfall(before, this.stridePhase) && time - this.lastStepAt >= STEP.minGapMs) {
+      this.lastStepAt = time;
+      this.sfx.step(this.gait === 'run');
+    }
+    // The highest point of this stay in the air (for the landing thump).
+    if (grounded) {
+      this.airTop = Infinity;
+      this.airFlown = false;
+    } else if (!riding) {
+      this.airTop = Math.min(this.airTop, input.bottom);
+      if (this.flying) this.airFlown = true;
+    }
+    // The idle wave (Task 019): standing free and untouched for a while.
+    const free = !!input.calm && grounded && input.enabled && speed < 5 && !(time < this.celebrateUntil) && !this.flying && this.visible;
+    const ev = this.wave.update(dtMs, input.idleMs ?? 0, free, input.sleepMs ?? Infinity);
+    if (ev === 'start') this.look.trigger('wave', time);
+    else if (ev === 'end') this.look.trigger('waveEnd', time);
   }
 
   private updateShadow(x: number, feetY: number, bottom: number, riding: boolean): void {

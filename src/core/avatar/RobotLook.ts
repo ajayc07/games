@@ -21,6 +21,7 @@ import {
   shootClip,
   springStep,
   viewOf,
+  waveClip,
   winClip,
   withShot,
   yawStep,
@@ -88,6 +89,10 @@ export class RobotLook implements AvatarLook {
   private airW = 0;
   private winW = 0;
   private winning = false;
+  /** Idle wave (Task 019). */
+  private waving = false;
+  private waveAt = NEVER;
+  private waveW = 0;
   private jumpAt = NEVER;
   private landAt = NEVER;
   private shootAt = NEVER;
@@ -163,6 +168,10 @@ export class RobotLook implements AvatarLook {
       this.winning = true;
       this.winAt = now;
     } else if (event === 'rest') this.winning = false; // the win pose blends back out
+    else if (event === 'wave') {
+      this.waving = true;
+      this.waveAt = now;
+    } else if (event === 'waveEnd') this.waving = false;
   }
 
   update(s: AvatarState): void {
@@ -172,6 +181,7 @@ export class RobotLook implements AvatarLook {
     this.facing = s.facing;
     this.airW = approachWeight(this.airW, !s.grounded && !s.riding, dt, C.blend.airIn, C.blend.airOut);
     this.winW = approachWeight(this.winW, this.winning && s.grounded, dt, C.blend.winIn, C.blend.winIn);
+    this.waveW = approachWeight(this.waveW, this.waving && s.grounded && !this.winning, dt, C.wave.inMs, C.wave.outMs);
     const shot = shootClip(t - this.shootAt);
 
     // ---- yaw: head leads, body follows, both sweep through front-on ----
@@ -201,6 +211,7 @@ export class RobotLook implements AvatarLook {
     if (this.airW > 0) pose = blendPose(pose, airClip(t - this.jumpAt, s.vy, t), this.airW);
     const lw = landWeight(t - this.landAt);
     if (lw > 0 && s.grounded) pose = blendPose(pose, LAND_POSE, lw);
+    if (this.waveW > 0) pose = blendPose(pose, waveClip(t - this.waveAt), this.waveW);
     if (this.winW > 0) pose = blendPose(pose, winClip(t - this.winAt), this.winW);
     pose = withShot(pose, shot);
     this.lastPose = pose;

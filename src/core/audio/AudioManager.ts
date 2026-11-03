@@ -1,6 +1,7 @@
 // One audio path for the whole app: Web Audio, unlocked on the first user gesture.
 // Sounds come from files when available, otherwise from generated placeholder recipes.
 import { COMBO_STEPS, comboRecipe, comboSoundId, DEFAULT_RECIPES, POP_STEPS, popRecipe, popSoundId, recipeDuration, type SynthRecipe } from './recipes';
+import { LAND_THUMP, LAND_THUMP_ID, stepRecipe, stepSoundId, stepVariants, type StepKind } from './steps';
 import { DEFAULT_LIMITS, VoiceLimiter } from './voiceLimiter';
 import { PendingQueue } from './pendingQueue';
 
@@ -41,6 +42,9 @@ export class AudioManager {
     for (const [id, synth] of Object.entries(DEFAULT_RECIPES)) this.register(id, { synth });
     POP_STEPS.forEach((_, i) => this.register(popSoundId(i), { synth: popRecipe(i) }));
     COMBO_STEPS.forEach((_, i) => this.register(comboSoundId(i), { synth: comboRecipe(i) }));
+    // Footsteps (several pitches per kind) and the landing thump (Task 019).
+    for (const kind of ['walk', 'run'] as StepKind[]) for (let i = 0; i < stepVariants(kind); i++) this.register(stepSoundId(kind, i), { synth: stepRecipe(kind, i) });
+    this.register(LAND_THUMP_ID, { synth: LAND_THUMP });
   }
 
   get state(): AudioState {

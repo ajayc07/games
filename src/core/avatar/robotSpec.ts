@@ -95,6 +95,8 @@ export const ROBOT_CLIPS = {
   /** Land: crouch overlay, in quickly then out (ms). */
   land: { inMs: 40, outMs: 200 },
   win: { periodMs: 450, spread: 0.6, wave: 0.18, bob: 3, head: 0.12 },
+  /** Idle wave (Task 019): one arm up, waving from side to side; blend in and out (ms). */
+  wave: { periodMs: 450, arm: 2.7, spread: 0.55, swing: 0.4, head: 0.07, inMs: 200, outMs: 260 },
   /** Shoot: arm forward, recoil kick, cannon visible for cannonMs, muzzle flash for flashMs. */
   shoot: { inMs: 60, holdMs: 300, outMs: 120, recoil: 0.3, recoilMs: 130, cannonMs: 380, flashMs: 100 },
   /** Blend times (ms): into the air pose / back to the ground pose, into the win pose. */
