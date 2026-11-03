@@ -18,6 +18,8 @@ import { CAR, CarTimer, carAlpha, touchesPickup } from './car';
 import { CarSprite } from './CarSprite';
 import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS, FLASH_GHOST_KEY } from './placeholders';
 import { BOOTS, FLASH, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
+import { BugField } from './BugField';
+import { BugBump, bugTouches, bugsFromSearch } from './bugs';
 import { dropsForMega, dropsForPickup, orbTakeable, powerFromSearch, type ActivePower } from './powerRules';
 import { FLY, flyDirection, plainGround } from './flight';
 import { PowerBars, type BarEntry } from './PowerBars';
@@ -59,7 +61,7 @@ export interface LevelSceneData {
   /** Called at the goal, before the win screen, so progress is kept even if the child quits right away. */
   onResult?: (result: { stars: number; coins: number }) => void;
   /** A sticker is earned (Task 031): called when the coin bar fills (`mega`) and at a finish (`finish`, after onResult) with the stars; returns the sticker id to show, or null for none. */
-  onSticker?: (reason: 'mega' | 'finish', stars: number) => string | null;
+  onSticker?: (reason: 'mega' | 'finish' | 'bug', stars: number) => string | null;
   /** How the player is drawn; default `?look=` / robot. */
   look?: LookName;
   /** Reopen the avatar picker (small icon on the win screen) until the map has its own button. */
@@ -219,6 +221,8 @@ export class LevelScene extends Phaser.Scene {
     this.magnetTimer.stop();
     this.bootsTimer.stop();
     this.megaTimer.stop();
+    this.bugs = null;
+    this.bugBump.reset();
     this.flashTimer.stop();
     this.flashOn = false;
     this.flashGhosts = [];
@@ -279,9 +283,10 @@ export class LevelScene extends Phaser.Scene {
     this.buildNight();
     this.buildPickups();
     this.bubbles = this.makeBubbleField();
+    this.bugs = this.makeBugField();
     if (this.level.controls.enabled.includes('power')) this.blaster = this.makeBlaster();
     this.buildHud();
-    this.plan = megaPlan({ zen: !!this.level.zen, practice: !!this.data0.practice, buttons: this.level.controls.enabled, hasPickups: this.grid.pickups.length > 0, totalCoins: this.coins.length + this.bubbles.totalCoins });
+    this.plan = megaPlan({ zen: !!this.level.zen, practice: !!this.data0.practice, buttons: this.level.controls.enabled, hasPickups: this.grid.pickups.length > 0, totalCoins: this.coins.length + this.bubbles.totalCoins + (this.bugs?.totalCoins ?? 0) });
     this.coinBar = new CoinBar(this, DEPTH.hud);
     // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
     this.exitBtn = new HoldButton(this, () => this.afterStep(this.data0.onHome), DEPTH.exit);
@@ -331,6 +336,7 @@ export class LevelScene extends Phaser.Scene {
     this.player.updateAvatar(time, dt);
     this.updateCar(time);
     this.updatePowers(time);
+    this.updateBugs(time);
     this.ghost?.updateAvatar(time, dt);
     this.updateShots(time, dt * 1000);
     this.updatePractice(time);
@@ -530,6 +536,24 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
+  /** The Bolt Bugs of the level (Task 035, D-079): not in zen or Practice, and `?bugs=0` hides them. */
+  private makeBugField(): BugField | null {
+    if (this.grid.bugs.length === 0 || this.level.zen || this.data0.practice || !bugsFromSearch(location.search)) return null;
+    return new BugField(this, {
+      cells: this.grid.bugs,
+      tile: this.tile,
+      gridTop: this.gridTop,
+      depth: DEPTH.bubbles,
+      sparkle: this.sparkle,
+      spawnCoins: (now, x, y, n) => this.bubbles.spawnCoins(now, x, y, n, true),
+      onBeaten: () => {
+        // The first Bolt Bug he ever beats earns a sticker (the universe checks that it is the first).
+        const sticker = this.data0.onSticker?.('bug', 0);
+        if (sticker) this.time.delayedCall(900, () => showStickerPop(this, sticker, DEPTH.hud + 5, this.layout.width / 2, this.layout.height * 0.36));
+      },
+    });
+  }
+
   private makeBubbleField(): BubbleField {
     return new BubbleField(this, {
       cells: this.grid.bubbles,
@@ -637,6 +661,26 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /** Soft walls from big bubbles for an actor this frame (Task 007). */
+  private bugs: BugField | null = null;
+  private bugBump = new BugBump();
+
+  /**
+   * Every frame: the bugs trundle. In play, a touch beats a bug at once when he is Mega Robo, a car or Flash; otherwise it only
+   * bumps him gently back (never when he flies, never during the grace time after a bump).
+   */
+  private updateBugs(now: number): void {
+    if (!this.bugs) return;
+    this.bugs.update(now);
+    if (this.mode !== 'play') return;
+    const b = this.player.body;
+    const quick = this.megaOn || this.carOn() || this.flashOn;
+    for (const bug of this.bugs.alive()) {
+      if (!bugTouches(b, bug.x, bug.y, bug.r, bug.scale)) continue;
+      if (quick) this.bugs.popByTouch(bug.index, now);
+      else if (!this.player.flying && this.bugBump.touch(now, b.center.x, bug.x, this.player.facing)) this.bugs.bumped(bug.index, now);
+    }
+  }
+
   private bubbleWalls(p: Player): { minX: number; maxX: number } {
     const b = p.body;
     return this.bubbles.walls({ x: b.center.x, top: b.top, bottom: b.bottom, halfWidth: PHYSICS.body.width / 2 });
@@ -1338,7 +1382,9 @@ export class LevelScene extends Phaser.Scene {
     const pressed = input.justPressed('jump');
     // Flying (Task 028): Left (or the Jump key) is up, Right is down; nothing else steers him.
     const fly = this.player.flying ? flyDirection(input.isDown('left') || input.isDown('jump'), input.isDown('right')) : undefined;
-    const r = this.player.step(now, { move: fly === undefined ? move : 0, jumpPressed: pressed && fly === undefined, fly, walls: fly === undefined && !this.megaOn ? this.bubbleWalls(this.player) : undefined }, dtMs);
+    // A bump from a Bolt Bug (Task 035) walks him gently away for a moment; his facing stays.
+    const bump = this.bugs && fly === undefined ? this.bugBump.move(now) : 0;
+    const r = this.player.step(now, { move: fly === undefined ? (bump !== 0 ? bump : move) : 0, noTurn: bump !== 0, jumpPressed: pressed && fly === undefined, fly, walls: fly === undefined && !this.megaOn ? this.bubbleWalls(this.player) : undefined }, dtMs);
     if (r.jumped) this.onJump();
 
     this.pullCoins(now, dtMs);
@@ -1423,7 +1469,9 @@ export class LevelScene extends Phaser.Scene {
         this.mode === 'play' ? { pressed: this.input2.justPressed('power'), held: this.input2.isDown('power') } : { pressed: false, held: false };
       this.blaster.update(now, dtMs, input, this.shooterOf(this.player));
       if (this.mode === 'play' || this.mode === 'respawn') {
-        for (const s of this.blaster.flying()) if (this.bubbles.tryHit(s.x, s.y, SHOT.radius, now, true) >= 0) this.blaster.hit(s);
+        for (const s of this.blaster.flying()) {
+          if (this.bubbles.tryHit(s.x, s.y, SHOT.radius, now, true) >= 0 || (this.bugs?.tryShot(s.x, s.y, SHOT.radius, now) ?? -1) >= 0) this.blaster.hit(s);
+        }
       }
     }
     if (this.ghostBlaster && this.ghost) {
@@ -1791,7 +1839,8 @@ export class LevelScene extends Phaser.Scene {
         bottom: this.player.body.bottom,
         grounded: this.player.grounded,
         coins: this.coinCount,
-        totalCoins: this.coins.length + this.bubbles.totalCoins,
+        totalCoins: this.coins.length + this.bubbles.totalCoins + (this.bugs?.totalCoins ?? 0),
+        bugs: this.bugs?.state(),
         gridCoins: this.coins.length,
         shots: this.blaster && {
           inFlight: this.blaster.cannon.inFlight,

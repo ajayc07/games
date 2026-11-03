@@ -23,6 +23,9 @@ import car1 from './car-1.json';
 import magnet1 from './magnet-1.json';
 import boots1 from './boots-1.json';
 import flash1 from './flash-1.json';
+import bug1 from './bug-1.json';
+import { BUG, bugErrors } from '../../../core/levels/bugs';
+import { runBot } from '../../../core/levels/testBot';
 import { FLASH, MAGNET, bootsPeak, normalPeak } from '../../../core/levels/powerups';
 import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
@@ -362,15 +365,16 @@ describe('Robo World level files', () => {
     expect(end).toBeLessThanOrEqual(10500);
   });
 
-  it('the grass world lists grass-1..7, night-1, car-1, magnet-1, boots-1 and flash-1: Next goes on in that order and is hidden on flash-1', () => {
-    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1', 'magnet-1', 'boots-1', 'flash-1']);
+  it('the grass world lists grass-1..7, night-1, car-1, magnet-1, boots-1, flash-1 and bug-1: Next goes on in that order and is hidden on bug-1', () => {
+    expect(worlds.find((w) => w.id === 'grass')?.levels).toEqual(['grass-1', 'grass-2', 'grass-3', 'grass-4', 'grass-5', 'grass-6', 'grass-7', 'night-1', 'car-1', 'magnet-1', 'boots-1', 'flash-1', 'bug-1']);
     for (let i = 1; i < 7; i++) expect(nextLevelId(worlds, `grass-${i}`)).toBe(`grass-${i + 1}`);
     expect(nextLevelId(worlds, 'grass-7')).toBe('night-1');
     expect(nextLevelId(worlds, 'night-1')).toBe('car-1');
     expect(nextLevelId(worlds, 'car-1')).toBe('magnet-1');
     expect(nextLevelId(worlds, 'magnet-1')).toBe('boots-1');
     expect(nextLevelId(worlds, 'boots-1')).toBe('flash-1');
-    expect(nextLevelId(worlds, 'flash-1')).toBeNull();
+    expect(nextLevelId(worlds, 'flash-1')).toBe('bug-1');
+    expect(nextLevelId(worlds, 'bug-1')).toBeNull();
   });
 
   it('night-1 "Night Walk" (Task 016, D-060): night world, walking, all four buttons, gaps of 1-2 tiles, small bubbles and arcs', () => {
@@ -589,6 +593,48 @@ describe('Robo World level files', () => {
     expect(level.stars.two).toBeLessThan(level.stars.three);
     expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
     expect(level.stars.two).toBeGreaterThanOrEqual(Math.round(total * 0.4));
+  });
+
+  it('bug-1 "Bolt Bug" (Task 035, D-079): all four buttons, two bugs far apart on flat clear ground, a Flash orb before the first, small bubbles and coins, no demo', () => {
+    const level = parseLevelOrThrow(bug1, 'bug-1');
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump', 'power']);
+    expect(level.controls.demo).toBe(false);
+    expect(level.variety).toBe(false);
+    expect(bugErrors(level.grid)).toEqual([]);
+    const e = extractEntities(level.grid);
+    expect(e.bugs.length).toBe(2);
+    expect(e.pickups.map((p) => p.kind)).toEqual(['flash']);
+    const orb = e.pickups[0];
+    expect(orb.col).toBeLessThan(e.bugs[0].col - 8); // taken before the first bug, and Flash (about 58 tiles) lasts to the second
+    expect(e.bugs[1].col - orb.col).toBeLessThan(58);
+    for (const b of e.bugs) {
+      expect(b.row).toBe(e.start.row);
+      expect(Math.abs(b.col - e.start.col)).toBeGreaterThanOrEqual(5);
+      expect(Math.abs(b.col - e.goal.col)).toBeGreaterThanOrEqual(5);
+      // No coin in the patrol, and none in the three rows above it.
+      for (const c of e.coins) if (Math.abs(c.col - b.col) <= 2) expect(c.row, `coin ${c.col}:${c.row} in the patrol of ${b.col}`).toBeLessThan(b.row - 2);
+    }
+    // Gaps (1-2 tiles) only far from the bugs, ground rules as in Grass 5 (7+ tiles between).
+    const gaps = gapsOf(e);
+    expect(gaps.length).toBeGreaterThanOrEqual(1);
+    for (let i = 1; i < gaps.length; i++) expect(gaps[i][0] - gaps[i - 1][gaps[i - 1].length - 1] - 1).toBeGreaterThanOrEqual(7);
+    for (const g of gaps) {
+      expect(g.length).toBeLessThanOrEqual(2);
+      for (const b of e.bugs) expect(Math.min(Math.abs(g[0] - b.col), Math.abs(g[g.length - 1] - b.col))).toBeGreaterThanOrEqual(6);
+      expect(e.coins.some((c) => c.col >= g[0] && c.col <= g[g.length - 1] && c.row < e.start.row)).toBe(true);
+      expect(Math.abs(e.goal.col - g[g.length - 1])).toBeGreaterThanOrEqual(7);
+    }
+    expect(e.bubbles.length).toBeGreaterThanOrEqual(5);
+    for (const b of e.bubbles) expect(b.kind).toBe('small');
+    // Totals include the bugs (5 coins each); two stars never need a bug, three can be had without them too, and ignoring bubbles gives one star.
+    const total = e.coins.length + 3 * e.bubbles.length + BUG.coins * e.bugs.length;
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
+    expect(e.coins.length + 3 * e.bubbles.length).toBeGreaterThanOrEqual(level.stars.three);
+    expect(e.coins.length).toBeLessThan(level.stars.two);
+    // A scripted bot that ignores the bugs (they never block) still finishes the level.
+    const r = runBot(e, { jumpForCoins: true });
+    expect(r.finished).toBe(true);
   });
 
   it('every level after the third is under a cloud on a fresh start (openAtATime 3); each clear opens the next one', () => {

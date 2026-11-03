@@ -34,6 +34,8 @@ export interface GridEntities {
   pads: Cell[];
   /** Power-up pickups (Task 017-018): car `P`, magnet `M`, rocket boots `J`, flash `L`. */
   pickups: Array<Cell & { kind: PickupKind }>;
+  /** Bolt Bugs (`g`, Task 035): the middle of each patrol, on the ground row. Not solid. */
+  bugs: Cell[];
 }
 
 /** Splits a validated grid into what the scene needs. Assumes parseLevel() accepted it. */
@@ -46,6 +48,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const blocks: Cell[] = [];
   const pads: Cell[] = [];
   const pickups: Array<Cell & { kind: PickupKind }> = [];
+  const bugs: Cell[] = [];
   const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
   let goal: Cell = { col: 0, row: 0 };
@@ -57,6 +60,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       if (ch === 'B') blocks.push({ col, row });
       else if (ch === '^') pads.push({ col, row });
       else if (ch in PICKUP_CHARS) pickups.push({ col, row, kind: PICKUP_CHARS[ch as keyof typeof PICKUP_CHARS] });
+      if (ch === 'g') bugs.push({ col, row });
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });
@@ -71,7 +75,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
     }
     solid.push(line);
   }
-  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads, pickups };
+  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads, pickups, bugs };
 }
 
 /**

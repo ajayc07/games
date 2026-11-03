@@ -5,7 +5,7 @@ import { MemoryBackend, type KVBackend } from './backends';
 
 describe('progress record', () => {
   it('a fresh record has the D-036 shape', () => {
-    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null });
+    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null, bugBeaten: false });
   });
 
   it('keeps the best stars and coins, never lowers them', () => {

@@ -23,6 +23,8 @@ export interface PlayerIntent {
   fly?: FlyDir;
   /** Extra soft walls this frame (a big bubble, Task 007), on top of the level ends. Same soft stop. */
   walls?: { minX: number; maxX: number };
+  /** A bump (Task 035): `move` is forced away from a bug, so his facing stays as it was. */
+  noTurn?: boolean;
 }
 
 export interface StepResult {
@@ -168,7 +170,7 @@ export class Player {
     const maxX = Math.min(this.maxX, intent.walls?.maxX ?? Infinity);
     body.setVelocityX(edgeLimit(body.center.x, this.walkV, minX, maxX));
     // Facing follows the pressed direction at once, at most one change per FACING_HOLD_MS (no flicker).
-    const f = nextFacing({ facing: this.facing, changedAt: this.facingChangedAt } satisfies FacingState, intent.move, now);
+    const f = intent.noTurn ? { facing: this.facing, changedAt: this.facingChangedAt } : nextFacing({ facing: this.facing, changedAt: this.facingChangedAt } satisfies FacingState, intent.move, now);
     this.facing = f.facing;
     this.facingChangedAt = f.changedAt;
 

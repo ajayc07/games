@@ -230,7 +230,13 @@ export class BubbleField {
     this.opts.sparkle.explode(v.spec.kind === 'big' ? 22 : rainbow ? 30 : 12, v.x, v.y);
     if (rainbow) this.rainbowRings(v);
     // The coins appear in a little arc above the bubble.
-    for (const c of this.flow.pop(now, v.x, v.y - v.spec.r * 0.3, v.spec.coins, counted, rainbow)) {
+    this.spawnCoins(now, v.x, v.y - v.spec.r * 0.3, v.spec.coins, counted, rainbow);
+  }
+
+  /** Coins appear in an arc at (x, y), wait a moment and fly to the player (a popped bubble, or a beaten Bolt Bug, Task 035). */
+  spawnCoins(now: number, x: number, y: number, n: number, counted = true, rainbow = false): void {
+    const s = this.scene;
+    for (const c of this.flow.pop(now, x, y, n, counted, rainbow)) {
       const img = s.add.image(c.x, c.y, rainbow ? rainbowCoinTexture(s) : this.opts.coinTexture).setDisplaySize(4, 4).setDepth(this.opts.depth.coins);
       const size = rainbow ? RAINBOW_COIN_SIZE : COIN_SIZE;
       s.tweens.add({ targets: img, displayWidth: size, displayHeight: size, duration: 220, ease: 'Back.easeOut' });

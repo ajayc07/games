@@ -107,6 +107,14 @@ export class ProgressStore {
     return true;
   }
 
+  /** Notes that he has beaten a Bolt Bug (Task 035) and saves. Returns true the first time ever, false after that. */
+  markBugBeaten(): boolean {
+    if (this.current.bugBeaten) return false;
+    this.current = { ...this.current, bugBeaten: true };
+    this.scheduleSave();
+    return true;
+  }
+
   /** Adds zen time played (ms) to today's total and saves. */
   addZenTime(ms: number, today: string = todayKey()): void {
     if (ms <= 0) return;

@@ -341,6 +341,41 @@ export function makePowerOrbTextures(scene: Phaser.Scene): void {
   }
 }
 
+/** The Bolt Bug (Task 035): a round purple-grey gadget, two big round eyes (cute-grumpy brows), a tiny bolt antenna. 72 x 80, feet at the bottom. */
+export const BUG_KEYS = { body: 'bolt-bug', leg: 'bolt-bug-leg' } as const;
+
+export function makeBugTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists(BUG_KEYS.body)) {
+    generate(scene, BUG_KEYS.body, 72, 80, (g) => {
+      // The antenna: a short stalk and a yellow bolt on top.
+      g.lineStyle(4, 0x4a3a66, 1).lineBetween(36, 22, 36, 12);
+      const bolt = [[38, 0], [29, 11], [35, 11], [32, 20], [43, 8], [37, 8], [41, 0]];
+      g.fillStyle(0xfdd835, 1).fillPoints(bolt.map(([x, y]) => new Phaser.Geom.Point(x, y)), true);
+      g.lineStyle(2, 0x4a3a66, 1).strokePoints(bolt.map(([x, y]) => new Phaser.Geom.Point(x, y)), true, true);
+      // The body: a round shell with a lighter belly.
+      g.fillStyle(0x4a3a66, 1).fillCircle(36, 50, 29);
+      g.fillStyle(0x7e6b9e, 1).fillCircle(36, 50, 26);
+      g.fillStyle(0xb9a9d6, 1).fillEllipse(36, 58, 36, 22);
+      g.fillStyle(0xffffff, 0.35).fillEllipse(24, 36, 14, 8);
+      // Two big round eyes with small dark pupils, and short slanted brows (cute-grumpy, never scary).
+      for (const x of [26, 46]) {
+        g.fillStyle(0xffffff, 1).fillCircle(x, 47, 10.5);
+        g.lineStyle(2.5, 0x4a3a66, 1).strokeCircle(x, 47, 10.5);
+        g.fillStyle(0x263238, 1).fillCircle(x + (x < 36 ? 1.5 : -1.5), 49, 5);
+        g.fillStyle(0xffffff, 1).fillCircle(x + (x < 36 ? 3 : 0), 47, 1.8);
+      }
+      g.lineStyle(3.5, 0x4a3a66, 1).lineBetween(17, 33, 31, 37).lineBetween(55, 33, 41, 37);
+      // A tiny flat mouth.
+      g.lineStyle(2.5, 0x4a3a66, 1).lineBetween(31, 64, 41, 64);
+    });
+  }
+  if (!scene.textures.exists(BUG_KEYS.leg)) {
+    generate(scene, BUG_KEYS.leg, 16, 12, (g) => {
+      g.fillStyle(0x4a3a66, 1).fillRoundedRect(1, 1, 14, 10, 5);
+    });
+  }
+}
+
 function generate(
   scene: Phaser.Scene,
   key: string,

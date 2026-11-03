@@ -76,6 +76,16 @@ export const DEFAULT_RECIPES = {
   },
   // A low soft engine puff, played every so often while the rocket boots fly (Task 028).
   flyHum: { tones: [{ freq: 85, to: 120, dur: 0.34, type: 'triangle', gain: 0.35 }, { freq: 170, to: 200, dur: 0.3, type: 'sine', gain: 0.1 }] },
+  // Bolt Bug (Task 035): a tiny cartoon "hee" when he bumps it, and a happy pop (higher than a bubble pop) when it is beaten.
+  bugHee: { tones: [{ freq: 1250, to: 1700, dur: 0.07, type: 'sine', gain: 0.4 }, { freq: 1500, to: 2000, at: 0.08, dur: 0.07, type: 'sine', gain: 0.35 }] },
+  bugPop: {
+    tones: [
+      { freq: 880, to: 1320, dur: 0.12, type: 'sine', gain: 0.7 },
+      { freq: 1175, to: 1760, at: 0.07, dur: 0.12, type: 'triangle', gain: 0.5 },
+      { freq: 1568, at: 0.15, dur: 0.1, type: 'sine', gain: 0.5 },
+      { freq: 2093, at: 0.22, dur: 0.2, type: 'sine', gain: 0.35 },
+    ],
+  },
   // Flash (Task 034): a quick bright zip when he takes the orb, and a quiet whoosh now and then while he runs fast.
   flashZip: {
     tones: [

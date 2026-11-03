@@ -1,6 +1,7 @@
 // Level format v1 (D-018): JSON with an ASCII grid and a legend. Pure, framework-free, unit-tested.
 import type { Action } from '../types';
 import { ALL_ACTIONS } from '../input/actionState';
+import { bugErrors } from './bugs';
 
 /** Legend for `grid`. New tile kinds (bricks, pipes, ...) get new entries here. */
 export const LEGEND = {
@@ -25,6 +26,8 @@ export const LEGEND = {
   J: 'rocket boots pickup',
   /** Flash pickup (Task 034): for 10 s he runs fast by himself while an arrow is held and pops small bubbles he runs into. Not solid. */
   L: 'flash pickup',
+  /** Bolt Bug (Task 035): a small harmless gadget patrolling the flat ground 2 tiles each side of this cell. Not solid. */
+  g: 'bolt bug',
   /** Step block (Task 015): a solid one-tile toy block, stacked at most 2 high; he jumps up onto it. */
   B: 'step block',
   /** Bounce pad (Task 015): a springy plate on the ground (not solid); stepping on it launches him high. */
@@ -188,6 +191,7 @@ export function parseLevel(raw: unknown, source = 'level'): ParseResult {
       }
     });
     for (const msg of bigBubbleErrors(rows)) err(msg);
+    for (const msg of bugErrors(rows)) err(msg);
     if (starts !== 1) err(`grid needs exactly one "S" (player start), found ${starts}`);
     if (flags !== 1) err(`grid needs exactly one "F" (goal), found ${flags}`);
     if (demo && !isScriptDemo(demo) && starts === 1) {
