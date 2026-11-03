@@ -97,6 +97,22 @@ export const ROBOT_CLIPS = {
   win: { periodMs: 450, spread: 0.6, wave: 0.18, bob: 3, head: 0.12 },
   /** Idle wave (Task 019): one arm up, waving from side to side; blend in and out (ms). */
   wave: { periodMs: 450, arm: 2.7, spread: 0.55, swing: 0.4, head: 0.07, inMs: 200, outMs: 260 },
+  /**
+   * Idle routine push-ups (Task 036): the whole body tips forward around the feet by `tiltTop` radians (arms straight) and
+   * `tiltBottom` (chest low); the toe is lifted so the boots stay on the ground; he turns side-on (`yaw`). Arms: the upper arm
+   * swings back `upperBack` and the elbow bends `elbow` at the bottom so the hands stay planted. Head lifted by `head`.
+   */
+  pushup: { tiltTop: 0.98, tiltBottom: 1.36, toeLift: 13, yaw: 0.95, upperBack: 1.15, elbow: 2.15, spread: 0.12, head: -0.6, inMs: 150, outMs: 220 },
+  /**
+   * Idle routine taunt (Task 036): turned three-quarter toward the player he beckons twice (`beckonMs` each, from
+   * `beckonStartMs`: the near arm out in front, the forearm curling), then faces front and shimmies (`shimmyMs` per cycle:
+   * body rocks `rock` radians, hips and arms swing) with a head tilt and a quick wink; the antennae wiggle.
+   */
+  taunt: {
+    yaw: 0.5, beckonStartMs: 100, beckonMs: 400, armA: 1.7, elbowMin: 0.2, elbowMax: 1.6, spread: 0.3,
+    shimmyMs: 300, rock: 0.07, bob: 2.5, legSwing: 0.1, armSwing: 0.25, tilt: 0.22, wiggle: 0.5,
+    winks: [[60, 320], [560, 760]], inMs: 150, outMs: 220,
+  },
   /** Shoot: arm forward, recoil kick, cannon visible for cannonMs, muzzle flash for flashMs. */
   shoot: { inMs: 60, holdMs: 300, outMs: 120, recoil: 0.3, recoilMs: 130, cannonMs: 380, flashMs: 100 },
   /** Blend times (ms): into the air pose / back to the ground pose, into the win pose. */

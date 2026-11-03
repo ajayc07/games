@@ -18,8 +18,10 @@ import {
   idleClip,
   landWeight,
   nextBlinkAt,
+  pushupClip,
   shootClip,
   springStep,
+  tauntClip,
   viewOf,
   waveClip,
   winClip,
@@ -32,6 +34,7 @@ import { resolveAvatar, type AvatarDef, type ResolvedAvatar } from './config';
 import { PART_RES, partImage, robotParts, type Part, type RobotParts } from './parts';
 import { solveRig, type Xf } from './robotRig';
 import { ROBOT, ROBOT_CLIPS } from './robotSpec';
+import type { IdleStage } from './polish';
 import type { AvatarEvent, AvatarLook, AvatarState, MotionWeights } from './types';
 
 type Img = Phaser.GameObjects.Image;
@@ -89,10 +92,14 @@ export class RobotLook implements AvatarLook {
   private airW = 0;
   private winW = 0;
   private winning = false;
-  /** Idle wave (Task 019). */
-  private waving = false;
+  /** Idle routine (Task 019 wave, Task 036 push-ups and taunt): the running stage, when each stage began, and each one's blend weight. */
+  private stage: IdleStage | null = null;
   private waveAt = NEVER;
+  private pushAt = NEVER;
+  private tauntAt = NEVER;
   private waveW = 0;
+  private pushW = 0;
+  private tauntW = 0;
   private jumpAt = NEVER;
   private landAt = NEVER;
   private shootAt = NEVER;
@@ -169,9 +176,15 @@ export class RobotLook implements AvatarLook {
       this.winAt = now;
     } else if (event === 'rest') this.winning = false; // the win pose blends back out
     else if (event === 'wave') {
-      this.waving = true;
+      this.stage = 'wave';
       this.waveAt = now;
-    } else if (event === 'waveEnd') this.waving = false;
+    } else if (event === 'pushups') {
+      this.stage = 'pushups';
+      this.pushAt = now;
+    } else if (event === 'taunt') {
+      this.stage = 'taunt';
+      this.tauntAt = now;
+    } else if (event === 'waveEnd') this.stage = null;
   }
 
   update(s: AvatarState): void {
@@ -181,7 +194,12 @@ export class RobotLook implements AvatarLook {
     this.facing = s.facing;
     this.airW = approachWeight(this.airW, !s.grounded && !s.riding, dt, C.blend.airIn, C.blend.airOut);
     this.winW = approachWeight(this.winW, this.winning && s.grounded, dt, C.blend.winIn, C.blend.winIn);
-    this.waveW = approachWeight(this.waveW, this.waving && s.grounded && !this.winning, dt, C.wave.inMs, C.wave.outMs);
+    const idleOk = s.grounded && !this.winning;
+    this.waveW = approachWeight(this.waveW, this.stage === 'wave' && idleOk, dt, C.wave.inMs, C.wave.outMs);
+    this.pushW = approachWeight(this.pushW, this.stage === 'pushups' && idleOk, dt, C.pushup.inMs, C.pushup.outMs);
+    this.tauntW = approachWeight(this.tauntW, this.stage === 'taunt' && idleOk, dt, C.taunt.inMs, C.taunt.outMs);
+    const push = this.pushW > 0 ? pushupClip(t - this.pushAt) : null;
+    const taunt = this.tauntW > 0 ? tauntClip(t - this.tauntAt) : null;
     const shot = shootClip(t - this.shootAt);
 
     // ---- yaw: head leads, body follows, both sweep through front-on ----
@@ -192,6 +210,7 @@ export class RobotLook implements AvatarLook {
       air: this.airW,
       shoot: shot.weight > 0 ? 1 : 0,
       win: this.winW,
+      stage: this.pushW >= this.tauntW ? { mag: C.pushup.yaw, w: this.pushW } : { mag: taunt?.yaw ?? 0, w: this.tauntW },
     });
     this.headYaw = yawStep(this.headYaw, target, dt, ROBOT.yaw.headSweepMs);
     this.bodyYaw = yawStep(this.bodyYaw, target, dt, ROBOT.yaw.bodySweepMs);
@@ -212,6 +231,8 @@ export class RobotLook implements AvatarLook {
     const lw = landWeight(t - this.landAt);
     if (lw > 0 && s.grounded) pose = blendPose(pose, LAND_POSE, lw);
     if (this.waveW > 0) pose = blendPose(pose, waveClip(t - this.waveAt), this.waveW);
+    if (push) pose = blendPose(pose, push.pose, this.pushW);
+    if (taunt) pose = blendPose(pose, taunt.pose, this.tauntW);
     if (this.winW > 0) pose = blendPose(pose, winClip(t - this.winAt), this.winW);
     pose = withShot(pose, shot);
     this.lastPose = pose;
@@ -229,6 +250,7 @@ export class RobotLook implements AvatarLook {
     this.lastSpeed = s.speed;
     let target2 = s.facing * (-accel * spring.push * 1000 - s.vy * spring.vyPush) + spring.sway * Math.sin((Math.PI * 2 * t) / 2100);
     if (this.winW > 0) target2 += this.winW * 0.5 * Math.sin((Math.PI * 2 * t) / 300);
+    if (taunt) target2 += this.tauntW * taunt.wiggle;
     target2 = Math.max(-spring.max, Math.min(spring.max, target2));
     this.antenna = springStep(this.antenna.angle, this.antenna.vel, target2, dt, spring.stiffness, spring.damping);
 
@@ -265,7 +287,7 @@ export class RobotLook implements AvatarLook {
     const eyePart = happy ? this.parts.eyeHappy : this.parts.eye;
     i.eyes.forEach((e, k) => {
       if (e.texture.key !== eyePart.key) e.setTexture(eyePart.key).setOrigin(eyePart.ox, eyePart.oy);
-      put(e, rig.eyes[k], open);
+      put(e, rig.eyes[k], k === 1 && taunt ? open * (1 - 0.88 * taunt.wink * this.tauntW) : open);
     });
     i.antennae.forEach((a, k) => put(a, rig.antennae[k]));
     i.flash.setVisible(shot.flash).setPosition(rig.tip.x, rig.tip.y);
@@ -280,9 +302,12 @@ export class RobotLook implements AvatarLook {
 
     // ---- root: feet position, size factor, squash/stretch, small lean ----
     const S = this.k;
-    this.root.setPosition(s.x, s.y - s.lift);
+    // Push-ups tip the whole body forward around the feet (only as far as he is turned side-on); the toe is lifted so the boots stay on the ground.
+    const tilt = push ? push.tilt * this.pushW * body.side * body.dir : 0;
+    const toeLift = push ? C.pushup.toeLift * Math.sin(Math.abs(tilt)) * S : 0;
+    this.root.setPosition(s.x, s.y - s.lift - toeLift);
     this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
-    this.root.setRotation(s.rotation);
+    this.root.setRotation(s.rotation + tilt + (taunt ? taunt.rock * this.tauntW : 0));
     this.muzzlePoint = { x: s.x + rig.tip.x * S, y: s.y - s.lift + rig.tip.y * S };
   }
 
@@ -325,6 +350,7 @@ export class RobotLook implements AvatarLook {
       visible: this.root.visible,
       objects: this.root.length,
       airW: this.airW,
+      idleStage: this.stage ?? 'none',
       winW: this.winW,
       happy: this.winW > 0.5,
       legN: p ? p.legN.a : 0,

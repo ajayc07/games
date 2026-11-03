@@ -2,7 +2,7 @@
 // and looks where it is going. Numbers live in robotSpec.ts (BALL).
 import type Phaser from 'phaser';
 import { widthFor } from '../levels/animation';
-import { IDLE_WAVE } from './polish';
+import { ballIdleMove, type IdleStage } from './polish';
 import { BLINK_MS, approachWeight, blinkOpen, eyeLook, nextBlinkAt, rollAngle, turnToward } from './clips';
 import { resolveAvatar, type AvatarDef, type ResolvedAvatar } from './config';
 import { PART_RES, ballParts, partImage, type BallParts, type Part } from './parts';
@@ -36,9 +36,10 @@ export class BallLook implements AvatarLook {
   private blinkAt: number;
   private shootAt = NEVER;
   private winning = false;
-  /** Idle wave (Task 019): a few small bounces. */
-  private waving = false;
-  private waveAt = -1e9;
+  /** Idle routine (Tasks 019, 036): the running stage and when it began, and the blend weight; `shown` stays while it fades out. */
+  private stage: IdleStage | null = null;
+  private shown: IdleStage = 'wave';
+  private stageAt = -1e9;
   private waveW = 0;
   private muzzlePoint = { x: 0, y: 0 };
 
@@ -72,10 +73,11 @@ export class BallLook implements AvatarLook {
     if (event === 'shoot') this.shootAt = now;
     else if (event === 'win') this.winning = true;
     else if (event === 'rest') this.winning = false;
-    else if (event === 'wave') {
-      this.waving = true;
-      this.waveAt = now;
-    } else if (event === 'waveEnd') this.waving = false;
+    else if (event === 'wave' || event === 'pushups' || event === 'taunt') {
+      this.stage = event === 'wave' ? 'wave' : event;
+      this.shown = this.stage;
+      this.stageAt = now;
+    } else if (event === 'waveEnd') this.stage = null;
   }
 
   update(s: AvatarState): void {
@@ -85,7 +87,11 @@ export class BallLook implements AvatarLook {
     const dx = s.x - this.lastX;
     this.lastX = s.x;
     if (!s.riding && Math.abs(dx) <= MAX_ROLL_DX) this.roll += dx;
-    this.body.setPosition(0, -R).setRotation(rollAngle(this.roll, R * this.k));
+    // The idle routine's small moves (blended in and out like the robot's): a rock rolls the ball a little, no real movement.
+    this.waveW = approachWeight(this.waveW, this.stage !== null && s.grounded && !this.winning, s.dtMs, 200, 260);
+    const mv = this.waveW > 0 ? ballIdleMove(this.shown, t - this.stageAt) : { dx: 0, lift: 0, squash: 0 };
+    const w = this.waveW;
+    this.body.setPosition(0, -R).setRotation(rollAngle(this.roll + mv.dx * w, R * this.k));
     this.shade.setPosition(0, -R);
 
     // The face stays upright and slides toward where the ball is heading.
@@ -122,10 +128,9 @@ export class BallLook implements AvatarLook {
     }
 
     const S = this.k;
-    this.waveW = approachWeight(this.waveW, this.waving && s.grounded && !this.winning, s.dtMs, 200, 260);
-    const bounce = this.waveW > 0 ? IDLE_WAVE.ballBounce * this.waveW * Math.abs(Math.sin((Math.PI * (t - this.waveAt)) / 450)) : 0;
-    this.root.setPosition(s.x, s.y - s.lift - bounce);
-    this.root.setScale(S * widthFor(s.stretch), S * (1 + s.stretch));
+    const sq = mv.squash * w;
+    this.root.setPosition(s.x + mv.dx * w, s.y - s.lift - mv.lift * w);
+    this.root.setScale(S * widthFor(s.stretch) * (1 - 0.5 * sq), S * (1 + s.stretch) * (1 + sq));
     this.root.setRotation(0);
     this.muzzlePoint = { x: s.x + s.facing * R * 0.95 * S, y: s.y - s.lift + (-R + BALL.mouthY) * S };
   }
@@ -165,6 +170,7 @@ export class BallLook implements AvatarLook {
       visible: this.root.visible,
       objects: this.root.length,
       lookX: this.look,
+      idleStage: this.stage ?? 'none',
       happy: this.winning,
       eyeOpen: this.sclera[0].scaleY * PART_RES,
     };

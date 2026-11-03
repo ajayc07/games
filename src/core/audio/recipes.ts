@@ -76,6 +76,9 @@ export const DEFAULT_RECIPES = {
   },
   // A low soft engine puff, played every so often while the rocket boots fly (Task 028).
   flyHum: { tones: [{ freq: 85, to: 120, dur: 0.34, type: 'triangle', gain: 0.35 }, { freq: 170, to: 200, dur: 0.3, type: 'sine', gain: 0.1 }] },
+  // Idle routine (Task 036): a soft tap per push-up and a small cheeky two-note "hee-hee" for the taunt. Both quiet.
+  pushupTap: { tones: [{ freq: 150, to: 90, dur: 0.07, type: 'sine', gain: 0.25 }, { freq: 600, to: 380, dur: 0.015, type: 'triangle', gain: 0.07 }] },
+  tauntHee: { tones: [{ freq: 880, to: 1000, dur: 0.07, type: 'sine', gain: 0.22 }, { freq: 1050, to: 1180, at: 0.1, dur: 0.08, type: 'sine', gain: 0.2 }] },
   // Bolt Bug (Task 035): a tiny cartoon "hee" when he bumps it, and a happy pop (higher than a bubble pop) when it is beaten.
   bugHee: { tones: [{ freq: 1250, to: 1700, dur: 0.07, type: 'sine', gain: 0.4 }, { freq: 1500, to: 2000, at: 0.08, dur: 0.07, type: 'sine', gain: 0.35 }] },
   bugPop: {

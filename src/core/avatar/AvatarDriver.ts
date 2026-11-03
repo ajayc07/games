@@ -27,7 +27,7 @@ import {
 } from '../levels/animation';
 import { STEP } from '../audio/steps';
 import type { Gait } from './clips';
-import { IdleWave, landingThump } from './polish';
+import { IdleRoutine, landingThump, type IdleCue } from './polish';
 import type { AvatarLook, AvatarState, MotionFxSink } from './types';
 
 /** Sounds the driver asks for (Task 019): the real player only. The scene decides when they may play (not in the car, flying or as Mega Robo). */
@@ -36,6 +36,8 @@ export interface AvatarSfx {
   step(running: boolean): void;
   /** A soft landing thump at world x. */
   thump(x: number): void;
+  /** A sound of the idle routine (a push-up tap, the taunt's "hee-hee"). */
+  cue(id: IdleCue): void;
 }
 
 export interface DriverOptions {
@@ -120,7 +122,7 @@ export class AvatarDriver {
   /** The highest point (smallest y of the feet) of this stay in the air, and whether he flew (no thump after a flight). */
   private airTop = Infinity;
   private airFlown = false;
-  private readonly wave = new IdleWave();
+  private readonly routine = new IdleRoutine();
 
   constructor(scene: Phaser.Scene, opts: DriverOptions) {
     this.look = opts.look;
@@ -182,8 +184,8 @@ export class AvatarDriver {
     this.stridePhase = 0;
     this.airTop = Infinity;
     this.airFlown = false;
-    if (this.wave.active) {
-      this.wave.reset();
+    if (this.routine.active) {
+      this.routine.reset();
       this.look.trigger('waveEnd', now);
     }
   }
@@ -291,11 +293,12 @@ export class AvatarDriver {
       this.airTop = Math.min(this.airTop, input.bottom);
       if (this.flying) this.airFlown = true;
     }
-    // The idle wave (Task 019): standing free and untouched for a while.
+    // The idle routine (Task 019 wave, Task 036 push-ups and taunt): standing free and untouched for a while.
     const free = !!input.calm && grounded && input.enabled && speed < 5 && !(time < this.celebrateUntil) && !this.flying && this.visible;
-    const ev = this.wave.update(dtMs, input.idleMs ?? 0, free, input.sleepMs ?? Infinity);
-    if (ev === 'start') this.look.trigger('wave', time);
-    else if (ev === 'end') this.look.trigger('waveEnd', time);
+    const ev = this.routine.update(dtMs, input.idleMs ?? 0, free, input.sleepMs ?? Infinity);
+    if (ev === 'end') this.look.trigger('waveEnd', time);
+    else if (ev) this.look.trigger(ev, time);
+    if (this.routine.cue && this.sfx) this.sfx.cue(this.routine.cue);
   }
 
   private updateShadow(x: number, feetY: number, bottom: number, riding: boolean): void {

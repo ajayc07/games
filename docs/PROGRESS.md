@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **Feature freeze lifted on 2026-11-03 for Tasks 034, 035 and 019 only (D-077). Tasks 034 (Flash, power-up rules, flash-1), 035 (Bolt Bug, bug-1) and 019 (footsteps, landing thump, idle wave) done.**_
+_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **Feature freeze lifted on 2026-11-03 for Tasks 034, 035 and 019 only (D-077). Tasks 034 (Flash, power-up rules, flash-1), 035 (Bolt Bug, bug-1) and 019 (footsteps, landing thump, idle wave) done. Task 036 (idle routine: wave, push-ups, taunt, D-084) done as a cosmetic follow-up.**_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -35,8 +35,9 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 017 | Car power-up: orb pickup, car transform for 10 s, new level car-1 "Zoom Car" (D-061) | Done (uncommitted until the parent commits) |
 | 018 | Magnet and rocket boots: two pickups, new levels magnet-1 and boots-1 (D-062) | Done (uncommitted until the parent commits) |
 | 019 | Polish bundle: footsteps, landing thump, idle wave (D-077, D-081) | Done (committed) |
+| 036 | Idle routine: wave, then push-ups, then a taunt, then rest (D-084) | Done |
 | 034 | Flash power-up and power-up rules (Mega Robo combines with nothing) (D-078, D-079) | Done |
-| 035 | Bolt Bug, a small harmless villain, and level bug-1 (D-080, D-081) | Done |
+| 035 | Bolt Bug, a small harmless villain, and level bug-1 (D-080, D-082) | Done |
 | 020 | Zen free play: endless level with every button and power-up, a Zen button on the map (D-063) | Done and committed |
 | 021 | Hold to run (x1.45 after 350 ms) and a vibration on a fall (D-064) | Done and committed |
 | 022 | Zen: seamless swap with no empty stretches, stairs and gaps (D-065) | Done (uncommitted until the parent commits) |
@@ -100,6 +101,7 @@ _(nothing)_
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Task 036 (D-084)**: after 7 s untouched the robot waves, does three push-ups (a quiet tap each) and then beckons and shimmies with a wink and a "hee-hee" (the ball: squash pulses, a rock and a hop). Do the push-ups and the taunt make him laugh, or confuse him? Is the routine too long or too frequent (5 s rest, then again)? Do the taps and the "hee-hee" sound friendly? Does any touch stop it at once?
   - **Task 019 (D-081)**: are the footsteps too loud or annoying (walk taps and the lighter run patter; Volume setting Low / Medium / High), does the soft thump on landing feel right, is the idle wave (after 7 s without a touch, robot: one arm waves; ball: small bounces) cute and not distracting, does any touch stop it at once.
   - **Task 035 (D-080)** (`?level=bug-1`, `?bugs=0` to compare): does he notice the bug and how does he react (scared, amused, curious); does he try to shoot it; is 3 shots right; does the bump (a gentle slide back, a boing and a tiny "hee") annoy him; does he find that Flash or a car pops it at once; does he like the 5 coins and the first sticker; is the bug easy to see (about a tile wide and slow)?
   - **Task 034 (D-078)** (`?level=flash-1`, `?power=flash`): does he find the yellow bolt orb in Flash Run; is x1.7 (374 px/s) right for him or too fast; do the afterimages and sparks read, is the whoosh pleasant; does he notice that running pops the small bubbles; does the dimmed orb while Mega is on make sense (or does he try to take it); is it fine that a full coin bar ends the other powers?

@@ -6,8 +6,8 @@ import type { Gait } from './clips';
 import type { LookName } from './config';
 
 /** `rest` ends a `win` (the picker's one-off wave); the look blends back to idle. */
-/** `wave` / `waveEnd` (Task 019): the idle wave starts and stops (the robot raises one arm, the ball bounces a little). */
-export type AvatarEvent = 'jump' | 'land' | 'win' | 'shoot' | 'rest' | 'wave' | 'waveEnd';
+/** `wave`, `pushups`, `taunt` (Tasks 019, 036): the idle routine moves to that stage; `waveEnd`: the routine stops and the look blends back to idle. */
+export type AvatarEvent = 'jump' | 'land' | 'win' | 'shoot' | 'rest' | 'wave' | 'pushups' | 'taunt' | 'waveEnd';
 
 /** Everything a look needs for one frame. Positions are world coordinates; the root sits at the feet. */
 export interface AvatarState {

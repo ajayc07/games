@@ -669,6 +669,9 @@ export class LevelScene extends Phaser.Scene {
         this.lastStepVariant = pickStepVariant(kind, Math.random(), this.lastStepVariant);
         audio.play(stepSoundId(kind, this.lastStepVariant));
       },
+      cue: (id) => {
+        if (this.mode === 'play') audio.play(id);
+      },
       thump: (x) => {
         if (this.mode !== 'play' || this.carOn() || this.player.flying) return;
         const col = Math.floor(x / this.tile);

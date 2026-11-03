@@ -1,6 +1,7 @@
 // Animation clips for code-built avatars (Task 005b, D-033). Pure functions of phase or time that
 // return joint angles, offsets and flags; no Phaser, unit-tested. Numbers live in robotSpec.ts.
 // Conventions: see robotSpec.ts (0 = limb hanging down, positive = forward; knees bend back, elbows forward).
+import { IDLE_ROUTINE, pushupPhase } from './polish';
 import { ROBOT, ROBOT_CLIPS as C } from './robotSpec';
 
 export type Gait = 'walk' | 'run';
@@ -219,6 +220,79 @@ export function waveClip(t: number): RobotPose {
   return { ...base, head: base.head + k.head * Math.sin(w / 2), armN: limb(k.arm, 0.3, k.spread + k.swing * Math.sin(w)) };
 }
 
+// ---------- idle routine: push-ups and taunt (Task 036) ----------
+
+/** The robot's push-up `t` ms into the stage: a pose plus how far the whole body tips forward (radians, around the feet). */
+export function pushupClip(t: number): { pose: RobotPose; tilt: number } {
+  const k = C.pushup;
+  const ph = pushupPhase(t);
+  const tilt = ph.lower * (k.tiltTop + (k.tiltBottom - k.tiltTop) * ph.rep);
+  // Arm angles are relative to the tipped body: the upper arm points straight to the ground at `tilt`, swinging back as he lowers.
+  const armA = tilt - k.upperBack * ph.rep * ph.lower;
+  const armB = 0.1 + k.elbow * ph.rep;
+  const idle = idleClip(t);
+  const plank: RobotPose = {
+    bob: 0,
+    lean: 0,
+    head: k.head,
+    armN: limb(armA, armB, k.spread),
+    armF: limb(armA, armB, k.spread),
+    legN: leg(0.04, 0.02, 0),
+    legF: leg(0.04, 0.02, 0),
+  };
+  return { pose: blendPose(idle, plank, ph.lower), tilt };
+}
+
+export interface TauntFrame {
+  pose: RobotPose;
+  /** Extra sway of the whole body (radians). */
+  rock: number;
+  /** 0 eye open .. 1 closed (one eye only). */
+  wink: number;
+  /** Extra antenna push (radians, the spring target). */
+  wiggle: number;
+  /** How far the body is turned (0..1, the yaw magnitude wanted now). */
+  yaw: number;
+}
+
+/** The taunt `t` ms into the stage; everything is 0 or the idle pose at t = 0 and at the end. */
+export function tauntClip(t: number): TauntFrame {
+  const k = C.taunt;
+  const total = IDLE_ROUTINE.tauntMs;
+  const split = IDLE_ROUTINE.tauntHeeAtMs;
+  const base = idleClip(t);
+  // Beckon: the near arm out in front, forearm curling twice.
+  const bt = t - k.beckonStartMs;
+  const beckonEnd = split;
+  const armW = bt < 0 || t >= beckonEnd ? 0 : smooth(Math.min(bt / 150, (beckonEnd - t) / 150));
+  const curl = 0.5 - 0.5 * Math.cos((TAU * Math.max(0, bt)) / k.beckonMs);
+  const armN = limb(
+    lerp(base.armN.a, k.armA, armW),
+    lerp(base.armN.b, k.elbowMin + (k.elbowMax - k.elbowMin) * curl, armW),
+    lerp(base.armN.s, k.spread, armW),
+  );
+  // Shimmy: body rock, hips and arms swinging, a little bob.
+  const st = t - split;
+  const sw = st < 0 ? 0 : smooth(Math.min(st / 120, (total - t) / 150));
+  const sh = Math.sin((TAU * Math.max(0, st)) / k.shimmyMs);
+  const headW = smooth(Math.min(t / 300, (total - t) / 200));
+  let wink = 0;
+  for (const [a, b] of k.winks) {
+    const u = (st - a) / (b - a);
+    if (u > 0 && u < 1) wink = Math.max(wink, Math.sin(Math.PI * u));
+  }
+  const pose: RobotPose = {
+    ...base,
+    bob: base.bob + k.bob * sw * Math.abs(sh),
+    head: base.head + k.tilt * headW,
+    armN: { ...armN, s: armN.s + k.armSwing * sw * sh },
+    armF: limb(base.armF.a, base.armF.b, base.armF.s + k.armSwing * sw * -sh),
+    legN: leg(base.legN.a + k.legSwing * sw * sh, base.legN.b, 0),
+    legF: leg(base.legF.a - k.legSwing * sw * sh, base.legF.b, 0),
+  };
+  return { pose, rock: k.rock * sw * sh, wink, wiggle: k.wiggle * sw * Math.sin((TAU * t) / 260), yaw: t < split ? k.yaw : 0 };
+}
+
 // ---------- shoot ----------
 
 export interface ShootState {
@@ -286,6 +360,8 @@ export interface YawInput {
   air: number;
   shoot: number;
   win: number;
+  /** An idle-routine stage that turns him (push-ups side-on, the taunt's beckon): the yaw magnitude wanted and how much (0..1). */
+  stage?: { mag: number; w: number };
 }
 
 /** Where the yaw is heading (-1..1, sign = facing): front-on when still, turned toward the way it goes when moving. */
@@ -296,6 +372,7 @@ export function yawTarget(i: YawInput): number {
   mag = lerp(mag, Y.air, clamp01(i.air));
   mag = lerp(mag, Math.max(mag, Y.shoot), clamp01(i.shoot));
   mag = lerp(mag, Y.win, clamp01(i.win));
+  if (i.stage) mag = lerp(mag, i.stage.mag, clamp01(i.stage.w));
   return i.facing * mag;
 }
 
