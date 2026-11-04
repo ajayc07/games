@@ -24,6 +24,7 @@ import {
   resolveWalkAssist,
   resolveFullscreen,
   pickLook,
+  zenCycleDelayMs,
   resolveDayNight,
   resolveVibration,
   resolveVolume,
@@ -267,7 +268,16 @@ function openZen(s: Session, seed: number): void {
     option: currentOption(s),
     look: s.look,
     onHome: () => openMap(s),
-    zen: { seed, remainingMs: remaining, onSpent: (ms) => s.store.addZenTime(ms) },
+    zen: {
+      seed,
+      remainingMs: remaining,
+      onSpent: (ms) => s.store.addZenTime(ms),
+      // With the Day / Night setting on Random the world changes look every 60-120 s (Task 041).
+      cycle: {
+        delayMs: () => zenCycleDelayMs(settings.dayNight(), Math.random, location.search),
+        next: (current) => (current.id === nightTheme.id ? themeForWorld(level.world) : nightTheme),
+      },
+    },
     onSticker: (reason) => awardSticker(s, reason, null, 0),
   };
   startOnly(s.game, LevelScene.KEY, LevelScene, data);

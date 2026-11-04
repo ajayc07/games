@@ -106,6 +106,25 @@ export function pickLook(mode: DayNight, o: { nightLevel: boolean; varied: boole
   return o.varied && o.roll < 0.5 ? 'night' : 'day';
 }
 
+// ---- zen day/night cycle (Task 041, D-085) ----
+
+/** Zen changes between day and night every this long (ms), random each time, when the setting is Random. */
+export const ZEN_CYCLE = { minMs: 60_000, maxMs: 120_000, fadeMs: 3000 } as const;
+
+/**
+ * Delay in ms until the next zen day/night change, or null when it never changes: only `random` cycles (`day` and `night`
+ * are always obeyed). `?cycle=<seconds>` fixes the interval (testing); `?cycle=0` turns the cycle off. `rng` gives 0..1.
+ */
+export function zenCycleDelayMs(mode: DayNight, rng: () => number, search = ''): number | null {
+  const raw = param(search, 'cycle');
+  if (raw !== null) {
+    const sec = Number(raw);
+    if (Number.isFinite(sec)) return sec > 0 && mode === 'random' ? sec * 1000 : null;
+  }
+  if (mode !== 'random') return null;
+  return Math.round(ZEN_CYCLE.minMs + rng() * (ZEN_CYCLE.maxMs - ZEN_CYCLE.minMs));
+}
+
 /** `?look=` (a known name), else the saved look, else the robot. (An unknown `?look=` is ignored here; the boot warns.) */
 export function resolveLook(i: SettingsInput): LookName {
   const url = param(i.search, 'look')?.toLowerCase();

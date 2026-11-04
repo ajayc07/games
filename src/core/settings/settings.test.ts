@@ -20,6 +20,8 @@ import {
   resolveWalkAssist,
   settings,
   urlOverrides,
+  zenCycleDelayMs,
+  ZEN_CYCLE,
   type SettingsInput,
 } from './settings';
 
@@ -274,3 +276,25 @@ describe('day / night and vibration (Task 025)', () => {
   });
 });
 
+
+describe('zen day/night cycle delay (Task 041)', () => {
+  it('is 60 to 120 s when the setting is random', () => {
+    expect(zenCycleDelayMs('random', () => 0)).toBe(60_000);
+    expect(zenCycleDelayMs('random', () => 1)).toBe(120_000);
+    for (let i = 0; i <= 20; i++) {
+      const d = zenCycleDelayMs('random', () => i / 20);
+      expect(d).toBeGreaterThanOrEqual(ZEN_CYCLE.minMs);
+      expect(d).toBeLessThanOrEqual(ZEN_CYCLE.maxMs);
+    }
+  });
+  it('never changes with day or night', () => {
+    expect(zenCycleDelayMs('day', () => 0.5)).toBeNull();
+    expect(zenCycleDelayMs('night', () => 0.5)).toBeNull();
+    expect(zenCycleDelayMs('day', () => 0.5, '?cycle=8')).toBeNull();
+  });
+  it('?cycle=<seconds> fixes the interval and ?cycle=0 turns it off', () => {
+    expect(zenCycleDelayMs('random', () => 0.5, '?cycle=8')).toBe(8000);
+    expect(zenCycleDelayMs('random', () => 0.5, '?cycle=0')).toBeNull();
+    expect(zenCycleDelayMs('random', () => 0.5, '?cycle=abc')).toBe(90_000);
+  });
+});

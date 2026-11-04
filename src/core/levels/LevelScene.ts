@@ -13,6 +13,7 @@ import { extractEntities, findRespawn, mergeSolids, starsFor, type Cell, type Gr
 import { PHYSICS } from './physics';
 import type { LevelTheme } from './theme';
 import { OBSTACLE_TEX, makeEffectTextures, makeObstacleTextures, makeThemeTextures, themeKey } from './placeholders';
+import { ZEN_CYCLE } from '../settings/settings';
 import { PAD, PadTrigger } from './pads';
 import { CAR, CarTimer, carAlpha, touchesPickup } from './car';
 import { CarSprite } from './CarSprite';
@@ -74,7 +75,19 @@ export interface LevelSceneData {
   /** Combo Practice (Task 011): only for levels with `practice: true`. */
   practice?: { mode: PracticeMode; walkAssist: boolean; onPractice: () => void };
   /** The endless zen level (Task 020, D-063): only for levels with `zen: true`; the seed of its first segment. */
-  zen?: { seed: number; /** Zen time left today in ms, or null for no limit (Task 033). */ remainingMs?: number | null; /** Told how much zen time was played (ms), every few seconds and on leaving. */ onSpent?: (ms: number) => void };
+  zen?: { seed: number; /** Zen time left today in ms, or null for no limit (Task 033). */ remainingMs?: number | null; /** Told how much zen time was played (ms), every few seconds and on leaving. */ onSpent?: (ms: number) => void; /** Day/night cycle (Task 041): ms until the next change (null = never) and the look to change to. */ cycle?: { delayMs: () => number | null; next: (current: LevelTheme) => LevelTheme } };
+}
+
+/** A running zen day/night change (Task 041). */
+interface LookFade {
+  t: number;
+  to: LevelTheme;
+  bgNew: ParallaxBackground;
+  clones: Phaser.GameObjects.TileSprite[];
+  coinsSwapped: boolean;
+  nightIn: boolean;
+  nightOut: boolean;
+  outStart: Map<Phaser.GameObjects.Image, number>;
 }
 
 /** demo: the ghost shows the control; turn: "your turn" cue; then the real run. */
@@ -133,6 +146,13 @@ export class LevelScene extends Phaser.Scene {
   private input2!: InputManager;
   private touch!: TouchControls;
   private bg!: ParallaxBackground;
+  /** The look now showing (zen can change it, Task 041); `data0.theme` is only the first look. */
+  private theme!: LevelTheme;
+  private bgOut: ParallaxBackground | null = null;
+  private fade: LookFade | null = null;
+  /** ms of play until the next zen day/night change, or null when there is none. */
+  private cycleLeft: number | null = null;
+  private nightObjs: Phaser.GameObjects.Image[] = [];
   /** How characters are drawn (`?look=`, D-032). */
   private lookName: LookName = 'robot';
   private player!: Player;
@@ -266,6 +286,11 @@ export class LevelScene extends Phaser.Scene {
 
   create(): void {
     const { theme } = this.data0;
+    this.theme = theme;
+    this.fade = null;
+    this.bgOut = null;
+    this.nightObjs = [];
+    this.cycleLeft = this.data0.zen?.cycle?.delayMs() ?? null;
     this.layout = getLayout();
     this.gridTop = this.layout.height - this.grid.rows * this.tile;
     makeThemeTextures(this, theme, this.tile);
@@ -352,6 +377,8 @@ export class LevelScene extends Phaser.Scene {
     this.demoCues?.update();
     this.updateCamera(dt);
     this.bg.update(this.camX + this.bgShift, dt);
+    this.bgOut?.update(this.camX + this.bgShift, dt);
+    this.fade?.bgNew.update(this.camX + this.bgShift, dt);
     if (this.lamp) this.lamp.setPosition(this.player.body.center.x + this.player.facing * 30, this.player.body.center.y - 8);
     if (this.hint) this.hint.setPosition(this.player.body.center.x + 80, this.player.body.bottom - 150);
   }
@@ -362,6 +389,7 @@ export class LevelScene extends Phaser.Scene {
   private tickZen(deltaMs: number, now: number): void {
     const z = this.data0.zen;
     if (!z) return;
+    this.tickLook(deltaMs);
     this.zenPlayed += deltaMs;
     if (this.zenPlayed - this.zenReported >= 5000) this.flushZen();
     if (z.remainingMs === null || z.remainingMs === undefined) return;
@@ -442,7 +470,7 @@ export class LevelScene extends Phaser.Scene {
   private buildGround(): void {
     const T = this.tile;
     const { solid, cols, rows } = this.grid;
-    const theme = this.data0.theme;
+    const theme = this.theme;
     // Step blocks (Task 015) are solid but drawn as their own toy blocks (buildObstacles), not as ground.
     const isBlock = new Set(this.grid.blocks.map((b) => `${b.row}:${b.col}`));
     const kindAt = (row: number, col: number): 'top' | 'fill' | null => {
@@ -452,12 +480,14 @@ export class LevelScene extends Phaser.Scene {
     const strip = (kind: 'top' | 'fill', x: number, y: number, w: number) => {
       const key = themeKey(theme, kind === 'top' ? 'ground-top' : 'ground-fill');
       const frame = this.textures.getFrame(key);
+      this.groundKinds.push(kind);
       this.groundObjs.push(
         this.add
           .tileSprite(x, y, w, T, key)
           .setOrigin(0, 0)
           .setTileScale(T / frame.width, T / frame.height)
-          .setDepth(DEPTH.ground),
+          .setDepth(DEPTH.ground)
+          .setData('themeKey', key),
       );
     };
     // One strip per run of identical cells in a row: fewer objects and no seams.
@@ -493,6 +523,7 @@ export class LevelScene extends Phaser.Scene {
 
   private groundBodies: Phaser.GameObjects.Zone[] = [];
   private groundObjs: Phaser.GameObjects.GameObject[] = [];
+  private groundKinds: Array<'top' | 'fill'> = [];
   private blockImgs: Phaser.GameObjects.Image[] = [];
 
   /** Bounce pads (Task 015): the plate and its spring, the trigger state, and where the plate is. */
@@ -568,14 +599,14 @@ export class LevelScene extends Phaser.Scene {
       solid: this.grid.solid,
       tile: this.tile,
       gridTop: this.gridTop,
-      coinTexture: themeKey(this.data0.theme, 'coin'),
+      coinTexture: this.coinKey(),
       depth: { bubbles: DEPTH.bubbles, coins: DEPTH.popCoins },
       sparkle: this.sparkle,
     });
   }
 
   private buildCoins(): void {
-    const key = themeKey(this.data0.theme, 'coin');
+    const key = this.coinKey();
     this.coins = this.grid.coins.map((c, i) => {
       const { x, y } = this.cellCenter(c);
       const img = this.add.image(x, y, key).setDisplaySize(COIN_SIZE, COIN_SIZE).setDepth(DEPTH.coins);
@@ -588,7 +619,7 @@ export class LevelScene extends Phaser.Scene {
   /** The charging pad (D-055): slab, glowing ring, post with a blinking beacon, a few slow sparkles. All generated textures. */
   private buildGoal(): void {
     const T = this.tile;
-    const theme = this.data0.theme;
+    const theme = this.theme;
     const base = this.gridTop + (this.grid.goal.row + 1) * T;
     this.goalX = goalX(this.grid.goal, T);
     const padH = padHeight(T);
@@ -1221,17 +1252,21 @@ export class LevelScene extends Phaser.Scene {
   /** The headlamp glow that follows the player (night worlds only, Task 016). */
   private lamp: Phaser.GameObjects.Image | null = null;
 
-  /** Night worlds (Task 016, D-060): headlamp glow around the player and a few fireflies drifting over the level. Cosmetic only. */
-  private buildNight(): void {
+  /**
+   * Night worlds (Task 016, D-060): headlamp glow around the player and a few fireflies drifting over the level. Cosmetic only.
+   * `fadeIn` (a zen change to night, Task 041) starts the glow invisible (the caller raises it) and the fireflies come in on their own.
+   */
+  private buildNight(theme: LevelTheme = this.theme, fadeIn = false): void {
     this.lamp = null;
-    const night = this.data0.theme.night;
+    this.nightObjs = [];
+    const night = theme.night;
     if (!night) return;
     const p = this.player.body;
     this.lamp = this.add
       .image(p.center.x, p.center.y, 'fx-glow')
       .setDisplaySize(night.lampSize, night.lampSize)
       .setTint(night.lamp)
-      .setAlpha(night.lampAlpha)
+      .setAlpha(fadeIn ? 0 : night.lampAlpha)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(DEPTH.player - 1);
     const rnd = new Phaser.Math.RandomDataGenerator(['fireflies', this.level.id]);
@@ -1246,9 +1281,124 @@ export class LevelScene extends Phaser.Scene {
         .setAlpha(0)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(DEPTH.coins - 1);
-      this.tweens.add({ targets: fly, alpha: { from: 0.1, to: 0.9 }, duration: rnd.between(900, 1700), yoyo: true, repeat: -1, delay: rnd.between(0, 1500), ease: 'Sine.easeInOut' });
+      this.nightObjs.push(fly);
+      const extra = fadeIn ? ZEN_CYCLE.fadeMs / 2 : 0;
+      this.tweens.add({ targets: fly, alpha: { from: 0.1, to: 0.9 }, duration: rnd.between(900, 1700), yoyo: true, repeat: -1, delay: rnd.between(0, 1500) + extra, ease: 'Sine.easeInOut' });
       this.tweens.add({ targets: fly, x: x + rnd.between(-60, 60), y: y + rnd.between(-40, 40), duration: rnd.between(2600, 4200), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
+  }
+
+  // ---------- zen day/night cycle (Task 041, D-085) ----------
+
+  /** Texture key of a coin in the look now showing (coins swap to the new look halfway through a change). */
+  private coinKey(): string {
+    return themeKey(this.fade?.coinsSwapped ? this.fade.to : this.theme, 'coin');
+  }
+
+  /** Counts play time to the next change and drives a running cross-fade. Gameplay is never touched. */
+  private tickLook(deltaMs: number): void {
+    if (this.fade) {
+      this.fade.t += deltaMs;
+      this.applyFade(Math.min(1, this.fade.t / ZEN_CYCLE.fadeMs));
+      if (this.fade.t >= ZEN_CYCLE.fadeMs) this.finishFade();
+      return;
+    }
+    if (this.cycleLeft === null) return;
+    this.cycleLeft -= deltaMs;
+    if (this.cycleLeft <= 0) this.beginFade();
+  }
+
+  private beginFade(): void {
+    const cycle = this.data0.zen?.cycle;
+    if (!cycle) return;
+    const to = cycle.next(this.theme);
+    makeThemeTextures(this, to, this.tile);
+    const surfaceY = this.gridTop + (this.grid.start.row + 1) * this.tile;
+    const bgNew = new ParallaxBackground(this, to, surfaceY);
+    bgNew.layout(this.layout);
+    bgNew.setAlpha(0);
+    const outStart = new Map<Phaser.GameObjects.Image, number>();
+    const nightIn = !!to.night && !this.theme.night;
+    const nightOut = !to.night && !!this.theme.night;
+    this.fade = { t: 0, to, bgNew, clones: [], coinsSwapped: false, nightIn, nightOut, outStart };
+    this.makeGroundClones();
+    if (nightIn) this.buildNight(to, true);
+    if (nightOut) {
+      for (const o of this.nightObjs) {
+        this.tweens.killTweensOf(o);
+        outStart.set(o, o.alpha);
+      }
+    }
+    this.applyFade(0);
+  }
+
+  /** Sets the whole change to a point 0..1: new background in, ground and night effects across. */
+  private applyFade(a: number): void {
+    const f = this.fade;
+    if (!f) return;
+    f.bgNew.setAlpha(a);
+    for (const c of f.clones) c.setAlpha(a);
+    const lampAlpha = (f.nightIn ? f.to.night : this.theme.night)?.lampAlpha ?? 0;
+    if (this.lamp) this.lamp.setAlpha(f.nightIn ? lampAlpha * a : f.nightOut ? lampAlpha * (1 - a) : lampAlpha);
+    if (f.nightOut) for (const [o, start] of f.outStart) o.setAlpha(start * (1 - a));
+    if (!f.coinsSwapped && a >= 0.5) {
+      f.coinsSwapped = true;
+      const key = themeKey(f.to, 'coin');
+      for (const c of this.coins) c.img.setTexture(key);
+      this.hud.icon.setTexture(key);
+    }
+  }
+
+  private finishFade(): void {
+    const f = this.fade;
+    if (!f) return;
+    f.bgNew.setAlpha(1);
+    this.bgOut = null;
+    this.bg.destroy();
+    this.bg = f.bgNew;
+    // The ground strips take the new texture and the extra layer goes.
+    this.groundObjs.forEach((o, i) => {
+      const key = themeKey(f.to, this.groundKinds[i] === 'top' ? 'ground-top' : 'ground-fill');
+      const ts = o as Phaser.GameObjects.TileSprite;
+      const sx = ts.tileScaleX;
+      const sy = ts.tileScaleY;
+      ts.setTexture(key);
+      ts.setTileScale(sx, sy);
+      ts.setData('themeKey', key);
+    });
+    this.dropGroundClones();
+    if (f.nightOut) {
+      for (const o of this.nightObjs) o.destroy();
+      this.lamp?.destroy();
+      this.lamp = null;
+      this.nightObjs = [];
+    }
+    this.theme = f.to;
+    this.fade = null;
+    this.cycleLeft = this.data0.zen?.cycle?.delayMs() ?? null;
+  }
+
+  /** A second layer of ground strips with the new look, faded in over the old (also after a zen swap rebuilds the ground mid-change). */
+  private makeGroundClones(): void {
+    const f = this.fade;
+    if (!f) return;
+    this.groundObjs.forEach((o, i) => {
+      const src = o as Phaser.GameObjects.TileSprite;
+      const key = themeKey(f.to, this.groundKinds[i] === 'top' ? 'ground-top' : 'ground-fill');
+      const clone = this.add
+        .tileSprite(src.x, src.y, src.width, src.height, key)
+        .setOrigin(0, 0)
+        .setTileScale(src.tileScaleX, src.tileScaleY)
+        .setDepth(DEPTH.ground + 0.01)
+        .setAlpha(Math.min(1, f.t / ZEN_CYCLE.fadeMs));
+      f.clones.push(clone);
+    });
+  }
+
+  private dropGroundClones(): void {
+    if (!this.fade) return;
+    for (const c of this.fade.clones) c.destroy();
+    this.fade.clones = [];
   }
 
   private buildEffects(): void {
@@ -1273,7 +1423,7 @@ export class LevelScene extends Phaser.Scene {
   }
 
   private buildHud(): void {
-    const icon = this.add.image(0, 0, themeKey(this.data0.theme, 'coin')).setDisplaySize(56, 56).setScrollFactor(0).setDepth(DEPTH.hud);
+    const icon = this.add.image(0, 0, themeKey(this.theme, 'coin')).setDisplaySize(56, 56).setScrollFactor(0).setDepth(DEPTH.hud);
     const count = this.add
       .text(0, 0, '0', {
         fontFamily: '"Arial Black", "Arial Rounded MT Bold", Arial, sans-serif',
@@ -1632,8 +1782,11 @@ export class LevelScene extends Phaser.Scene {
     this.grid = extractEntities(seg.config.grid);
     for (const o of this.groundObjs) o.destroy();
     this.groundObjs = [];
+    this.groundKinds = [];
+    this.dropGroundClones();
     for (const z of this.groundBodies) z.destroy();
     this.buildGround();
+    this.makeGroundClones();
     this.player.shiftX(dx);
     this.camX += dx;
     this.bgShift -= dx;
@@ -1717,7 +1870,7 @@ export class LevelScene extends Phaser.Scene {
     const H = this.layout.height;
     const ride = { x: body.center.x, y: H + 60 };
     player.ride = ride;
-    const cloud = this.add.image(ride.x, ride.y, themeKey(this.data0.theme, 'cloud')).setDisplaySize(120, 60);
+    const cloud = this.add.image(ride.x, ride.y, themeKey(this.theme, 'cloud')).setDisplaySize(120, 60);
     cloud.setDepth(DEPTH.player + 1);
     const follow = () => cloud.setPosition(ride.x, ride.y + 18);
     const hover = target.y - 70;
@@ -1814,7 +1967,7 @@ export class LevelScene extends Phaser.Scene {
   /** The pad lights up: ring pulses, a beam, sparkles, the beacon goes solid; the robot flashes and does its win clip. */
   private chargePad(): void {
     const player = this.player;
-    const theme = this.data0.theme;
+    const theme = this.theme;
     const T = this.tile;
     playChime(this.data0.option, 'win'); // the chosen option's own win chime (D-038)
     player.hop(this.time.now);
@@ -1857,6 +2010,8 @@ export class LevelScene extends Phaser.Scene {
 
   private relayout(l: Layout): void {
     this.bg.layout(l);
+    this.bgOut?.layout(l);
+    this.fade?.bgNew.layout(l);
     const safe = l.safeRect;
     const ui = l.uiRect;
     // HUD: top-left corner of the safe area (and clear of any notch).
@@ -1922,6 +2077,7 @@ export class LevelScene extends Phaser.Scene {
         resultStars: this.result?.starCounts ?? null,
         practice: this.practice?.debug() ?? null,
         zen: this.level.zen ? { lap: this.zenLap, seed: this.zenSeed, bgShift: this.bgShift } : null,
+        zenLook: this.level.zen ? { theme: this.theme.id, to: this.fade?.to.id ?? null, progress: this.fade ? Math.min(1, this.fade.t / ZEN_CYCLE.fadeMs) : null, nextInMs: this.cycleLeft, groundKey: (this.groundObjs[0] as Phaser.GameObjects.TileSprite | undefined)?.getData('themeKey') ?? null, groundKeys: [...new Set(this.groundObjs.map((o) => o.getData('themeKey') as string))], coinKey: this.coins[0]?.img.texture.key ?? null } : null,
         layoutWidth: this.layout.width,
         hint: this.hint !== null,
         camX: this.camX,

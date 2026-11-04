@@ -242,3 +242,16 @@ Cosmetic only, a follow-up to D-081 (nothing changes in physics, hit boxes, scor
 - **Sounds** through the normal audio path: `pushupTap` (soft, at the bottom of each rep) and `tauntHee` (two rising notes when the shimmy or the hop starts).
 - Code: pure `IdleRoutine`, `pushupPhase`, `ballIdleMove` in `avatar/polish.ts`; `pushupClip`, `tauntClip` in `clips.ts`; the looks react to the new events `pushups` and `taunt`. The old `IdleWave` class stays (its tests are unchanged) but the game uses `IdleRoutine`.
 - Not verified: by ear, in motion on a tablet, fps (the headless machine runs at about 10 fps, so stage timings were checked in unit tests, not in the browser).
+
+## D-085 (2026-11-04) World 2: the Cave (Tasks 037-040)
+The parent reports he is bored of the early levels, so the freeze (D-077) is lifted for a second world inside Robo World (not a new universe: same robot, buttons, coins, power-ups and stickers).
+- **Cave** world (dark-blue rock, glowing crystals), reached by a **branch on the Grass map**: a big glowing cave mouth at the end of the path, visible from the start, tappable at 170 px or more. Opens after Grass 6 is cleared; a parent-view row "Open the Cave now" opens it at once; `?unlock=all` too. The Cave map has a meadow arch to go back.
+- **Gentle enemies only** (D-002 holds): Rock Beetle (ground, 5 shots, 8 coins) and Glow Bat (flying, 3 shots, 6 coins), built on the Bolt Bug machinery; same gentle bump, no stomp, nothing lost.
+- **Boss:** the Cave Guardian, a big rock golem hit on its chest crystal 10 times; never hurts; gives a sticker and a crowned Cave on the map.
+- Order: 037 (world, branch, cave-1), 038 (enemies, cave-2, cave-3), 039 (cave-4, cave-5), 040 (boss). One commit each; the parent plays the tablet between tasks.
+- Not decided: Sky and Castle, adaptive difficulty.
+
+### D-085 addendum (2026-11-04)
+- **Enemies in zen (Task 042):** the parent says he loves the enemies, so D-080 "no bugs in zen yet" is replaced: zen gets Bolt Bugs, Rock Beetles and Glow Bats (bug most common), about one every 45-60 tiles, never two within 20 tiles, never cut by a segment swap. Needs Task 038.
+- **Zen day/night cycle (Task 041):** with the Day / Night setting on Random, zen switches between day and night every 60-120 s (random each time) with a 3 s cross-fade; with Day or Night it never changes. Normal levels and Practice are unchanged. Independent of the Cave tasks.
+- Suggested order: 041 (small, no dependencies), 037, 038, 042, 039, 040.

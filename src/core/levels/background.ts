@@ -27,6 +27,9 @@ export class ParallaxBackground {
   /** Night worlds: fixed stars (Task 016), a faint layer and a twinkling layer. */
   private readonly starsFaint: Phaser.GameObjects.Graphics | null;
   private readonly starsTwinkle: Phaser.GameObjects.Graphics | null;
+  /** Twinkle factor (0.25..1) and the overall opacity used to fade a whole background in or out (Task 041). */
+  private readonly twinkle = { t: 1 };
+  private master = 1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -37,7 +40,7 @@ export class ParallaxBackground {
     this.sky = scene.add.graphics().setScrollFactor(0).setDepth(-100);
     this.starsFaint = theme.night ? scene.add.graphics().setScrollFactor(0).setDepth(-99) : null;
     this.starsTwinkle = theme.night ? scene.add.graphics().setScrollFactor(0).setDepth(-99) : null;
-    if (this.starsTwinkle) scene.tweens.add({ targets: this.starsTwinkle, alpha: 0.25, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    if (this.starsTwinkle) scene.tweens.add({ targets: this.twinkle, t: 0.25, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     for (const c of CLOUDS) {
       const img = scene.add.image(0, c.y, themeKey(theme, 'cloud')).setScrollFactor(0).setDepth(-95).setAlpha(0.95);
       img.setDisplaySize(170 * c.scale, 84 * c.scale);
@@ -74,8 +77,31 @@ export class ParallaxBackground {
     }
   }
 
+  /** Fades the whole background (sky, stars, clouds, hills) to an opacity 0..1, for the zen day/night change (Task 041). */
+  setAlpha(a: number): void {
+    this.master = a;
+    this.sky.setAlpha(a);
+    this.starsFaint?.setAlpha(a);
+    this.starsTwinkle?.setAlpha(a * this.twinkle.t);
+    for (const c of this.clouds) c.setAlpha(0.95 * a);
+    this.far.setAlpha(a);
+    this.near.setAlpha(a);
+  }
+
+  /** Removes every object and the twinkle tween. */
+  destroy(): void {
+    this.scene.tweens.killTweensOf(this.twinkle);
+    this.sky.destroy();
+    this.starsFaint?.destroy();
+    this.starsTwinkle?.destroy();
+    for (const c of this.clouds) c.destroy();
+    this.far.destroy();
+    this.near.destroy();
+  }
+
   /** Call every frame with the camera's horizontal scroll (logical px). */
   update(scrollX: number, dtSec: number): void {
+    this.starsTwinkle?.setAlpha(this.master * this.twinkle.t);
     this.drift += dtSec * DRIFT;
     this.far.tilePositionX = (scrollX * 0.2) / this.far.tileScaleX;
     this.near.tilePositionX = (scrollX * 0.45) / this.near.tileScaleX;
