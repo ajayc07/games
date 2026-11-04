@@ -89,6 +89,26 @@ export const DEFAULT_RECIPES = {
       { freq: 2093, at: 0.22, dur: 0.2, type: 'sine', gain: 0.35 },
     ],
   },
+  // Cave enemies (Task 038). The beetle's rock shell answers a hit with a low "tok" and pops with a rounder, lower pop than the bug.
+  beetleHit: { tones: [{ freq: 210, to: 120, dur: 0.09, type: 'triangle', gain: 0.55 }, { freq: 640, to: 420, dur: 0.03, type: 'square', gain: 0.07 }] },
+  beetlePop: {
+    tones: [
+      { freq: 520, to: 880, dur: 0.14, type: 'sine', gain: 0.65 },
+      { freq: 330, to: 660, at: 0.06, dur: 0.14, type: 'triangle', gain: 0.5 },
+      { freq: 990, at: 0.16, dur: 0.1, type: 'sine', gain: 0.45 },
+      { freq: 1320, at: 0.23, dur: 0.18, type: 'sine', gain: 0.35 },
+    ],
+  },
+  // The bat's flap is a very quiet soft flutter; its pop is a light, airy rising "pff-ting".
+  batFlap: { tones: [{ freq: 300, to: 190, dur: 0.07, type: 'triangle', gain: 0.07 }, { freq: 260, to: 170, at: 0.1, dur: 0.07, type: 'triangle', gain: 0.06 }] },
+  batPop: {
+    tones: [
+      { freq: 1100, to: 1700, dur: 0.1, type: 'sine', gain: 0.6 },
+      { freq: 1480, to: 2200, at: 0.06, dur: 0.1, type: 'triangle', gain: 0.4 },
+      { freq: 1976, at: 0.14, dur: 0.1, type: 'sine', gain: 0.45 },
+      { freq: 2637, at: 0.2, dur: 0.2, type: 'sine', gain: 0.3 },
+    ],
+  },
   // Flash (Task 034): a quick bright zip when he takes the orb, and a quiet whoosh now and then while he runs fast.
   flashZip: {
     tones: [

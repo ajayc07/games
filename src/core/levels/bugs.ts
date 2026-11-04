@@ -2,6 +2,7 @@
 // (D-002): a touch only bumps him gently back, and a short grace time after the bump lets him walk on through. He beats it with
 // what he has: three shots, or one touch while he is Mega Robo, a car or Flash. It pops into coins. Pure rules and numbers,
 // tested; drawing and wiring are in BugField.ts and LevelScene.ts. Grid letter `g`: the middle of its patrol.
+import { patrolLegMs, patrolPeriodMs, patrolPoseOf, type PatrolPose } from './patrol';
 import { PHYSICS } from './physics';
 import { circlesTouch } from './shots';
 
@@ -39,36 +40,19 @@ export const bugRadius = (tile: number): number => BUG.radius * tile;
 /** Its speed in px/s. */
 export const bugSpeed = (): number => PHYSICS.walkSpeed * BUG.speedShare;
 
-export interface PatrolPose {
-  /** Offset from the middle of the patrol (px). */
-  dx: number;
-  /** Which way it faces: +1 right, -1 left. */
-  dir: 1 | -1;
-  /** 0..1 while it turns at an end (the small hop); 0 while it trundles. */
-  turn: number;
-  /** Trundling (legs move) rather than turning. */
-  moving: boolean;
-}
+export type { PatrolPose } from './patrol';
 
 /** Time for one leg of the patrol (ms). */
-export const legMs = (tile: number): number => ((BUG.patrolTiles * tile) / bugSpeed()) * 1000;
+export const legMs = (tile: number): number => patrolLegMs(BUG, tile);
 /** A whole there-and-back (ms). */
-export const periodMs = (tile: number): number => 2 * (legMs(tile) + BUG.turnPauseMs);
+export const periodMs = (tile: number): number => patrolPeriodMs(BUG, tile);
 
 /**
  * Where the bug is at time `tMs` (a bug's own `phase` 0..1 offsets it so two bugs never walk in step): right, a pause and a
- * hop at the end, left, a pause and a hop at the other end. A triangle wave, never leaves the patrol.
+ * hop at the end, left, a pause and a hop at the other end. A triangle wave, never leaves the patrol (shared in `patrol.ts`).
  */
 export function patrolPose(tMs: number, phase: number, tile: number): PatrolPose {
-  const leg = legMs(tile);
-  const period = periodMs(tile);
-  const t = (((tMs + phase * period) % period) + period) % period;
-  const half = patrolHalf(tile);
-  if (t < leg) return { dx: -half + (t / leg) * 2 * half, dir: 1, turn: 0, moving: true };
-  if (t < leg + BUG.turnPauseMs) return { dx: half, dir: 1, turn: Math.sin(((t - leg) / BUG.turnPauseMs) * Math.PI), moving: false };
-  const u = t - leg - BUG.turnPauseMs;
-  if (u < leg) return { dx: half - (u / leg) * 2 * half, dir: -1, turn: 0, moving: true };
-  return { dx: -half, dir: -1, turn: Math.sin(((u - leg) / BUG.turnPauseMs) * Math.PI), moving: false };
+  return patrolPoseOf(BUG, tMs, phase, tile);
 }
 
 /** The picture size (1 = full) after `hits` shots. */

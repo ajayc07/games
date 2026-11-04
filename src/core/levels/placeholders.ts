@@ -437,6 +437,107 @@ export function makeBugTextures(scene: Phaser.Scene): void {
   }
 }
 
+/**
+ * The Rock Beetle (Task 038): a rounded grey-blue rock shell with lighter plates, about 1.4 tiles wide (96 x 68, feet at the bottom,
+ * facing right), a separate head that peeks out (cute-grumpy, never scary), stubby legs and four crack overlays that appear one per hit.
+ */
+export const BEETLE_KEYS = { body: 'rock-beetle', head: 'rock-beetle-head', leg: 'rock-beetle-leg', crack: (i: number) => `rock-beetle-crack-${i}` } as const;
+const BEETLE_OUTLINE = 0x2f4252;
+/** Each crack is one zig-zag line over the shell (i = 1..4); the shell shows the first `hits` of them. */
+const BEETLE_CRACKS: number[][][] = [
+  [[44, 10], [40, 20], [47, 26], [43, 36]],
+  [[66, 24], [58, 30], [62, 38], [54, 46]],
+  [[26, 22], [33, 29], [27, 36], [34, 44]],
+  [[50, 40], [58, 46], [54, 54], [62, 58]],
+];
+
+export function makeBeetleTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists(BEETLE_KEYS.body)) {
+    generate(scene, BEETLE_KEYS.body, 96, 68, (g) => {
+      // The dome: a dark outline, a grey-blue rock shell, a lighter top and a few paler plates.
+      g.fillStyle(BEETLE_OUTLINE, 1).fillEllipse(48, 46, 94, 90);
+      g.fillStyle(0x6f8ba3, 1).fillEllipse(48, 46, 88, 84);
+      g.fillStyle(0x8da7bd, 1).fillEllipse(46, 38, 70, 56);
+      g.fillStyle(0xa9c0d1, 1).fillEllipse(36, 26, 26, 14);
+      g.lineStyle(2.5, 0x4d667c, 1).lineBetween(48, 6, 48, 40).lineBetween(26, 12, 20, 38).lineBetween(70, 12, 76, 38);
+      // The flat belly line cuts the shell off at the ground.
+      g.fillStyle(0x000000, 0).fillRect(0, 62, 96, 6);
+      g.fillStyle(0x34495e, 1).fillRoundedRect(8, 58, 80, 10, 5);
+    });
+  }
+  if (!scene.textures.exists(BEETLE_KEYS.head)) {
+    // A beetle's head: two little feelers with round tips (so it reads as a beetle, not a turtle), big eyes and cute-grumpy brows.
+    generate(scene, BEETLE_KEYS.head, 44, 52, (g) => {
+      g.lineStyle(3, BEETLE_OUTLINE, 1).lineBetween(14, 16, 8, 5).lineBetween(30, 16, 36, 5);
+      g.fillStyle(0xffd54f, 1).fillCircle(7, 4.5, 3.6).fillCircle(37, 4.5, 3.6);
+      g.lineStyle(1.5, BEETLE_OUTLINE, 1).strokeCircle(7, 4.5, 3.6).strokeCircle(37, 4.5, 3.6);
+      g.fillStyle(BEETLE_OUTLINE, 1).fillRoundedRect(1, 14, 42, 36, 16);
+      g.fillStyle(0x7f9ab1, 1).fillRoundedRect(3, 16, 38, 32, 14);
+      for (const x of [14, 31]) {
+        g.fillStyle(0xffffff, 1).fillCircle(x, 32, 7.5);
+        g.lineStyle(2, BEETLE_OUTLINE, 1).strokeCircle(x, 32, 7.5);
+        g.fillStyle(0x263238, 1).fillCircle(x + 1.5, 33.5, 3.6);
+        g.fillStyle(0xffffff, 1).fillCircle(x + 2.5, 32, 1.3);
+      }
+      g.lineStyle(3, BEETLE_OUTLINE, 1).lineBetween(7, 21, 18, 25).lineBetween(38, 21, 27, 25);
+      g.lineStyle(2.5, BEETLE_OUTLINE, 1).lineBetween(17, 43, 28, 43);
+    });
+  }
+  if (!scene.textures.exists(BEETLE_KEYS.leg)) {
+    generate(scene, BEETLE_KEYS.leg, 20, 12, (g) => {
+      g.fillStyle(BEETLE_OUTLINE, 1).fillRoundedRect(1, 1, 18, 10, 5);
+    });
+  }
+  BEETLE_CRACKS.forEach((pts, i) => {
+    const key = BEETLE_KEYS.crack(i + 1);
+    if (scene.textures.exists(key)) return;
+    generate(scene, key, 96, 68, (g) => {
+      const line = pts.map(([x, y]) => new Phaser.Geom.Point(x, y));
+      g.lineStyle(5, BEETLE_OUTLINE, 0.95).strokePoints(line, false, false);
+      g.lineStyle(2, 0xdbe8f1, 0.8).strokePoints(line.map((p) => new Phaser.Geom.Point(p.x + 1.5, p.y)), false, false);
+    });
+  });
+}
+
+/**
+ * The Glow Bat (Task 038): a small round bat with a glowing pale belly, two ears, big friendly eyes and a tiny smile (56 x 54), and one
+ * wing (46 x 34, pointing left; the right wing is the same picture flipped) that flaps.
+ */
+export const BAT_KEYS = { body: 'glow-bat', wing: 'glow-bat-wing' } as const;
+const BAT_OUTLINE = 0x2c2150;
+
+export function makeBatTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists(BAT_KEYS.body)) {
+    generate(scene, BAT_KEYS.body, 56, 54, (g) => {
+      for (const [x1, x2, x3] of [[11, 21, 17], [45, 35, 39]]) {
+        g.fillStyle(BAT_OUTLINE, 1).fillTriangle(x1 - 1, 24, x2 + (x2 > x1 ? 1 : -1), 16, x3, 2);
+        g.fillStyle(0x6a5bb0, 1).fillTriangle(x1 + (x1 < 28 ? 2 : -2), 22, x2, 17, x3, 6);
+      }
+      g.fillStyle(BAT_OUTLINE, 1).fillCircle(28, 31, 24);
+      g.fillStyle(0x5b4b9a, 1).fillCircle(28, 31, 21.5);
+      g.fillStyle(0xfff3b0, 0.95).fillEllipse(28, 40, 30, 22);
+      g.fillStyle(0xffffff, 0.7).fillEllipse(28, 42, 16, 9);
+      for (const x of [20, 36]) {
+        g.fillStyle(0xffffff, 1).fillCircle(x, 27, 6.5);
+        g.lineStyle(2, BAT_OUTLINE, 1).strokeCircle(x, 27, 6.5);
+        g.fillStyle(0x263238, 1).fillCircle(x + (x < 28 ? 1.2 : -1.2), 28.5, 3.2);
+        g.fillStyle(0xffffff, 1).fillCircle(x + (x < 28 ? 2.2 : -0.2), 27, 1.1);
+      }
+      g.lineStyle(2.5, BAT_OUTLINE, 1).lineBetween(14, 19, 24, 22).lineBetween(42, 19, 32, 22);
+      g.lineStyle(2, BAT_OUTLINE, 1).lineBetween(25, 36, 31, 36);
+    });
+  }
+  if (!scene.textures.exists(BAT_KEYS.wing)) {
+    generate(scene, BAT_KEYS.wing, 46, 34, (g) => {
+      const pts = [[44, 4], [30, 0], [16, 4], [2, 14], [10, 15], [8, 25], [17, 22], [18, 32], [28, 24], [44, 22]];
+      const poly = pts.map(([x, y]) => new Phaser.Geom.Point(x, y));
+      g.fillStyle(BAT_OUTLINE, 1).fillPoints(poly, true);
+      g.fillStyle(0x6a5bb0, 1).fillPoints(poly.map((p) => new Phaser.Geom.Point(p.x * 0.9 + 4.4, p.y * 0.86 + 3)), true);
+      g.lineStyle(2, 0x9486d4, 0.9).lineBetween(42, 12, 12, 16).lineBetween(42, 14, 18, 26);
+    });
+  }
+}
+
 function generate(
   scene: Phaser.Scene,
   key: string,

@@ -115,6 +115,15 @@ export class ProgressStore {
     return true;
   }
 
+  /** Notes that he has beaten an enemy of this kind other than the Bolt Bug (Task 038) and saves. True the first time ever for that kind. */
+  markEnemyBeaten(kind: string): boolean {
+    if (kind === 'bug') return this.markBugBeaten();
+    if (this.current.enemiesBeaten.includes(kind)) return false;
+    this.current = { ...this.current, enemiesBeaten: [...this.current.enemiesBeaten, kind] };
+    this.scheduleSave();
+    return true;
+  }
+
   /** The parent opens (or closes again) a branch world at once (Task 037) and saves. */
   setWorldOpened(worldId: string, opened: boolean): void {
     const has = this.current.openedWorlds.includes(worldId);

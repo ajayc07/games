@@ -1,6 +1,7 @@
 // Grid -> entities, collision rectangles, respawn spots and stars. Pure and unit-tested.
 // Coordinates here are grid cells: col 0 is the left edge, row 0 is the top row.
 
+import type { EnemyKind } from './enemies';
 import { PICKUP_CHARS, type PickupKind } from './powerups';
 
 export interface Cell {
@@ -36,6 +37,8 @@ export interface GridEntities {
   pickups: Array<Cell & { kind: PickupKind }>;
   /** Bolt Bugs (`g`, Task 035): the middle of each patrol, on the ground row. Not solid. */
   bugs: Cell[];
+  /** Every enemy (`g` Bolt Bug, `k` Rock Beetle, `w` Glow Bat, Task 038) in reading order; the bugs are in `bugs` too. */
+  enemies: Array<Cell & { kind: EnemyKind }>;
 }
 
 /** Splits a validated grid into what the scene needs. Assumes parseLevel() accepted it. */
@@ -49,6 +52,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const pads: Cell[] = [];
   const pickups: Array<Cell & { kind: PickupKind }> = [];
   const bugs: Cell[] = [];
+  const enemies: Array<Cell & { kind: EnemyKind }> = [];
   const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
   let goal: Cell = { col: 0, row: 0 };
@@ -61,6 +65,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       else if (ch === '^') pads.push({ col, row });
       else if (ch in PICKUP_CHARS) pickups.push({ col, row, kind: PICKUP_CHARS[ch as keyof typeof PICKUP_CHARS] });
       if (ch === 'g') bugs.push({ col, row });
+      if (ch === 'g' || ch === 'k' || ch === 'w') enemies.push({ col, row, kind: ch === 'g' ? 'bug' : ch === 'k' ? 'beetle' : 'bat' });
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });
@@ -75,7 +80,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
     }
     solid.push(line);
   }
-  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads, pickups, bugs };
+  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads, pickups, bugs, enemies };
 }
 
 /**

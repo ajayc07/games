@@ -244,8 +244,8 @@ function openStickers(s: Session): void {
  */
 function awardSticker(s: Session, reason: StickerReason, before: { stars: number } | null, stars: number): string | null {
   if (!earnsSticker(reason, before, stars)) return null;
-  // The first Bolt Bug he ever beats (Task 035): one sticker, once.
-  if (reason === 'bug' && !s.store.markBugBeaten()) return null;
+  // The first Bolt Bug, Rock Beetle and Glow Bat he ever beats (Tasks 035, 038): one sticker each, once.
+  if (reason !== 'mega' && reason !== 'finish' && !s.store.markEnemyBeaten(reason)) return null;
   const id = nextSticker(s.store.record.stickers);
   if (!id) return null;
   s.store.addSticker(id);

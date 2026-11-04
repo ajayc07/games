@@ -1,6 +1,7 @@
 // Stickers (Task 031, D-074): the reward collection. He earns the next sticker when the coin bar fills (Mega Robo) and the
 // first time he finishes a level (and the first time he gets all three stars there). Pure rules: the catalogue, which one
 // comes next and how a saved list is cleaned. The drawing is in stickerArt.ts. Wordless on purpose.
+import type { EnemyKind } from '../levels/enemies';
 
 export const STICKER_SHAPES = ['star', 'heart', 'rocket', 'moon', 'sun', 'flower', 'car', 'robot', 'gear', 'crown', 'rainbow', 'bolt'] as const;
 export type StickerShape = (typeof STICKER_SHAPES)[number];
@@ -40,12 +41,13 @@ export function cleanStickers(raw: unknown): string[] {
   return STICKERS.filter((s) => have.has(s.id)).map((s) => s.id);
 }
 
-export type StickerReason = 'mega' | 'finish' | 'bug';
+/** `mega`, `finish`, or the kind of an enemy he beat (`bug`, `beetle`, `bat`; Tasks 035 and 038). */
+export type StickerReason = 'mega' | 'finish' | EnemyKind;
 
 /** Does this event earn a sticker? A finish earns one the first time a level is cleared and the first time it gets 3 stars. */
 export function earnsSticker(reason: StickerReason, before: { stars: number } | null, stars: number): boolean {
-  // `bug` (Task 035): the first Bolt Bug he ever beats; the caller checks that it is the first (the saved `bugBeaten`).
-  if (reason === 'mega' || reason === 'bug') return true;
+  // An enemy kind (Tasks 035, 038): the first of that kind he ever beats; the caller checks that it is the first (the saved flags).
+  if (reason !== 'finish') return true;
   const was = before?.stars ?? 0;
   return stars >= 1 && (was === 0 || (stars >= 3 && was < 3));
 }
