@@ -48,12 +48,14 @@ export interface ProgressRecord {
   zenDay: ZenDay | null;
   /** He has beaten a Bolt Bug at least once, so the sticker for it is earned (Task 035). */
   bugBeaten: boolean;
+  /** Branch worlds the parent opened at once with "Open the Cave now" (Task 037); kept on a progress reset. */
+  openedWorlds: string[];
 }
 
 export type ParseStatus = 'ok' | 'empty' | 'corrupt' | 'unknown-version';
 
 export function freshRecord(): ProgressRecord {
-  return { version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null, bugBeaten: false };
+  return { version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null, bugBeaten: false, openedWorlds: [] };
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -99,6 +101,7 @@ export function parseRecord(raw: string | null | undefined): { record: ProgressR
   }
   record.stickers = cleanStickers(data.stickers);
   record.bugBeaten = data.bugBeaten === true;
+  if (Array.isArray(data.openedWorlds)) record.openedWorlds = [...new Set(data.openedWorlds.map(shortString).filter((v): v is string => v !== null))].slice(0, 16);
   const zd = data.zenDay;
   if (isObj(zd) && typeof zd.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(zd.date) && typeof zd.ms === 'number' && Number.isFinite(zd.ms)) record.zenDay = { date: zd.date, ms: int(zd.ms, 0, 86_400_000) };
   return { record, status: 'ok' };

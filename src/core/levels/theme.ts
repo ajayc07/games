@@ -32,6 +32,11 @@ export interface LevelTheme {
    * glow that follows the player. Purely cosmetic; nothing in the level changes. Absent = a daytime world.
    */
   night?: { stars: number; fireflies: number; lamp: number; lampAlpha: number; lampSize: number; firefly: number };
+  /**
+   * A cave world (Task 037, D-085): hanging stalactites, glowing crystal clusters along the floor and a few drifting glow-motes,
+   * all generated, all behind the play. Purely cosmetic. Absent = no cave extras.
+   */
+  cave?: { stalactite: number; stalactiteTip: number; crystals: number[]; motes: number; mote: number };
   /** Image files (URLs) that replace generated placeholders. Drop a file into the universe assets and list it here. */
   images?: Partial<Record<ThemeTexture, string>>;
 }

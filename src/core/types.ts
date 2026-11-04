@@ -23,6 +23,13 @@ export interface WorldDef {
   levels: string[];
   /** Optional: the world's last level opens only with at least this many stars in the world (D-036). */
   finalLevelStarsRequired?: number;
+  /**
+   * A branch world (Task 037, D-085): reached from the map of world `branchFrom` through a big mouth at the fork after that
+   * world's level `fork` (default: its last level), with a way back to that map. Absent = a main world.
+   */
+  branchFrom?: { world: string; fork?: string };
+  /** The branch opens once this level of any world has at least one star (the parent view or `?unlock=all` open it sooner). */
+  unlock?: { afterLevel: string };
 }
 
 export interface UniverseManifest {

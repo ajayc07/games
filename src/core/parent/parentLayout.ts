@@ -17,7 +17,7 @@ export interface Insets {
   left: number;
 }
 
-export type RowId = 'sound' | 'look' | 'main' | 'unlock' | 'assist' | 'demos';
+export type RowId = 'sound' | 'look' | 'main' | 'unlock' | 'branch' | 'assist' | 'demos';
 
 export interface ParentRow {
   id: RowId;
@@ -69,7 +69,7 @@ export const PARENT = {
   previewMinH: 200,
 } as const;
 
-export function parentLayout(width: number, height: number, insets: Insets, withFullscreen = false): ParentLayout {
+export function parentLayout(width: number, height: number, insets: Insets, withFullscreen = false, withBranch = false): ParentLayout {
   const P = PARENT;
   const left0 = insets.left + P.margin;
   const top = insets.top + P.margin;
@@ -83,7 +83,8 @@ export function parentLayout(width: number, height: number, insets: Insets, with
 
   const labelW = Math.round(Math.max(P.labelMin, Math.min(P.labelMax, leftW * 0.42)));
   // Left column rows.
-  const ids: RowId[] = ['sound', 'look', 'main', 'unlock', 'assist', 'demos'];
+  // The Cave row (Task 037) sits right under Unlock all, only when the universe has a branch world to open.
+  const ids: RowId[] = withBranch ? ['sound', 'look', 'main', 'unlock', 'branch', 'assist', 'demos'] : ['sound', 'look', 'main', 'unlock', 'assist', 'demos'];
   // Rows keep the usual gap when it fits (it does at every tested size); otherwise they close up a little.
   const rowGap = Math.max(12, Math.min(P.gap, (bottom - top - ids.length * P.rowH) / (ids.length - 1)));
   const rows: ParentRow[] = ids.map((id, i) => {

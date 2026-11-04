@@ -17,13 +17,26 @@ import { ParallaxBackground } from '../levels/background';
 import { makePaletteButton, starPath } from '../ui/icons';
 import { HoldButton } from '../ui/HoldButton';
 import { PARENT_HOLD_MS } from '../ui/hold';
-import { clampScroll, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
+import { clampScroll, farHopMs, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
 import { addPracticeBadge, addRestBadge, addZenBadge } from '../practice/icons';
 import { MAP_PRACTICE, mapPracticeSpot, mapStickerSpot, mapZenSpot } from '../practice/practiceLayout';
 import { addStickerBadge } from '../rewards/stickerArt';
 
 export type TeaserIcon = 'cave' | 'sky' | 'castle';
+
+/** A branch off this map (Task 037, D-085): a big mouth above the path just after dot `afterIndex`. */
+export interface BranchSpec {
+  worldId: string;
+  /** The dot the path forks after. */
+  afterIndex: number;
+  /** Open now; a closed one is covered by a boulder that only shakes when tapped. */
+  open: boolean;
+  /** Open before the result just played (so a boulder that was there rolls away in the arrival animation). */
+  wasOpen?: boolean;
+  /** Stars earned in that world and the most it can give (for later crowns, Tasks 038-040). */
+  stars?: { stars: number; max: number };
+}
 
 export interface MapSceneData {
   theme: LevelTheme;
@@ -46,6 +59,21 @@ export interface MapSceneData {
   onStickers?: () => void;
   /** Today's zen time is used up (Task 033): the Zen button shows a sleeping moon and does not open. */
   zenLocked?: boolean;
+  /** Branches off this map (Task 037) and what to do when an open mouth is tapped (the universe switches to that world's map). */
+  branches?: BranchSpec[];
+  onBranch?: (worldId: string) => void;
+  /** A branch map: a meadow arch at the left end that goes back to the map this one branches from. */
+  onBack?: () => void;
+  /** Arrived through a mouth or an arch: fade in from the dark. */
+  fadeIn?: boolean;
+  /** Stand on this dot instead of the current one (coming back through the arch, he stands at the fork). */
+  startAt?: number;
+}
+
+interface MouthView {
+  root: Phaser.GameObjects.Container;
+  halo: Phaser.GameObjects.Image | null;
+  boulder: Phaser.GameObjects.Container | null;
 }
 
 interface DotView {
@@ -54,6 +82,8 @@ interface DotView {
   cloud: Phaser.GameObjects.Image | null;
 }
 
+/** The dark a world change fades through. */
+const FADE_RGB = [4, 10, 30] as const;
 const DEPTH = { path: 1, dots: 2, avatar: 5, cloud: 6, fx: 7, ui: 20 };
 const PALETTE_R = 56;
 const DRAG_PX = 14;
@@ -75,6 +105,8 @@ export class MapScene extends Phaser.Scene {
   private bg!: ParallaxBackground;
   private dotViews: DotView[] = [];
   private teaserViews: Phaser.GameObjects.Container[] = [];
+  private mouthViews: MouthView[] = [];
+  private backView: Phaser.GameObjects.Container | null = null;
   private palette!: Phaser.GameObjects.Container;
   private gear: HoldButton | null = null;
   /** The Practice button (Task 011), screen-fixed bottom-right; its face bobs inside it. */
@@ -92,7 +124,7 @@ export class MapScene extends Phaser.Scene {
   private pos: MapPoint = { x: 0, y: 0 };
   private lift = 0;
   private vy = 0;
-  private hop: { from: MapPoint; to: MapPoint; startedAt: number; then: () => void } | null = null;
+  private hop: { from: MapPoint; to: MapPoint; startedAt: number; ms?: number; then: () => void } | null = null;
   private facing: 1 | -1 = 1;
   private scroll = 0;
   private scrollTarget = 0;
@@ -111,6 +143,8 @@ export class MapScene extends Phaser.Scene {
     this.dots = data.dots;
     this.dotViews = [];
     this.teaserViews = [];
+    this.mouthViews = [];
+    this.backView = null;
     this.hop = null;
     this.drag = null;
     this.busy = !!data.arrival;
@@ -126,7 +160,7 @@ export class MapScene extends Phaser.Scene {
     this.layout = getLayout();
     makeThemeTextures(this, theme, 64);
     makeEffectTextures(this);
-    this.geo = mapGeometry(this.dots.length, this.data0.teasers.length);
+    this.geo = mapGeometry(this.dots.length, this.data0.teasers.length, { branchAfter: (this.data0.branches ?? []).map((b) => b.afterIndex), back: !!this.data0.onBack });
     this.bg = new ParallaxBackground(this, theme, MAP.groundY);
     this.buildGround();
     this.world = this.add.container(0, 0);
@@ -136,8 +170,10 @@ export class MapScene extends Phaser.Scene {
     const shown = this.data0.arrival?.before ?? this.dots;
     shown.forEach((d, i) => this.dotViews.push(this.makeDot(i, d)));
     this.data0.teasers.forEach((icon, i) => this.teaserViews.push(this.makeTeaser(i, icon)));
+    (this.data0.branches ?? []).forEach((b, i) => this.mouthViews.push(this.makeMouth(i, b)));
+    if (this.data0.onBack && this.geo.back) this.backView = this.makeBackArch(this.geo.back);
 
-    this.at = this.data0.arrival ? this.data0.arrival.from : currentDot(this.dots);
+    this.at = this.data0.arrival ? this.data0.arrival.from : this.data0.startAt !== undefined && this.dots[this.data0.startAt] ? this.data0.startAt : currentDot(this.dots);
     this.pos = { ...this.geo.dots[this.at] };
     const look = createLook(this, this.data0.look, this.data0.option, this.pos.x, this.pos.y, sizeFromUrl());
     this.driver = new AvatarDriver(this, { look, x: this.pos.x, feet: this.pos.y, depth: DEPTH.avatar, refSpeed: 200, gait: 'walk', groundAt: () => this.pos.y });
@@ -203,6 +239,7 @@ export class MapScene extends Phaser.Scene {
     this.layout.bindToScene(this, (l) => this.relayout(l));
     this.scroll = this.scrollTarget = scrollFor(this.geo.width, this.layout.width, this.pos.x);
     this.world.x = -this.scroll;
+    if (this.data0.fadeIn) this.cameras.main.fadeIn(450, ...FADE_RGB);
     if (this.data0.arrival) this.playArrival(this.data0.arrival);
     this.installDebugHook();
   }
@@ -214,7 +251,7 @@ export class MapScene extends Phaser.Scene {
     let grounded = true;
     if (this.hop) {
       const h = this.hop;
-      const t = (time - h.startedAt) / MAP.hopMs;
+      const t = (time - h.startedAt) / (h.ms ?? MAP.hopMs);
       const p = hopPoint(h.from, h.to, t);
       const prevLift = this.lift;
       this.pos = { x: p.x, y: p.y };
@@ -292,6 +329,23 @@ export class MapScene extends Phaser.Scene {
       g.fillStyle(0xb98a4b, 1).fillCircle(p.x, p.y, 11);
       g.fillStyle(0xf3d9a4, 1).fillCircle(p.x, p.y, 8);
     });
+    // The short side paths: from the fork dot up to each mouth, and from the way-back arch down to the first dot.
+    const side: Array<[MapPoint, MapPoint, number]> = [];
+    this.geo.branches.forEach((m, i) => side.push([this.geo.dots[this.data0.branches![i].afterIndex], { x: m.x, y: m.y + MAP.mouthH / 2 - 4 }, 1]));
+    if (this.geo.back && this.geo.dots.length > 0) side.push([this.geo.dots[0], { x: this.geo.back.x, y: this.geo.back.y + MAP.mouthH / 2 - 4 }, -1]);
+    for (const [from, to, dir] of side) {
+      const c = new Phaser.Curves.Spline([from.x, from.y, (from.x + to.x) / 2 + dir * 10, (from.y + to.y) / 2 + 24, to.x, to.y]);
+      const pts2 = c.getSpacedPoints(24);
+      for (const [w, col] of [
+        [34, 0xb98a4b],
+        [24, 0xf3d9a4],
+      ] as const) {
+        g.lineStyle(w, col, 1);
+        g.beginPath();
+        pts2.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
+        g.strokePath();
+      }
+    }
     this.world.add(g);
   }
 
@@ -335,6 +389,81 @@ export class MapScene extends Phaser.Scene {
     if (filled) g.fillStyle(0xffd600, 1).lineStyle(4, 0xff8f00, 1);
     else g.fillStyle(0xffffff, 0.45).lineStyle(4, 0xffffff, 1);
     g.fillPoints(pts, true).strokePoints(pts, true);
+  }
+
+  /** A big rock arch with glowing crystals (Task 037), about twice a dot; covered by a boulder while locked. */
+  private makeMouth(i: number, b: BranchSpec): MouthView {
+    const p = this.geo.branches[i];
+    const g = this.add.graphics();
+    const W = MAP.mouthW / 2;
+    const H = MAP.mouthH / 2;
+    g.fillStyle(0x000000, 0.2).fillEllipse(0, H - 2, MAP.mouthW + 20, 26);
+    g.fillStyle(0x56627f, 1).fillRoundedRect(-W, -H, MAP.mouthW, MAP.mouthH - 8, { tl: W, tr: W, bl: 16, br: 16 });
+    g.lineStyle(6, 0x2c3552, 1).strokeRoundedRect(-W, -H, MAP.mouthW, MAP.mouthH - 8, { tl: W, tr: W, bl: 16, br: 16 });
+    g.fillStyle(0x7a88a8, 0.7).fillEllipse(-W * 0.45, -H * 0.62, W * 0.7, H * 0.22);
+    g.fillStyle(0x07102a, 1).fillRoundedRect(-62, -48, 124, H + 46 - 6, { tl: 62, tr: 62, bl: 0, br: 0 });
+    g.fillStyle(0x16508a, 0.85).fillRoundedRect(-42, 4, 84, H - 12 - 6, { tl: 42, tr: 42, bl: 0, br: 0 });
+    g.fillStyle(0x6fe0ff, 0.5).fillRoundedRect(-24, 40, 48, H - 46, { tl: 24, tr: 24, bl: 0, br: 0 });
+    // Crystals around the arch (pastel, with a white glint), so it reads as the glowing Cave from far away.
+    const crystals: Array<[number, number, number, number, number]> = [
+      [-92, -52, 20, 56, 0x8ff0ff],
+      [-70, -92, 18, 52, 0xc9a8ff],
+      [-14, -112, 22, 62, 0xff9fd8],
+      [44, -100, 18, 54, 0x8ff0ff],
+      [86, -58, 20, 58, 0xc9a8ff],
+      [-W - 6, 54, 18, 48, 0xff9fd8],
+      [W + 6, 50, 18, 52, 0x8ff0ff],
+    ];
+    for (const [x, y, hw, len, col] of crystals) {
+      g.fillStyle(col, 1).fillTriangle(x - hw, y + len * 0.5, x + hw, y + len * 0.5, x, y - len * 0.5);
+      g.fillStyle(0xffffff, 0.45).fillTriangle(x - hw * 0.1, y + len * 0.5, x - hw, y + len * 0.5, x, y - len * 0.5);
+      g.lineStyle(3, 0x2c3552, 1).strokeTriangle(x - hw, y + len * 0.5, x + hw, y + len * 0.5, x, y - len * 0.5);
+    }
+    const root = this.add.container(p.x, p.y, [g]).setDepth(DEPTH.dots);
+    let halo: Phaser.GameObjects.Image | null = null;
+    const lockedAtFirst = !b.open || b.wasOpen === false;
+    if (b.open) {
+      // A soft cyan glow behind the arch that breathes, so he notices it (it comes on when the boulder rolls away if it was locked).
+      halo = this.add.image(0, 8, 'fx-glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0x7fe8ff).setDisplaySize(330, 300).setAlpha(lockedAtFirst ? 0 : 0.4);
+      root.addAt(halo, 0);
+      if (!lockedAtFirst) this.tweens.add({ targets: halo, alpha: 0.18, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+    this.world.add(root);
+    let boulder: Phaser.GameObjects.Container | null = null;
+    if (lockedAtFirst) {
+      const bg = this.add.graphics();
+      bg.fillStyle(0x000000, 0.2).fillEllipse(6, 70, 170, 24);
+      bg.fillStyle(0x8a8478, 1).fillCircle(0, 0, 78);
+      bg.lineStyle(7, 0x5a554c, 1).strokeCircle(0, 0, 78);
+      bg.fillStyle(0xa59f92, 1).fillEllipse(-22, -28, 70, 40);
+      bg.lineStyle(5, 0x5a554c, 1).lineBetween(-10, -20, 6, 6).lineBetween(6, 6, -6, 28).lineBetween(6, 6, 30, 14);
+      boulder = this.add.container(p.x, p.y + 38, [bg]).setDepth(DEPTH.cloud);
+      this.world.add(boulder);
+    }
+    return { root, halo, boulder };
+  }
+
+  /** The meadow arch on a branch map (Task 037): a green arch with a sunny opening and flowers; it goes back. */
+  private makeBackArch(p: MapPoint): Phaser.GameObjects.Container {
+    const g = this.add.graphics();
+    const W = MAP.mouthW / 2;
+    const H = MAP.mouthH / 2;
+    g.fillStyle(0x000000, 0.2).fillEllipse(0, H - 2, MAP.mouthW + 20, 26);
+    g.fillStyle(0x66bb6a, 1).fillRoundedRect(-W, -H, MAP.mouthW, MAP.mouthH - 8, { tl: W, tr: W, bl: 16, br: 16 });
+    g.lineStyle(6, 0x2e7d32, 1).strokeRoundedRect(-W, -H, MAP.mouthW, MAP.mouthH - 8, { tl: W, tr: W, bl: 16, br: 16 });
+    g.fillStyle(0x8fd47a, 1).fillEllipse(-W * 0.4, -H * 0.62, W * 0.8, H * 0.22);
+    g.fillStyle(0xdff7b8, 1).fillRoundedRect(-62, -48, 124, H + 46 - 6, { tl: 62, tr: 62, bl: 0, br: 0 });
+    g.fillStyle(0x7cd34a, 1).fillRect(-62, H - 30, 124, 24);
+    g.fillStyle(0xffe082, 1).fillCircle(20, -2, 26);
+    g.lineStyle(4, 0xfff59d, 1).strokeCircle(20, -2, 34);
+    const blooms: Array<[number, number, number]> = [[-84, -40, 0xffffff], [-48, -88, 0xffeb3b], [10, -104, 0xf48fb1], [60, -84, 0xffffff], [88, -34, 0xffeb3b], [-96, 20, 0xf48fb1], [96, 24, 0xffffff]];
+    for (const [x, y, col] of blooms) {
+      g.fillStyle(col, 1).fillCircle(x, y, 13);
+      g.fillStyle(0xff8f00, 1).fillCircle(x, y, 5);
+    }
+    const c = this.add.container(p.x, p.y, [g]).setDepth(DEPTH.dots);
+    this.world.add(c);
+    return c;
   }
 
   private makeTeaser(i: number, icon: TeaserIcon): Phaser.GameObjects.Container {
@@ -413,6 +542,9 @@ export class MapScene extends Phaser.Scene {
 
   private tapAt(mx: number, my: number): void {
     if (this.leaving) return;
+    const mouth = hitIndex(this.geo.branches, mx, my, MAP.mouthHit);
+    if (mouth >= 0) return this.goBranch(mouth);
+    if (this.geo.back && this.backView && hitIndex([this.geo.back], mx, my, MAP.mouthHit) === 0) return this.goBack();
     const dot = hitIndex(this.geo.dots, mx, my, MAP.dotHit, -10);
     if (dot >= 0) {
       if (this.dots[dot].open && !this.dotViews[dot].cloud?.visible) this.goPlay(dot);
@@ -456,6 +588,53 @@ export class MapScene extends Phaser.Scene {
       startedAt: this.time.now,
       then: () => (next === target ? then() : this.hopTo(target, then)),
     };
+  }
+
+  /** One long arc from where he stands to a point (a mouth or an arch), then the callback. */
+  private hopToPoint(target: MapPoint, then: () => void): void {
+    const from = { ...this.pos };
+    this.facing = target.x >= from.x ? 1 : -1;
+    this.driver.takeoff(this.time.now);
+    audio.play('hop');
+    this.hop = { from, to: target, startedAt: this.time.now, ms: farHopMs(from, target), then };
+  }
+
+  /** A mouth was tapped: locked = the boulder shakes; open = the robot hops to it, jumps in and the screen fades through the dark. */
+  private goBranch(i: number): void {
+    const spec = this.data0.branches?.[i];
+    const view = this.mouthViews[i];
+    if (!spec || !view || this.leaving) return;
+    if (!spec.open) {
+      this.bump(view.boulder ?? view.root);
+      return;
+    }
+    if (this.busy) return;
+    this.busy = true;
+    const p = this.geo.branches[i];
+    this.hopToPoint({ x: p.x, y: p.y + MAP.mouthH / 2 - 4 }, () => this.fadeThrough(() => this.data0.onBranch?.(spec.worldId), view.root));
+  }
+
+  /** The meadow arch was tapped: the same hop and fade, back to the map this one branches from. */
+  private goBack(): void {
+    if (this.busy || !this.geo.back || !this.backView) return;
+    this.busy = true;
+    const p = this.geo.back;
+    this.hopToPoint({ x: p.x, y: p.y + MAP.mouthH / 2 - 4 }, () => this.fadeThrough(() => this.data0.onBack?.(), this.backView));
+  }
+
+  /** The robot hops in, the arch pulses and the camera fades to dark; then the callback switches the map. */
+  private fadeThrough(go: () => void, arch: Phaser.GameObjects.Container | null): void {
+    this.leaving = true;
+    this.phase = 'leaving';
+    audio.play('pick');
+    this.driver.hop(this.time.now);
+    if (arch) this.tweens.add({ targets: arch, scale: 1.06, duration: 160, yoyo: true, ease: 'Sine.easeOut' });
+    this.sparkle.explode(26, this.pos.x, this.pos.y - 60);
+    this.time.delayedCall(260, () => {
+      const cam = this.cameras.main;
+      cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.game.events.once(Phaser.Core.Events.POST_STEP, go));
+      cam.fadeOut(420, ...FADE_RGB);
+    });
   }
 
   private goPlay(index: number): void {
@@ -572,6 +751,12 @@ export class MapScene extends Phaser.Scene {
       this.time.delayedCall(t, () => this.clearCloud(i, v));
       t += 700;
     }
+    (this.data0.branches ?? []).forEach((b, i) => {
+      if (b.open && b.wasOpen === false) {
+        this.time.delayedCall(t, () => this.rollBoulderAway(i));
+        t += 900;
+      }
+    });
     this.time.delayedCall(t + 150, () => {
       this.phase = 'hopping';
       this.hopTo(currentDot(this.dots), () => {
@@ -579,6 +764,22 @@ export class MapScene extends Phaser.Scene {
         this.phase = 'idle';
       });
     });
+  }
+
+  /** The boulder over a mouth that has just opened (Task 037) rolls aside with sparkles, and the glow comes on. */
+  private rollBoulderAway(i: number): void {
+    const v = this.mouthViews[i];
+    const p = this.geo.branches[i];
+    audio.play('unlock');
+    this.sparkle.explode(36, p.x, p.y);
+    if (v.boulder) {
+      const b = v.boulder;
+      this.tweens.add({ targets: b, x: b.x + 150, y: b.y + 40, angle: 220, alpha: 0, duration: 800, ease: 'Sine.easeIn', onComplete: () => b.setVisible(false) });
+    }
+    const halo = v.halo;
+    if (halo) {
+      this.tweens.add({ targets: halo, alpha: 0.4, duration: 600, onComplete: () => this.tweens.add({ targets: halo, alpha: 0.18, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }) });
+    }
   }
 
   private clearCloud(i: number, v: DotView): void {
@@ -612,6 +813,8 @@ export class MapScene extends Phaser.Scene {
           starsShown: this.dotViews[i].stars.filter((s) => s.visible && s.scale > 0.9).length,
         })),
         teasers: this.geo.teasers.map((t) => ({ x: t.x - this.scroll, y: t.y })),
+        branches: this.geo.branches.map((m, i) => ({ x: m.x - this.scroll, y: m.y, hit: MAP.mouthHit, worldId: this.data0.branches![i].worldId, open: this.data0.branches![i].open, locked: !!this.mouthViews[i].boulder?.visible, stars: this.data0.branches![i].stars })),
+        back: this.geo.back && { x: this.geo.back.x - this.scroll, y: this.geo.back.y, hit: MAP.mouthHit },
         avatar: { x: this.pos.x - this.scroll, y: this.pos.y - this.lift },
         palette: { x: this.palette.x, y: this.palette.y, r: PALETTE_R },
         gear: this.gear?.state ?? null,

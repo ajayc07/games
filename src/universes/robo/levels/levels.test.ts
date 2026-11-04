@@ -8,7 +8,7 @@ import { options } from '../options';
 import { validateOptions } from '../../../core/avatar/options';
 import { resolveAvatar } from '../../../core/avatar/config';
 import { chimeRecipe, chimeRootHz } from '../../../core/audio/chimes';
-import { grassTheme, nightTheme, themeForWorld } from '../themes';
+import { caveTheme, grassTheme, nightTheme, themeForWorld } from '../themes';
 import { UNIVERSE_ID, UNIVERSE_TITLE } from '../universe';
 import { worlds } from '../worlds';
 import grass1 from './grass-1.json';
@@ -24,8 +24,10 @@ import magnet1 from './magnet-1.json';
 import boots1 from './boots-1.json';
 import flash1 from './flash-1.json';
 import bug1 from './bug-1.json';
+import cave1 from './cave-1.json';
+import { varyLevel, withRainbowBubble } from '../../../core/levels/variety';
 import { BUG, bugErrors } from '../../../core/levels/bugs';
-import { runBot } from '../../../core/levels/testBot';
+import { gapsOf as gapsOfRow, runBot } from '../../../core/levels/testBot';
 import { FLASH, MAGNET, bootsPeak, normalPeak } from '../../../core/levels/powerups';
 import { BLOCK_MAX_TILES, padPeak } from '../../../core/levels/pads';
 import { bubbleSpecs, BUBBLE } from '../../../core/levels/bubbles';
@@ -811,5 +813,95 @@ describe('Night theme (Task 016, D-060)', () => {
     for (const bg of [t.hills.far, t.hills.near, t.sky.top, t.sky.bottom]) expect(contrast(t.coin.fill, bg)).toBeGreaterThanOrEqual(1.5);
     expect(contrast(t.ground.grass, t.hills.near)).toBeGreaterThanOrEqual(1.5);
     expect(contrast(t.sky.top, t.sky.bottom)).toBeLessThan(6); // a soft gradient, not a black void
+  });
+});
+
+describe('Cave world (Task 037, D-085)', () => {
+  const cave = worlds.find((w) => w.id === 'cave')!;
+  it('is a branch of Grass at grass-6 that opens after grass-6 is cleared, with cave-1 first', () => {
+    expect(cave.levels).toEqual(['cave-1']);
+    expect(cave.branchFrom).toEqual({ world: 'grass', fork: 'grass-6' });
+    expect(cave.unlock).toEqual({ afterLevel: 'grass-6' });
+    expect(nextLevelId(worlds, 'cave-1')).toBeNull();
+    expect(worlds.find((w) => w.id === 'grass')!.levels).not.toContain('cave-1');
+  });
+
+  it('has its own look: cave extras, no image files, generated only; Grass and Night are unchanged', () => {
+    const t = caveTheme;
+    expect(themeForWorld('cave')).toBe(caveTheme);
+    expect(t.cave).toBeDefined();
+    expect(t.cave!.motes).toBeGreaterThan(5);
+    expect(t.cave!.crystals.length).toBeGreaterThanOrEqual(3);
+    expect(t.night).toBeUndefined();
+    expect(grassTheme.cave).toBeUndefined();
+    expect(nightTheme.cave).toBeUndefined();
+    expect(new Set([t.id, grassTheme.id, nightTheme.id]).size).toBe(3);
+    expect(Object.values(t.images ?? {}).filter(Boolean)).toEqual([]);
+  });
+
+  it('every robot colour stays readable: dark joints reach 3:1 on the cave hills, and the pad, coins and ground stand out', () => {
+    const t = caveTheme;
+    for (const o of options) {
+      const p = resolveAvatar(o).palette;
+      expect(contrast(p.joint, t.hills.near), o.id).toBeGreaterThanOrEqual(3);
+      expect(contrast(p.joint, t.hills.far), o.id).toBeGreaterThanOrEqual(3);
+    }
+    for (const bg of [t.hills.far, t.hills.near]) {
+      expect(contrast(t.goal.rim, bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(t.goal.beaconRim, bg)).toBeGreaterThanOrEqual(3);
+    }
+    expect(contrast(t.goal.top, t.goal.rim)).toBeGreaterThanOrEqual(3);
+    for (const bg of [t.hills.far, t.hills.near, t.sky.top, t.sky.bottom]) expect(contrast(t.coin.fill, bg)).toBeGreaterThanOrEqual(1.5);
+    expect(contrast(t.ground.grass, t.hills.near)).toBeGreaterThanOrEqual(1.5);
+    expect(contrast(t.sky.top, t.sky.bottom)).toBeLessThan(6); // a dim cavern, not a black void
+  });
+
+  it('cave-1 "Cave Walk": cave world, all four buttons, about 70 tiles, two small gaps with coin arcs, a few small bubbles, no enemies, no demo', () => {
+    const level = parseLevelOrThrow(cave1, 'cave-1');
+    expect(level.world).toBe('cave');
+    expect(themeForWorld(level.world)).toBe(caveTheme);
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump', 'power']);
+    expect(level.controls.autoRun).toBe(false);
+    expect(level.controls.demo).toBe(false);
+    const e = extractEntities(level.grid);
+    expect(e.cols).toBeGreaterThanOrEqual(65);
+    expect(e.cols).toBeLessThanOrEqual(80);
+    expect(e.start.col).toBe(6);
+    expect(e.bugs.length).toBe(0);
+    expect(e.pickups.length).toBe(0);
+    expect(e.bubbles.length).toBeGreaterThanOrEqual(4); // 4+ small bubbles: the rainbow bubble joins on every play
+    expect(e.bubbles.length).toBeLessThanOrEqual(6);
+    for (const b of e.bubbles) {
+      expect(b.kind).toBe('small');
+      expect([e.start.row, e.start.row - 1]).toContain(b.row); // both rows a standing shot reaches
+    }
+    const gaps = gapsOfRow(e);
+    expect(gaps.length).toBe(2);
+    const reach = walkingJumpReach(PHYSICS.walkSpeed);
+    for (const g of gaps) {
+      expect(g.length).toBeLessThanOrEqual(2);
+      expect(reach.standing, `gap of ${g.length}`).toBeGreaterThanOrEqual(gapNeed(g.length) + 40);
+      expect(e.coins.some((c) => c.col >= g[0] - 2 && c.col <= g[g.length - 1] + 2 && c.row < e.start.row - 1), 'a coin arc over the gap').toBe(true);
+    }
+    expect(gaps[1][0] - gaps[0][gaps[0].length - 1] - 1).toBeGreaterThanOrEqual(8);
+    expect(e.goal.col - gaps[1][gaps[1].length - 1]).toBeGreaterThanOrEqual(8);
+    for (const c of [...e.coins, ...e.bubbles]) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    // Stars: two about 40%, three about 75-85% of the coins on offer; ignoring the bubbles still gives two.
+    const total = e.coins.length + BUBBLE.coins.small * e.bubbles.length;
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.two).toBeGreaterThanOrEqual(Math.round(total * 0.4));
+    expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
+    expect(level.stars.three).toBeGreaterThan(e.coins.length);
+  });
+
+  it('a scripted bot finishes cave-1 as written and on 200 varied grids, collecting every coin and bubble', () => {
+    const level = parseLevelOrThrow(cave1, 'cave-1');
+    const r0 = runBot(extractEntities(level.grid), { jumpForCoins: true });
+    expect(r0.finished).toBe(true);
+    for (let seed = 1; seed <= 200; seed++) {
+      const e = extractEntities(withRainbowBubble(varyLevel(level, seed), seed).grid);
+      const r = runBot(e, { jumpForCoins: true });
+      expect(r.finished, `seed ${seed}`).toBe(true);
+    }
   });
 });

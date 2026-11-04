@@ -67,3 +67,41 @@ export function unlockFromSearch(search: string, openAtATime: number, savedUnloc
   const forced = p.has('debug') ? Number(p.get('open')) : NaN;
   return { openAtATime: Number.isFinite(forced) && forced >= 1 ? Math.floor(forced) : openAtATime, unlockAll };
 }
+
+// ---------- branches (Task 037, D-085) ----------
+
+export interface BranchOptions {
+  /** `?unlock=all` or the parent view's Unlock all. */
+  unlockAll?: boolean;
+  /** Worlds the parent view opened at once (saved in the record, kept on a progress reset). */
+  openedWorlds?: readonly string[];
+}
+
+/** A branch world is open when it has no unlock rule, or its rule is met, or everything is unlocked, or the parent opened it. */
+export function branchOpen(world: WorldDef, levels: Record<string, LevelProgress>, opts: BranchOptions = {}): boolean {
+  if (opts.unlockAll || opts.openedWorlds?.includes(world.id)) return true;
+  if (!world.unlock) return true;
+  return (levels[world.unlock.afterLevel]?.stars ?? 0) >= 1;
+}
+
+/** The worlds that branch off the map of `worldId`, in list order. */
+export function branchesOf(worlds: readonly WorldDef[], worldId: string): WorldDef[] {
+  return worlds.filter((w) => w.branchFrom?.world === worldId && w.levels.length > 0);
+}
+
+/** Index of the dot after which a branch forks off its parent's path (the named level, else the parent's last dot). */
+export function forkIndex(parent: WorldDef, branch: WorldDef): number {
+  const at = branch.branchFrom?.fork ? parent.levels.indexOf(branch.branchFrom.fork) : -1;
+  return at >= 0 ? at : Math.max(0, parent.levels.length - 1);
+}
+
+/** Stars earned in a world and the most it can give (3 a level). One progress record serves every world. */
+export function worldStars(world: WorldDef, levels: Record<string, LevelProgress>): { stars: number; max: number } {
+  const stars = world.levels.reduce((n, id) => n + Math.max(0, Math.min(3, levels[id]?.stars ?? 0)), 0);
+  return { stars, max: world.levels.length * 3 };
+}
+
+/** The world whose map lists a level, if any. */
+export function worldOfLevel(worlds: readonly WorldDef[], levelId: string): WorldDef | undefined {
+  return worlds.find((w) => w.levels.includes(levelId));
+}

@@ -115,6 +115,15 @@ export class ProgressStore {
     return true;
   }
 
+  /** The parent opens (or closes again) a branch world at once (Task 037) and saves. */
+  setWorldOpened(worldId: string, opened: boolean): void {
+    const has = this.current.openedWorlds.includes(worldId);
+    if (has === opened) return;
+    const next = opened ? [...this.current.openedWorlds, worldId] : this.current.openedWorlds.filter((w) => w !== worldId);
+    this.current = { ...this.current, openedWorlds: next };
+    this.scheduleSave();
+  }
+
   /** Adds zen time played (ms) to today's total and saves. */
   addZenTime(ms: number, today: string = todayKey()): void {
     if (ms <= 0) return;

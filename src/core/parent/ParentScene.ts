@@ -34,6 +34,8 @@ export interface ParentState {
   /** Zen minutes allowed per day (0 = no limit) and the zen time played today in ms (Task 033). */
   zenLimit: ZenLimit;
   zenSpentMs: number;
+  /** "Open the Cave now" (Task 037): the branch world the parent can open at once, or null when there is none. */
+  branch: { name: string; open: boolean } | null;
   /** Settings the URL pins for this visit (a change is saved but this visit still uses the URL value). */
   pinned: { buttonScale: boolean; buttonsPrimary: boolean; soundOn: boolean; unlockAll: boolean; look: boolean; walkAssist: boolean; fullscreen: boolean; dayNight: boolean; vibration: boolean };
 }
@@ -53,6 +55,8 @@ export interface ParentSceneData {
   /** Saves the volume and plays a sound at that volume, so the parent hears it. */
   setVolume(v: Volume): void;
   setZenLimit(v: ZenLimit): void;
+  /** Opens (or closes again) the branch world at once; saved, and kept on a progress reset. */
+  setBranchOpen(on: boolean): void;
   /** Buzzes now, whatever the switch says; true if the browser accepted it. */
   testBuzz(): boolean;
   showDemosAgain(): void;
@@ -140,7 +144,7 @@ export class ParentScene extends Phaser.Scene {
     const root = this.add.container(0, 0);
     this.root = root;
     const st = this.data0.read();
-    this.pl = parentLayout(l.width, l.height, l.insets, st.fullscreenAvailable);
+    this.pl = parentLayout(l.width, l.height, l.insets, st.fullscreenAvailable, st.branch !== null);
     root.add(this.add.graphics().fillStyle(C.bg, 1).fillRect(0, 0, l.width, l.height));
 
     if (this.page === 2) {
@@ -160,6 +164,13 @@ export class ParentScene extends Phaser.Scene {
     this.rowLabel(row('unlock'), 'Unlock all');
     this.choice(row('unlock').controls[0], 'On', st.unlockAll, () => this.change(() => this.data0.setUnlockAll(true)));
     this.choice(row('unlock').controls[1], 'Off', !st.unlockAll, () => this.change(() => this.data0.setUnlockAll(false)));
+    if (st.branch) {
+      const br = row('branch');
+      root.add(this.text('Open the', br.label.x, br.label.y + br.label.height / 2 - 14, 26, C.ink, true).setOrigin(0, 0.5));
+      root.add(this.text(`${st.branch.name} now`, br.label.x, br.label.y + br.label.height / 2 + 16, 19, C.soft).setOrigin(0, 0.5));
+      this.choice(br.controls[0], 'On', st.branch.open, () => this.change(() => this.data0.setBranchOpen(true)));
+      this.choice(br.controls[1], 'Off', !st.branch.open, () => this.change(() => this.data0.setBranchOpen(false)));
+    }
     // Walk assist (Task 011): two lines, the second smaller, so the long name fits the label column.
     const ar = row('assist');
     root.add(this.text('Walk assist', ar.label.x, ar.label.y + ar.label.height / 2 - 14, 26, C.ink, true).setOrigin(0, 0.5));

@@ -27,21 +27,54 @@ export const MAP = {
   /** Avatar hop: time per dot (ms) and arc height (px). */
   hopMs: 420,
   hopLift: 70,
+  /** A branch mouth (Task 037): centre height, picture size and tap target (a square, 170 px or more), and its offset from the fork dot. */
+  mouthY: 245,
+  mouthDx: 170,
+  mouthW: 220,
+  mouthH: 200,
+  mouthHit: 180,
+  /** On a branch map: the room added before the first dot, and where the way-back arch stands (300 px left of the first dot). */
+  backLead: 240,
+  backDx: -300,
+  /** Hop to a mouth or an arch: px per second, never faster than a normal hop. */
+  farHopPxPerSec: 700,
+  farHopMaxMs: 1100,
 } as const;
 
 export interface MapGeometry {
   dots: MapPoint[];
   teasers: MapPoint[];
+  /** One big mouth per branch (Task 037), standing above the path just after its fork dot. */
+  branches: MapPoint[];
+  /** The way-back arch on a branch map (Task 037), or null. */
+  back: MapPoint | null;
   /** Width of the whole map (px). */
   width: number;
 }
 
-export function mapGeometry(dotCount: number, teaserCount: number): MapGeometry {
-  const dots = Array.from({ length: dotCount }, (_, i) => ({ x: MAP.firstX + i * MAP.dotGap, y: MAP.dotYs[i % MAP.dotYs.length] }));
-  const lastX = dots.length > 0 ? dots[dots.length - 1].x : MAP.firstX - MAP.dotGap;
+export interface MapGeometryOptions {
+  /** The dot index each branch forks after (one mouth each). */
+  branchAfter?: readonly number[];
+  /** A branch map: leave room for the way-back arch before the first dot. */
+  back?: boolean;
+}
+
+export function mapGeometry(dotCount: number, teaserCount: number, opts: MapGeometryOptions = {}): MapGeometry {
+  const lead = opts.back ? MAP.backLead : 0;
+  const dots = Array.from({ length: dotCount }, (_, i) => ({ x: lead + MAP.firstX + i * MAP.dotGap, y: MAP.dotYs[i % MAP.dotYs.length] }));
+  const lastX = dots.length > 0 ? dots[dots.length - 1].x : lead + MAP.firstX - MAP.dotGap;
   const teasers = Array.from({ length: teaserCount }, (_, i) => ({ x: lastX + MAP.dotGap * 0.95 + i * MAP.teaserGap, y: MAP.teaserY }));
+  const branches = (opts.branchAfter ?? []).filter((i) => i >= 0 && i < dots.length).map((i) => ({ x: dots[i].x + MAP.mouthDx, y: MAP.mouthY }));
+  const back = opts.back && dots.length > 0 ? { x: dots[0].x + MAP.backDx, y: MAP.mouthY } : null;
   const lastItem = teasers.length > 0 ? teasers[teasers.length - 1].x : lastX;
-  return { dots, teasers, width: lastItem + MAP.endPad };
+  const rightmost = Math.max(lastItem, ...branches.map((b) => b.x));
+  return { dots, teasers, branches, back, width: rightmost + MAP.endPad };
+}
+
+/** Duration (ms) of one long hop from a to b (to a mouth or an arch): never shorter than a normal hop. */
+export function farHopMs(a: MapPoint, b: MapPoint): number {
+  const d = Math.hypot(b.x - a.x, b.y - a.y);
+  return Math.round(Math.min(MAP.farHopMaxMs, Math.max(MAP.hopMs, (d / MAP.farHopPxPerSec) * 1000)));
 }
 
 /**

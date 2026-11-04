@@ -3,8 +3,8 @@ import type { AvatarOptionDef, UniverseManifest, WorldDef } from '../../core/typ
 import { LevelScene, type LevelSceneData } from '../../core/levels/LevelScene';
 import { nextLevelId } from '../../core/levels/progression';
 import { PickerScene, type PickerSceneData } from '../../core/picker/PickerScene';
-import { MapScene, type MapSceneData, type TeaserIcon } from '../../core/map/MapScene';
-import { unlockFromSearch, worldDots, type UnlockOptions } from '../../core/map/unlock';
+import { MapScene, type BranchSpec, type MapSceneData, type TeaserIcon } from '../../core/map/MapScene';
+import { branchesOf, branchOpen, forkIndex, unlockFromSearch, worldDots, worldOfLevel, worldStars, type UnlockOptions } from '../../core/map/unlock';
 import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene';
 import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
 import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
@@ -41,7 +41,7 @@ import { options } from './options';
 import { FALL_BUZZ, vibrate, vibrationSupported } from '../../core/ui/haptics';
 import { enterFullscreen, exitFullscreen, fullscreenAvailable } from '../../core/ui/fullscreen';
 import { levels } from './levels';
-import { nightTheme, themeForWorld } from './themes';
+import { caveTheme, nightTheme, themeForWorld } from './themes';
 import type { LevelTheme } from '../../core/levels/theme';
 import { worlds } from './worlds';
 import { InputLabScene, type InputLabData } from './scenes/InputLabScene';
@@ -73,6 +73,8 @@ interface Session {
   arrival: { levelId: string; before: ProgressRecord } | null;
   /** The last practice focus (the selector's cursor starts there). */
   practiceMode: PracticeMode | null;
+  /** The world whose map the next `openMap` shows (Task 037): the world of the last level played or the last branch taken. */
+  mapWorld: string | null;
 }
 
 async function boot(game: Phaser.Game): Promise<void> {
@@ -102,6 +104,7 @@ async function boot(game: Phaser.Game): Promise<void> {
     look,
     arrival: null,
     practiceMode: null,
+    mapWorld: null,
   };
   exposeDebug(s);
 
@@ -161,21 +164,54 @@ function openPicker(s: Session, then: () => void): void {
 
 /** The look of a level at this start (Task 025): bright or dark, by the parent's setting (random by default). */
 function themeForRun(worldId: string, varied: boolean): LevelTheme {
+  if (worldId === 'cave') return caveTheme; // a cave is always a cave (Task 037); Day / Night does not repaint it
   const look = pickLook(settings.dayNight(), { nightLevel: worldId === 'night', varied, roll: Math.random() });
   return look === 'night' ? nightTheme : themeForWorld(worldId);
 }
 
-function openMap(s: Session): void {
-  const world = worlds.find((w) => w.levels.length > 0);
+/** The world whose map to show: the remembered one, else the first main world (Task 037). */
+function mapWorldFor(s: Session): WorldDef {
+  const main = worlds.find((w) => w.levels.length > 0 && !w.branchFrom);
+  const wanted = s.mapWorld ? worlds.find((w) => w.id === s.mapWorld && w.levels.length > 0) : undefined;
+  const world = wanted ?? main;
   if (!world) throw new Error(`${TAG} no world with levels`);
+  return world;
+}
+
+/** The branches off a map, each with its open state now and before the last result (Task 037, D-085). */
+function branchSpecs(s: Session, world: WorldDef, before: ProgressRecord | null): BranchSpec[] {
+  const rec = s.store.record;
+  const all = unlockOptions(s).unlockAll;
+  return branchesOf(worlds, world.id).map((b) => ({
+    worldId: b.id,
+    afterIndex: forkIndex(world, b),
+    open: branchOpen(b, rec.levels, { unlockAll: all, openedWorlds: rec.openedWorlds }),
+    wasOpen: before ? branchOpen(b, before.levels, { unlockAll: all, openedWorlds: before.openedWorlds }) : undefined,
+    stars: worldStars(b, rec.levels),
+  }));
+}
+
+/** `world` switches the map to that world (through a mouth or an arch), with a fade in from the dark. */
+function openMap(s: Session, world0?: string, startAt?: number): void {
+  if (world0) s.mapWorld = world0;
+  const world = mapWorldFor(s);
+  s.mapWorld = world.id;
   const dots = dotsFor(s, world);
   const arrival = s.arrival;
   s.arrival = null;
   const from = arrival ? world.levels.indexOf(arrival.levelId) : -1;
+  const parent = world.branchFrom ? worlds.find((w) => w.id === world.branchFrom?.world) : undefined;
   const data: MapSceneData = {
     theme: themeForWorld(world.id),
     dots,
-    teasers: worlds.filter((w) => w !== world && TEASER_ICONS[w.id]).map((w) => TEASER_ICONS[w.id]),
+    // Signposts for the worlds still to come (no levels yet); branches have their own mouth.
+    teasers: worlds.filter((w) => w.levels.length === 0 && TEASER_ICONS[w.id]).map((w) => TEASER_ICONS[w.id]),
+    branches: branchSpecs(s, world, arrival && from >= 0 ? arrival.before : null),
+    onBranch: (id) => openMap(s, id),
+    // Coming back through the arch, he stands at the fork dot, next to the mouth he went in by.
+    onBack: parent ? () => openMap(s, parent.id, forkIndex(parent, world)) : undefined,
+    fadeIn: !!world0,
+    startAt,
     option: currentOption(s),
     look: s.look,
     arrival: arrival && from >= 0 ? { before: dotsFor(s, world, arrival.before), from } : undefined,
@@ -286,6 +322,8 @@ function openZen(s: Session, seed: number): void {
 /** The parent view (D-047): reached only from the map's gear or `?parent=1`; Back returns to the map. */
 function openParent(s: Session): void {
   const store = s.store;
+  // "Open the Cave now" (Task 037): the first branch world that has an unlock rule.
+  const branchWorld = worlds.find((w) => w.branchFrom && w.unlock && w.levels.length > 0);
   const data: ParentSceneData = {
     // The saved choice is shown (so a tapped button lights up even when the URL pins the value for this visit);
     // the scene adds a note for pinned settings. Values never saved show what a level would use.
@@ -307,6 +345,7 @@ function openParent(s: Session): void {
         volume: resolveVolume(saved),
         zenLimit: saved.zenLimit ?? resolveZenLimit('', {}),
         zenSpentMs: spentToday(store.record.zenDay, todayKey()),
+        branch: branchWorld ? { name: branchWorld.name, open: store.record.openedWorlds.includes(branchWorld.id) } : null,
         pinned: urlOverrides(input.search),
       };
     },
@@ -339,6 +378,9 @@ function openParent(s: Session): void {
       audio.play('stickerGet'); // a happy sound at the new volume, so the parent hears it
     },
     setZenLimit: (v) => store.updateSettings({ zenLimit: v }),
+    setBranchOpen: (on) => {
+      if (branchWorld) store.setWorldOpened(branchWorld.id, on);
+    },
     testBuzz: () => vibrate(FALL_BUZZ, true),
     showDemosAgain: () => LevelScene.forgetDemos(),
     resetProgress: async () => {
@@ -364,6 +406,7 @@ function openLevel(s: Session, levelId: string, replay = false): void {
   if (!level) throw new Error(`${TAG} no levels found`);
   s.arrival = null;
   const here = level.id;
+  s.mapWorld = worldOfLevel(worlds, here)?.id ?? s.mapWorld; // Home goes back to this level's own map
   const nextId = nextLevelId(worlds, here);
   // Replay variety (Task 012, D-053): the first play and any play with a demo use the level as written; a replay of a
   // cleared level gets its coins and small bubbles shuffled (and maybe a rainbow bubble) with a fresh seed, kept in memory only.

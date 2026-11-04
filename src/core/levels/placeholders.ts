@@ -37,6 +37,67 @@ export function themeTextureSize(name: ThemeTexture, tile: number): { w: number;
 
 export const themeKey = (theme: LevelTheme, name: ThemeTexture) => `${theme.id}:${name}`;
 
+/** Cave scenery strips (Task 037): hanging stalactites (tile at the top edge) and a floor row of crystal clusters (bottom-aligned). */
+export const CAVE_STRIP = { stalactites: { w: 1024, h: 190 }, crystals: { w: 1024, h: 110 } } as const;
+export const caveKey = (theme: LevelTheme, name: keyof typeof CAVE_STRIP) => `${theme.id}:cave-${name}`;
+
+/**
+ * The two tileable cave strips for a theme with a `cave` block (no-op otherwise, and when they exist). Each shape is drawn once
+ * a strip-width to the left and right too, so the strip tiles without a seam.
+ */
+export function makeCaveTextures(scene: Phaser.Scene, theme: LevelTheme): void {
+  const cave = theme.cave;
+  if (!cave) return;
+  const sKey = caveKey(theme, 'stalactites');
+  if (!scene.textures.exists(sKey)) {
+    const { w, h } = CAVE_STRIP.stalactites;
+    // [centre fraction, half width px, length px]
+    const spikes: Array<[number, number, number]> = [
+      [0.04, 34, 120], [0.12, 22, 70], [0.2, 40, 160], [0.29, 26, 90], [0.37, 18, 56], [0.45, 38, 140], [0.54, 24, 84],
+      [0.62, 42, 180], [0.7, 20, 62], [0.78, 32, 118], [0.86, 24, 80], [0.94, 36, 150],
+    ];
+    generate(scene, sKey, w, h, (g) => {
+      g.fillStyle(cave.stalactite, 1).fillRect(0, 0, w, 16);
+      for (const [fx, hw, len] of spikes) {
+        for (const off of [-w, 0, w]) {
+          const cx = fx * w + off;
+          g.fillStyle(cave.stalactite, 1).fillTriangle(cx - hw, 8, cx + hw, 8, cx, len);
+          // A paler sliver down one side and a bright tip catch the light.
+          g.fillStyle(cave.stalactiteTip, 0.55).fillTriangle(cx - hw * 0.1, 8, cx + hw * 0.55, 8, cx, len);
+          g.fillStyle(cave.stalactiteTip, 1).fillTriangle(cx - hw * 0.14, len - len * 0.16, cx + hw * 0.14, len - len * 0.16, cx, len);
+        }
+      }
+    });
+  }
+  const cKey = caveKey(theme, 'crystals');
+  if (!scene.textures.exists(cKey)) {
+    const { w, h } = CAVE_STRIP.crystals;
+    // [centre fraction, spike count, size factor]
+    const clusters: Array<[number, number, number]> = [[0.08, 3, 1], [0.27, 2, 0.7], [0.46, 3, 1.1], [0.66, 2, 0.8], [0.84, 3, 0.95]];
+    generate(scene, cKey, w, h, (g) => {
+      clusters.forEach(([fx, n, size], ci) => {
+        for (const off of [-w, 0, w]) {
+          const cx = fx * w + off;
+          for (let k = 0; k < n; k++) {
+            const col = cave.crystals[(ci + k) % cave.crystals.length];
+            const x = cx + (k - (n - 1) / 2) * 26 * size;
+            const hw = (9 + (k % 2) * 3) * size;
+            const top = h - (46 + ((k * 37 + ci * 19) % 40)) * size;
+            // Soft glow behind, the body, a paler facet and a white glint.
+            g.fillStyle(col, 0.16).fillCircle(x, h - 30, 46 * size);
+            g.fillStyle(col, 1).fillPoints(
+              [new Phaser.Geom.Point(x - hw, h), new Phaser.Geom.Point(x - hw, top + hw * 1.2), new Phaser.Geom.Point(x, top), new Phaser.Geom.Point(x + hw, top + hw * 1.2), new Phaser.Geom.Point(x + hw, h)],
+              true,
+            );
+            g.fillStyle(0xffffff, 0.45).fillTriangle(x - hw * 0.15, h, x - hw * 0.15, top + hw * 1.2, x, top);
+            g.fillStyle(0xffffff, 0.85).fillCircle(x - hw * 0.45, top + hw * 2, 2.2);
+          }
+        }
+      });
+    });
+  }
+}
+
 /** Creates every theme texture that is not already loaded from a file. */
 export function makeThemeTextures(scene: Phaser.Scene, theme: LevelTheme, tile: number): void {
   const draw = (name: ThemeTexture, paint: (g: Phaser.GameObjects.Graphics, w: number, h: number) => void) => {

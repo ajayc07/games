@@ -42,7 +42,24 @@ export const nightTheme: LevelTheme = {
   night: { stars: 46, fireflies: 16, lamp: 0xfff3b0, lampAlpha: 0.36, lampSize: 440, firefly: 0xd4ff6a },
 };
 
-/** Theme for a world id: `night` has its own look; every other world reuses Grass until it gets one. */
+/**
+ * Cave look (Task 037, D-085): a dark-teal cavern with hanging stalactites, dark-blue rock underfoot and pastel crystals glowing along
+ * the floor, with a few drifting glow-motes. The hills are pale "lit rock" on purpose, like the night hills: every robot option's dark
+ * joints must reach 3:1 against them (tested), and coins, bubbles and the pad stay readable. Generated, no image files.
+ */
+export const caveTheme: LevelTheme = {
+  id: 'robo-cave',
+  sky: { top: 0x071a2e, bottom: 0x14455a },
+  hills: { far: 0x78a9c2, farShade: 0x85b6ce, near: 0x86b7cf, nearShade: 0x94c3d8 },
+  cloud: 0x4f7f95,
+  ground: { grass: 0x5b84e0, grassDark: 0x35509f, dirt: 0x1f2d6b, dirtDots: 0x15204f },
+  coin: { fill: 0xbdf6ff, edge: 0x1f93c8, shine: 0xffffff },
+  goal: { rim: 0x14103a, top: 0xffe082, ring: 0x00e5ff, glow: 0x80f4ff, beacon: 0xffee58, beaconRim: 0x14103a, post: 0xfff3e0 },
+  cave: { stalactite: 0x0f3047, stalactiteTip: 0x3d7a98, crystals: [0x8ff0ff, 0xc9a8ff, 0xff9fd8], motes: 14, mote: 0xaef6ff },
+};
+
+/** Theme for a world id: `night` and `cave` have their own looks; every other world reuses Grass until it gets one. */
 export function themeForWorld(worldId: string): LevelTheme {
-  return worldId === 'night' ? nightTheme : grassTheme;
+  if (worldId === 'night') return nightTheme;
+  return worldId === 'cave' ? caveTheme : grassTheme;
 }

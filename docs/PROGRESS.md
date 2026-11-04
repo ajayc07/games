@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **Feature freeze lifted on 2026-11-03 for Tasks 034, 035 and 019 only (D-077). Tasks 034 (Flash, power-up rules, flash-1), 035 (Bolt Bug, bug-1) and 019 (footsteps, landing thump, idle wave) done. Task 036 (idle routine: wave, push-ups, taunt, D-084) done as a cosmetic follow-up. **2026-11-04: the freeze is lifted for the Cave world (D-085): Task 041 (zen day/night cycle) done; Tasks 037-040 (Cave) and 042 (zen enemies) are drafted in `docs/tasks/`, order 037, 038, 042, 039, 040.**_
+_Last updated: 2026-10-29 (Tasks 021-033 done: hold to run, zen mode, flight, rainbow coins, day/night, auto-pause, power bars, double power-ups, Mega Robo, stickers, volume). **Feature freeze lifted on 2026-11-03 for Tasks 034, 035 and 019 only (D-077). Tasks 034 (Flash, power-up rules, flash-1), 035 (Bolt Bug, bug-1) and 019 (footsteps, landing thump, idle wave) done. Task 036 (idle routine: wave, push-ups, taunt, D-084) done as a cosmetic follow-up. **2026-11-04: the freeze is lifted for the Cave world (D-085): Task 041 (zen day/night cycle) and Task 037 (Cave world, the map branch, cave-1) done; Tasks 038-040 (Cave) and 042 (zen enemies) are drafted in `docs/tasks/`, order 038, 042, 039, 040.**_
 Full history, old checklists and every earlier open-question note: `docs/archive/PROGRESS-through-task-011.md`.
 
 ## Status
@@ -10,9 +10,9 @@ first visit shows an eight-colour robot picker, then the world map (six Grass le
 Grass 4 Power (pop bubbles into coins), Grass 5 walk and jump over gaps, Grass 6 all four buttons. A teal Practice button
 (bottom-right of the map) opens four icon cards (walk + shoot, jump + shoot, walk + jump, everything): generated 120-tile levels,
 combos fill a row of five stars, a ghost hand coaches, nothing is saved. A grey gear (top-left, held 3 s) opens the parent view
-(sound, button size with preview, main button, look, unlock all, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
+(sound, button size with preview, main button, look, unlock all, open the Cave now, show demos again, reset progress, walk assist in Practice, full screen where the browser supports it).
 Test hooks: `?level=`, `?lab=1`, `?picker=1`, `?color=`, `?look=`, `?size=`, `?buttonScale=`, `?buttons=power`, `?unlock=all`,
-`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?zen=1`, `?power=car|magnet|boots|flash` (start with that power on; with `?demo=0` on levels that have a demo, also works with `?zen=1`), `?bugs=0` (hide the Bolt Bugs in bug-1), `?cycle=<seconds>|0` (zen day/night interval, 0 = off; needs the setting on Random), `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
+`?demo=0|1`, `?variety=0|1`, `?rainbow=1` (forces one rainbow bubble on a varied run), `?sound=0|1`, `?parent=1`, `?practice=<mode>|1`, `?zen=1`, `?power=car|magnet|boots|flash` (start with that power on; with `?demo=0` on levels that have a demo, also works with `?zen=1`), `?bugs=0` (hide the Bolt Bugs in bug-1), `?level=cave-1` (the first Cave level; its Home goes to the Cave map), `?unlock=all` also opens the Cave mouth, `?cycle=<seconds>|0` (zen day/night interval, 0 = off; needs the setting on Random), `?seed=`, `?assist=sticky`, `?fullscreen=0|1`, `?debug=1` (+ `&open=N`).
 Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 012-014b are all pushed.
 
 ## Roadmap
@@ -35,8 +35,9 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 017 | Car power-up: orb pickup, car transform for 10 s, new level car-1 "Zoom Car" (D-061) | Done (uncommitted until the parent commits) |
 | 018 | Magnet and rocket boots: two pickups, new levels magnet-1 and boots-1 (D-062) | Done (uncommitted until the parent commits) |
 | 019 | Polish bundle: footsteps, landing thump, idle wave (D-077, D-081) | Done (committed) |
-| 041 | Zen day/night cycle: Random changes the look every 60-120 s with a 3 s fade (D-085) | Done |
-| 037-040, 042 | Cave world (branch on the map, enemies, levels, boss) and enemies in zen (D-085) | Drafted, not started |
+| 041 | Zen day/night cycle: Random changes the look every 60-120 s with a 3 s fade (D-085, D-086) | Done |
+| 037 | Cave world: a branch on the Grass map (cave mouth, boulder while locked, meadow arch back), the cave look, parent row "Open the Cave now", cave-1 "Cave Walk" (D-085) | Done |
+| 038-040, 042 | Cave enemies and levels 2-3, levels 4-5, the boss, and enemies in zen (D-085) | Drafted, not started |
 | 036 | Idle routine: wave, then push-ups, then a taunt, then rest (D-084) | Done |
 | 034 | Flash power-up and power-up rules (Mega Robo combines with nothing) (D-078, D-079) | Done |
 | 035 | Bolt Bug, a small harmless villain, and level bug-1 (D-080, D-082) | Done |
@@ -103,6 +104,7 @@ _(nothing)_
 ## Parent action items
 - Push the local repo to `origin` (https://github.com/ajayc07/games.git) after each task (or tell Claude Code "push it"). Currently up to date.
 - Tablet checklist, newest first (https://ajayc07.github.io/games/):
+  - **Task 037 (D-085)** (`?unlock=all` opens the mouth at once; the parent view's "Open the Cave now" row does too): does he see the big glowing cave mouth on the Grass map (right of Grass 6, above the path) and tap it; does the boulder on the closed mouth make sense and does the rolling-away after Grass 6 delight him; does he understand the green meadow arch at the left end of the Cave map is the way back; is the hop and fade through the dark calm; is the cave readable (all eight robot colours, bubbles and coins on the hills, the crystals and motes not distracting, nothing too dark); is cave-1 a good size (72 tiles, two gaps, five bubbles)?
   - **Task 041 (D-085)** (`?zen=1&cycle=8` to see it fast): in zen with Day / Night on Random the look changes every 1-2 minutes with a 3 s fade; does he notice and like it, is the fade calm, any hitch at the change or at a world swap, do the robot, bubbles and coins stay easy to see in both looks? With Day or Night set it must never change.
   - **Task 036 (D-084)**: after 7 s untouched the robot waves, does three push-ups (a quiet tap each) and then beckons and shimmies with a wink and a "hee-hee" (the ball: squash pulses, a rock and a hop). Do the push-ups and the taunt make him laugh, or confuse him? Is the routine too long or too frequent (5 s rest, then again)? Do the taps and the "hee-hee" sound friendly? Does any touch stop it at once?
   - **Task 019 (D-081)**: are the footsteps too loud or annoying (walk taps and the lighter run patter; Volume setting Low / Medium / High), does the soft thump on landing feel right, is the idle wave (after 7 s without a touch, robot: one arm waves; ball: small bounces) cute and not distracting, does any touch stop it at once.
