@@ -29,9 +29,9 @@ New enemy kinds, the boss in zen, enemy attacks, scary visuals, changes to Pract
 - Screenshots (`_sources/review/042/`, 844x390 and 1280x800): each kind in zen, a seam with an enemy nearby, an enemy popping into coins.
 
 ## Result
-- What changed:
-- Files touched:
-- Deviations from plan (and why):
-- How verified:
-- Open issues / risks:
-- Suggested next:
+- What changed: zen has a new `enemy` motif (Bolt Bug, Rock Beetle, Glow Bat from a shuffled bag 3/2/1) on a reserved flat stretch (patrol + 3 clear tiles each side, one small bubble beside it each side), about 2.5 per segment. Enemies only lie in columns 52-262, outside both swap windows, so a swap never cuts or carries one; `rebaseZen` rebuilds the `EnemyField` (new `EnemyField.destroy`). Behaviour, shots, bump, coins and stickers are the levels' own. `?enemies=0` hides them, `?enemies=1` forces an early one.
+- Files touched: `core/levels/zen.ts`, `EnemyField.ts`, `enemies.ts` (`enemiesForced`), `LevelScene.ts`, `universes/robo/manifest.ts`, new `zenEnemies.test.ts`, `docs/architecture/levels.md`, `docs/PROGRESS.md`, this file.
+- Deviations from plan (and why): the zone rule replaces "carry a live enemy" (position-based safety, no carry code); density is one per 70-80 tiles in practice, not 45-60 (due is 45-60 tiles from the last enemy's middle, but motifs step the cursor); the enemy's stretch is taken off the power-up clock and one extra `gap` was added to `MOTIFS`, because enemies otherwise pushed the old zen tests' orb, bubble and gap minimums below their limits (those tests are unchanged); `?enemies=1` puts the enemy near tile 52-65, not 40, because tiles 2-50 are a swap window; a small bubble sits each side of an enemy so its stretch never reads as empty.
+- How verified: typecheck, 592 tests and the build pass. Chromium (headless, system Chrome): each kind in zen at 844x390 and 1280x800; a bug shot 3 times pops into 7-8 coins; 14 swaps (6 right, 6 left, then both) rebuilt the enemies each time and matched the grid with no console errors; a 160-step walk-shoot-jump bot crossed a swap with no stuck state (2 of 2 enemies beaten, 219 coins). Screenshots in `_sources/review/042/` (kinds, pop, seam). Not shown: a car or Mega touch-pop in zen (same code as the levels); the bump walk-through is the 1-D test.
+- Open issues / risks: Mega comes a little sooner (about 15-20 enemy coins per segment against the 50-coin first fills; gating unchanged); not tried by him; the zen density and the two bubbles beside each enemy are first guesses (`ZEN_ENEMY`).
+- Suggested next: Task 039 (Cave levels 4-5), then 040 (boss).

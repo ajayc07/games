@@ -577,13 +577,13 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /**
-   * The gentle enemies of the level (Task 035 Bolt Bug, Task 038 Rock Beetle and Glow Bat): not in zen or Practice; `?bugs=0` hides the
-   * bugs and `?enemies=0` the beetles and bats.
+   * The gentle enemies of the level (Task 035 Bolt Bug, Task 038 Rock Beetle and Glow Bat, in zen since Task 042): not in Practice;
+   * `?bugs=0` hides the bugs and `?enemies=0` every enemy.
    */
   private makeEnemyField(): EnemyField | null {
-    if (this.level.zen || this.data0.practice) return null;
+    if (this.data0.practice) return null;
     const search = location.search;
-    const cells = this.grid.enemies.filter((e) => (e.kind === 'bug' ? bugsFromSearch(search) : enemiesFromSearch(search)));
+    const cells = this.grid.enemies.filter((e) => (e.kind === 'bug' ? bugsFromSearch(search) && (!this.level.zen || enemiesFromSearch(search)) : enemiesFromSearch(search)));
     if (cells.length === 0) return null;
     return new EnemyField(this, {
       cells,
@@ -1802,6 +1802,9 @@ export class LevelScene extends Phaser.Scene {
     this.buildObstacles();
     this.buildPickups();
     this.bubbles = this.makeBubbleField();
+    // The enemies of the old segment lie outside every window (ZEN_ENEMY), so none is cut: they go with it, the new ones come in.
+    this.enemies?.destroy();
+    this.enemies = this.makeEnemyField();
   }
 
   /** The current segment's grid with everything he has already taken cleared out (coins, orbs, popped bubbles). */

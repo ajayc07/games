@@ -6,6 +6,7 @@
 // change at all, and the new content continues beyond that window. Pure and seeded: the same seed, lap and carried
 // window always give the same segment. The scene does the swapping (LevelScene.rebaseZen).
 import type { Action } from '../types';
+import { ENEMY_LETTER, ENEMY_LETTERS, type EnemyKind } from './enemies';
 import type { PickupKind } from './powerups';
 import { excludes } from './powerRules';
 import { makeRng, ROW } from './practice';
@@ -27,6 +28,32 @@ export const ZEN = {
   rightArrival: 34,
   leftAt: 26,
 } as const;
+
+/**
+ * Enemies in zen (Task 042, D-085). One enemy now and then on a flat stretch, from a shuffled bag (Bolt Bug most common). The patrol and
+ * 3 clear tiles each side are reserved, so the level validator's rules hold. An enemy never lies in the columns a swap copies (the
+ * old segment's columns 2-50 and 270-318): they are only drawn between `zoneMin` and `zoneMax`, so a swap never cuts one and the
+ * carry logic never has to carry one (and one he popped is simply gone with its segment).
+ */
+export const ZEN_ENEMY = {
+  /** The bag: bug 3, bat 2, beetle 1 of every six enemies. */
+  bag: ['bug', 'bug', 'bug', 'bat', 'bat', 'beetle'] as readonly EnemyKind[],
+  /** Content tiles after a segment's content starts (or after the last enemy's reserved stretch) before the next one is due. */
+  firstAfter: { min: 20, max: 45 },
+  every: { min: 45, max: 60 },
+  /** Clear tiles beside the patrol. */
+  clear: 3,
+  /** Patrol half width (tiles) of each kind: bug 2, beetle 3, bat 2. */
+  half: { bug: 2, beetle: 3, bat: 2 } as Record<EnemyKind, number>,
+  /** Reserved columns of a stretch: the first tile and the last tile (inclusive) of every reserved zone must lie in this range. */
+  zoneMin: 52,
+  zoneMax: 262,
+  /** `?enemies=1`: the first segment's first enemy is due here. */
+  forcedAt: 52,
+} as const;
+
+/** Columns each side of an enemy's middle that its stretch reserves (patrol half + the clear tiles). */
+export const enemyReach = (kind: EnemyKind): number => ZEN_ENEMY.half[kind] + ZEN_ENEMY.clear;
 
 /** Columns everything moves at a swap (the same both ways and for every segment). */
 export const ZEN_SHIFT = ZEN.rightAt - ZEN.rightArrival;
@@ -55,10 +82,10 @@ export function zenSegmentSeed(seed: number, lap: number): number {
   return (seed + Math.imul(lap, 7919) + Math.imul(lap, lap)) >>> 0;
 }
 
-type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap';
+type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap' | 'enemy';
 
 /** Weighted draw: shooting is the most common thing to do, then high bubbles; the rest are the occasional change. */
-const MOTIFS: readonly Motif[] = ['shoot', 'shoot', 'shoot', 'shoot', 'air', 'air', 'arc', 'pad', 'big', 'rest', 'steps', 'steps', 'steps', 'gap', 'gap', 'gap'];
+const MOTIFS: readonly Motif[] = ['shoot', 'shoot', 'shoot', 'shoot', 'air', 'air', 'arc', 'pad', 'big', 'rest', 'steps', 'steps', 'steps', 'gap', 'gap', 'gap', 'gap'];
 /** Motifs with no bubbles in them: bubbles always come next. */
 const QUIET: readonly Motif[] = ['arc', 'pad', 'rest', 'steps', 'gap'];
 
@@ -77,6 +104,8 @@ export interface ZenOptions {
   first?: boolean;
   /** The window of the segment he is leaving (its current state, with collected things taken out) and the direction he left by. */
   carry?: { grid: readonly string[]; dir: 1 | -1 };
+  /** `?enemies=1`: the first enemy comes as early as it may (only for the very first segment, for testing). */
+  forceEnemy?: boolean;
 }
 
 export interface ZenSegment {
@@ -97,11 +126,16 @@ export interface ZenSegment {
   gaps: Array<{ col: number; width: 1 | 2 }>;
   /** The generated range, [from, to) in tiles. */
   range: { from: number; to: number };
+  /** The enemies placed (the middle of the patrol; a bat's row is two above the ground), for tests. */
+  enemies: Array<{ kind: EnemyKind; col: number; row: number }>;
 }
 
 class Cells {
   readonly map = new Map<string, string>();
   readonly gaps: Array<{ col: number; width: 1 | 2 }> = [];
+  readonly enemies: Array<{ kind: EnemyKind; col: number; row: number }> = [];
+  /** Columns reserved round each enemy (first, last), kept free of coins and bubbles. */
+  readonly zones: Array<{ from: number; to: number }> = [];
   /** Last column of the last gap, or `lo` when there is none (so the first gap comes at least MIN_GROUND tiles in). */
   lastGapEnd: number;
   constructor(
@@ -117,6 +151,10 @@ class Cells {
   /** Would something `len` tiles long starting at `col` touch the kept-empty columns? */
   hitsSkip(col: number, len: number): boolean {
     return !!this.skip && col + len > this.skip.from && col < this.skip.to;
+  }
+
+  inZone(col: number): boolean {
+    return this.zones.some((z) => col >= z.from && col <= z.to);
   }
 
   int(min: number, max: number): number {
@@ -225,6 +263,21 @@ function gap(c: Cells, from: number): number {
   return g + width + 3;
 }
 
+/** One enemy in the middle of a stretch of flat ground: the patrol and its clear tiles are reserved, nothing else is put there. */
+function enemy(c: Cells, from: number, kind: EnemyKind): number {
+  const reach = enemyReach(kind);
+  const col = from + reach;
+  const row = kind === 'bat' ? ROW.up : ROW.low;
+  c.put(col, row, ENEMY_LETTER[kind]);
+  c.enemies.push({ kind, col, row });
+  c.zones.push({ from: col - reach, to: col + reach });
+  // A small bubble in the clear tiles each side (outside the patrol, so the stretch never reads as empty and he can pop on the way in).
+  const edge = ZEN_ENEMY.half[kind] + 2;
+  c.put(col - edge, c.chance(0.5) ? ROW.low : ROW.up, 'o');
+  c.put(col + edge, c.chance(0.5) ? ROW.low : ROW.up, 'o');
+  return col + reach + 1;
+}
+
 const PICKUP_CHAR: Record<PickupKind, string> = { car: 'P', magnet: 'M', boots: 'J', flash: 'L' };
 
 /** A power-up orb at walking height, then the stretch that rewards it (no bubbles in it). */
@@ -306,7 +359,41 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   let last: Motif | null = null;
   // After a power-up stretch (no bubbles in it) or a quiet motif, the next thing is always bubbles to shoot.
   let needBubbles = false;
+  // Enemies come by position too: the first 20-45 tiles into the content (or as early as allowed for `?enemies=1`), then every 45-60 tiles.
+  const bag: EnemyKind[] = [];
+  const nextEnemy = (): EnemyKind => {
+    if (bag.length === 0) {
+      bag.push(...ZEN_ENEMY.bag);
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = c.int(0, i);
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+    }
+    return bag.pop()!;
+  };
+  let enemyDue = options.first && options.forceEnemy ? ZEN_ENEMY.forcedAt : (options.first ? ZEN.firstContent : lo) + c.int(ZEN_ENEMY.firstAfter.min, ZEN_ENEMY.firstAfter.max);
+  // `?enemies=1`: the first power-up stretch waits until the enemy is placed, so the enemy really is the first thing past tile 52.
+  if (options.first && options.forceEnemy) setDue = Math.max(setDue, ZEN_ENEMY.forcedAt + 24);
   while (hi - col >= 8) {
+    if (col >= enemyDue && col >= ZEN_ENEMY.zoneMin) {
+      const kind = bag.length ? bag[bag.length - 1] : nextEnemy();
+      if (bag.length === 0) bag.push(kind);
+      const span = 2 * enemyReach(kind) + 1;
+      if (col + span <= Math.min(hi, ZEN_ENEMY.zoneMax + 1) && !c.hitsSkip(col, span + 2)) {
+        bag.pop();
+        motifs.push('enemy');
+        const from0 = col;
+        const end = enemy(c, col, kind);
+        // 45-60 tiles from this enemy's middle to the next one's due place (never within 20: the patrol stretch is at most 13 wide).
+        enemyDue = end - enemyReach(kind) - 1 + c.int(ZEN_ENEMY.every.min, ZEN_ENEMY.every.max);
+        // The enemy's stretch is time off the power-up clock too, so enemies do not thin out the orbs.
+        setDue -= end - from0 + 2;
+        col = end + c.int(2, 3);
+        needBubbles = true;
+        last = 'enemy';
+        continue;
+      }
+    }
     if (col >= setDue && hi - col >= SET_LEN + 8 && !c.hitsSkip(col, SET_LEN + 8)) {
       const kind = nextKind();
       let second: PickupKind | undefined;
@@ -376,12 +463,12 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
     const firstIn = inRange.length ? inRange[0] : hi;
     for (const x of [hi - 1, lo]) {
       const near = Math.abs(x - (x === hi - 1 ? lastIn : firstIn));
-      if (near > 0 && !c.gaps.some((g) => x >= g.col - 1 && x <= g.col + g.width)) c.put(x, ROW.up, 'c');
+      if (near > 0 && !c.inZone(x) && !c.gaps.some((g) => x >= g.col - 1 && x <= g.col + g.width)) c.put(x, ROW.up, 'c');
     }
     const marks = [lo - 1, ...used, hi, ...carried.filter((x) => x < lo || x >= hi)].sort((a, b) => a - b);
     for (let i = 1; i < marks.length; i++) {
       for (let x = marks[i - 1] + 8; marks[i] - x >= 8 && marks[i] - marks[i - 1] > 16; x += 8) {
-        if (!c.gaps.some((g) => x >= g.col - 1 && x <= g.col + g.width)) c.put(x, ROW.up, 'c');
+        if (!c.inZone(x) && !c.gaps.some((g) => x >= g.col - 1 && x <= g.col + g.width)) c.put(x, ROW.up, 'c');
       }
     }
   }
@@ -402,7 +489,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
     for (let row = 0; row < ZEN.rows; row++) {
       for (let i = 0; i < win.width; i++) {
         const ch = options.carry.grid[row][win.from + i];
-        grid[row][win.to + i] = ch === 'S' || ch === 'F' ? '.' : ch;
+        grid[row][win.to + i] = ch === 'S' || ch === 'F' || ENEMY_LETTERS.includes(ch) ? '.' : ch; // (no enemy lies in a window; see ZEN_ENEMY)
       }
     }
   }
@@ -426,6 +513,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
     },
     motifs,
     gaps: c.gaps,
+    enemies: c.enemies,
     range: { from: lo, to: hi },
   };
 }

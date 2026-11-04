@@ -58,7 +58,7 @@ const LEG_DX = 12;
 const BEETLE_LEG_DX = 26;
 
 export class EnemyField {
-  private readonly views: EnemyView[];
+  private views: EnemyView[];
   /** Enemies beaten so far (debug). */
   beaten = 0;
 
@@ -124,6 +124,19 @@ export class EnemyField {
 
   get count(): number {
     return this.views.length;
+  }
+
+  /** Removes every enemy picture (a zen swap rebuilds the field; none is ever cut by it, see ZEN_ENEMY). */
+  destroy(): void {
+    const s = this.scene;
+    for (const v of this.views) {
+      s.tweens.killTweensOf(v);
+      for (const img of [v.body, ...v.parts]) {
+        s.tweens.killTweensOf(img);
+        img.destroy();
+      }
+    }
+    this.views = [];
   }
 
   /** Coins all the enemies of the level give (counted in the level's totals). */

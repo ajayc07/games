@@ -9,6 +9,7 @@ import { ParentScene, type ParentSceneData } from '../../core/parent/ParentScene
 import { PracticeScene, type PracticeSceneData } from '../../core/practice/PracticeScene';
 import { generatePractice, newSeed, practiceFromSearch, type PracticeMode } from '../../core/levels/practice';
 import { generateZen, zenFromSearch } from '../../core/levels/zen';
+import { enemiesForced } from '../../core/levels/enemies';
 import { parseLevelOrThrow, type LevelData } from '../../core/levels/format';
 import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowBubble, withRainbowHook } from '../../core/levels/variety';
 import { audio } from '../../core/audio/AudioManager';
@@ -297,7 +298,7 @@ function openZen(s: Session, seed: number): void {
   const remaining = zenBudget(s);
   // Today's zen time is used up: back to the map, where the Zen button is resting (Task 033).
   if (remaining === 0) return openMap(s);
-  const level = parseLevelOrThrow(generateZen(seed, 'grass', { first: true }).config, `zen ${seed}`);
+  const level = parseLevelOrThrow(generateZen(seed, 'grass', { first: true, forceEnemy: enemiesForced(location.search) }).config, `zen ${seed}`);
   const data: LevelSceneData = {
     level,
     theme: themeForRun(level.world, true),

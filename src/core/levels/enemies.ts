@@ -196,6 +196,11 @@ export function enemiesFromSearch(search: string): boolean {
   return new URLSearchParams(search).get('enemies') !== '0';
 }
 
+/** `?enemies=1` puts the first zen enemy as early as it may come (a test aid; `?enemies=0` hides every enemy). */
+export function enemiesForced(search: string): boolean {
+  return new URLSearchParams(search).get('enemies') === '1';
+}
+
 const BLOCKERS = 'SFPMJLB^O';
 
 /**
