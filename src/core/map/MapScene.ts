@@ -16,6 +16,7 @@ import { makeEffectTextures, makeThemeTextures, themeKey } from '../levels/place
 import { ParallaxBackground } from '../levels/background';
 import { makePaletteButton, starPath } from '../ui/icons';
 import { HoldButton } from '../ui/HoldButton';
+import { moveMapFocus, type MapFocus } from './mapFocus';
 import { PARENT_HOLD_MS } from '../ui/hold';
 import { clampScroll, farHopMs, hitIndex, hopPoint, MAP, mapGeometry, scrollFor, type MapGeometry, type MapPoint } from './mapLayout';
 import { currentDot, newlyOpened, stepOpen, type DotState } from './unlock';
@@ -98,6 +99,8 @@ const STAR_SPOTS = [
   { x: 34, y: 52 },
 ];
 const KEY_DIRS: Record<string, 1 | -1> = { ArrowLeft: -1, ArrowRight: 1, KeyA: -1, KeyD: 1 };
+/** Up and Down (Task 043): they reach the buttons, the cave mouth and the arch (see mapFocus.ts). */
+const KEY_UPDOWN: Record<string, 'up' | 'down'> = { ArrowUp: 'up', ArrowDown: 'down' };
 
 export class MapScene extends Phaser.Scene {
   static readonly KEY = 'map';
@@ -136,6 +139,10 @@ export class MapScene extends Phaser.Scene {
   private busy = false;
   private leaving = false;
   private seenKeys = new WeakSet<KeyboardEvent>();
+  /** Keyboard / gamepad focus (Task 043): the robot on its dot, or one of the buttons, a mouth or the arch. The ring shows once a key or pad was used. */
+  private focus: MapFocus = { kind: 'dot' };
+  private keyboardUsed = false;
+  private focusRing: Phaser.GameObjects.Graphics | null = null;
   private phase = 'idle';
 
   constructor() {
@@ -156,6 +163,9 @@ export class MapScene extends Phaser.Scene {
     this.lift = 0;
     this.vy = 0;
     this.seenKeys = new WeakSet();
+    this.focus = { kind: 'dot' };
+    this.keyboardUsed = false;
+    this.focusRing = null;
     this.phase = data.arrival ? 'arrival' : 'idle';
   }
 
@@ -243,6 +253,8 @@ export class MapScene extends Phaser.Scene {
       this.practiceFace = face;
     }
 
+    this.focusRing = this.add.graphics().setDepth(DEPTH.ui + 5).setVisible(false);
+    this.tweens.add({ targets: this.focusRing, alpha: { from: 1, to: 0.4 }, duration: 600, yoyo: true, repeat: -1 });
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.onDown, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.onMove, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.onUp, this);
@@ -257,6 +269,7 @@ export class MapScene extends Phaser.Scene {
 
   override update(time: number, delta: number): void {
     this.gear?.update(time);
+    this.drawFocus();
     const dtMs = Math.min(delta, 50);
     // Hop along the path.
     let grounded = true;
@@ -567,17 +580,94 @@ export class MapScene extends Phaser.Scene {
     if (t >= 0) this.bump(this.teaserViews[t]);
   }
 
+  /** The round buttons of the bottom row, left to right (stickers, Zen, Practice) and what each does. */
+  private bottomRow(): Array<{ obj: Phaser.GameObjects.Container; act: () => void }> {
+    const row: Array<{ obj: Phaser.GameObjects.Container; act: () => void }> = [];
+    if (this.stickerBtn) row.push({ obj: this.stickerBtn, act: () => this.openStickers() });
+    if (this.zenBtn) row.push({ obj: this.zenBtn, act: () => this.openZen() });
+    if (this.practiceBtn) row.push({ obj: this.practiceBtn, act: () => this.openPractice() });
+    return row;
+  }
+
   private onKey(e: KeyboardEvent): void {
     if (this.seenKeys.has(e) || this.leaving) return;
     this.seenKeys.add(e);
     const dir = KEY_DIRS[e.code];
-    if (dir) {
+    const vert = KEY_UPDOWN[e.code];
+    if (dir || vert) {
+      this.keyboardUsed = true;
       if (this.busy || this.hop) return;
-      const to = stepOpen(this.dots, this.at, dir);
-      if (to !== this.at) this.hopTo(to, () => undefined);
+      const d = vert ?? (dir === 1 ? 'right' : 'left');
+      const here = (this.data0.branches ?? []).findIndex((br) => br.afterIndex === this.at);
+      const m = moveMapFocus(this.focus, d, { mouthAtDot: here, archAtDot: !!this.geo.back && !!this.backView && this.at === 0, bottomCount: this.bottomRow().length, palette: true });
+      if (m.focus !== this.focus) audio.play('tap');
+      this.focus = m.focus;
+      if (m.step !== 0) {
+        const to = stepOpen(this.dots, this.at, m.step);
+        if (to !== this.at) this.hopTo(to, () => undefined);
+      }
       return;
     }
-    if ((e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') && !e.repeat) this.goPlay(this.at);
+    if (e.repeat) return;
+    if (e.code === 'Escape' || e.code === 'Backspace') {
+      // Back from a button, the mouth or the arch to the dot (never leaves the map).
+      if (this.focus.kind !== 'dot') this.focus = { kind: 'dot' };
+      return;
+    }
+    if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+      this.keyboardUsed = true;
+      const f = this.focus;
+      if (f.kind === 'dot') this.goPlay(this.at);
+      else if (f.kind === 'mouth') this.goBranch(f.i);
+      else if (f.kind === 'arch') this.goBack();
+      else if (f.kind === 'palette') this.openPicker();
+      else this.bottomRow()[f.i]?.act();
+    }
+  }
+
+  /** The focus ring (once a key or pad has been used) round the button, mouth or arch that Space would press; none on the dot (the robot is the cursor). */
+  private drawFocus(): void {
+    const g = this.focusRing;
+    if (!g) return;
+    const f = this.focus;
+    g.clear();
+    if (!this.keyboardUsed || f.kind === 'dot' || this.leaving) {
+      g.setVisible(false);
+      return;
+    }
+    let x = 0;
+    let y = 0;
+    let r = MAP_PRACTICE.r + 16;
+    if (f.kind === 'palette') {
+      x = this.palette.x;
+      y = this.palette.y;
+      r = PALETTE_R + 16;
+    } else if (f.kind === 'bottom') {
+      const t = this.bottomRow()[f.i]?.obj;
+      if (!t) {
+        g.setVisible(false);
+        return;
+      }
+      x = t.x;
+      y = t.y;
+    } else if (f.kind === 'mouth') {
+      const m = this.geo.branches[f.i];
+      x = m.x - this.scroll;
+      y = m.y;
+      r = 150;
+    } else {
+      const a = this.geo.back;
+      if (!a) {
+        g.setVisible(false);
+        return;
+      }
+      x = a.x - this.scroll;
+      y = a.y;
+      r = 150;
+    }
+    g.setVisible(true);
+    g.lineStyle(14, 0xffffff, 1).strokeCircle(x, y, r);
+    g.lineStyle(7, 0xfff176, 1).strokeCircle(x, y, r);
   }
 
   // ---------- actions ----------

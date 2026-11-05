@@ -116,7 +116,7 @@ export class StickerScene extends Phaser.Scene {
   private onKey(e: KeyboardEvent): void {
     if (this.done || this.seen.has(e)) return;
     this.seen.add(e);
-    if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'Enter') this.goBack();
+    if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'Enter' || e.code === 'Space') this.goBack();
   }
 
   private installDebugHook(): void {

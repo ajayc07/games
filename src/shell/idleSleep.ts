@@ -3,6 +3,7 @@
 import type Phaser from 'phaser';
 import { IdleWatch, idleSecondsFrom } from './idle';
 import { setScreenAwakeAllowed } from './wakeLock';
+import { onPadActivity, padBridge } from '../core/input/padBridge';
 
 export function installIdleSleep(game: Phaser.Game, search: string = location.search): void {
   const seconds = idleSecondsFrom(search);
@@ -27,6 +28,7 @@ export function installIdleSleep(game: Phaser.Game, search: string = location.se
     e.stopPropagation();
     if (!watch.sleeping) return;
     watch.wake(performance.now());
+    padBridge.asleep = false;
     overlay.style.display = 'none';
     setScreenAwakeAllowed(true);
     game.loop.wake();
@@ -43,6 +45,12 @@ export function installIdleSleep(game: Phaser.Game, search: string = location.se
   );
 
   const now = () => performance.now();
+  // A gamepad in use (Task 043) counts like a touch: no auto-pause while he plays with a controller, and a press wakes it (and goes no further).
+  onPadActivity((starting) => {
+    if (watch.sleeping) {
+      if (starting) wake(new Event('gamepad'));
+    } else watch.touch(now());
+  });
   window.addEventListener('pointerdown', () => watch.down(now()), { passive: true, capture: true });
   window.addEventListener('pointerup', () => watch.up(now()), { passive: true, capture: true });
   window.addEventListener('pointercancel', () => watch.up(now()), { passive: true, capture: true });
@@ -55,6 +63,7 @@ export function installIdleSleep(game: Phaser.Game, search: string = location.se
       if (!watch.shouldSleep(now())) return;
       watch.sleep();
       hook.sleeping = true;
+      padBridge.asleep = true;
       overlay.style.display = 'flex';
       setScreenAwakeAllowed(false);
       game.loop.sleep();

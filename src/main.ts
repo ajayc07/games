@@ -6,6 +6,7 @@ import { keepScreenAwake } from './shell/wakeLock';
 import { installIdleSleep } from './shell/idleSleep';
 import { registerServiceWorker } from './shell/pwa';
 import { audio } from './core/audio/AudioManager';
+import { installPadBridge } from './core/input/padBridge';
 import { installFullscreenOnFirstGesture } from './core/ui/fullscreen';
 import { initLayout, LOGICAL_HEIGHT, logicalWidthFor, renderScaleFor } from './core/ui/layout';
 
@@ -39,6 +40,7 @@ const game = new Phaser.Game({
 });
 
 installIdleSleep(game);
+installPadBridge();
 
 game.events.once(Phaser.Core.Events.READY, () => {
   initLayout(game, parent);

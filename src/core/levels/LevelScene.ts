@@ -36,6 +36,7 @@ import { CoinBar, MEGA_ICON } from './CoinBar';
 import { showStickerPop } from '../rewards/StickerPop';
 import { createLook, lookFromUrl, sizeFromUrl } from '../avatar/createLook';
 import { HoldButton } from '../ui/HoldButton';
+import { onPadActivity, padBridge } from '../input/padBridge';
 import { gaitFor } from '../avatar/clips';
 import type { LookName } from '../avatar/config';
 import { ParallaxBackground } from './background';
@@ -360,6 +361,13 @@ export class LevelScene extends Phaser.Scene {
     this.input.on('pointerdown', () => this.noteActivity());
     this.input.on('pointerup', () => this.noteActivity());
     this.input.keyboard?.on('keydown', () => this.noteActivity());
+    // A gamepad in use is activity too (Task 043): no idle wave or auto-pause while he plays with a controller. While a level is being
+    // played the menu layer is suspended (the pad is read directly); it is on again for the win screen, the rest screen and the demo.
+    const offPad = onPadActivity(() => this.noteActivity());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offPad();
+      padBridge.suspended = false;
+    });
     this.installDebugHook();
     // `?power=<kind>` (test hook, Task 034): start with that power already on.
     const hookPower = powerFromSearch(location.search);
@@ -372,6 +380,7 @@ export class LevelScene extends Phaser.Scene {
     if (this.mode === 'demo') this.updateDemo(time, dt * 1000);
     else if (this.mode === 'play') this.updatePlay(time, dt * 1000);
     else if (this.mode === 'finish') this.updateFinish();
+    padBridge.suspended = this.mode === 'turn' || this.mode === 'play' || this.mode === 'respawn' || this.mode === 'finish';
     this.feedIdle(time);
     this.player.updateAvatar(time, dt);
     this.updateCar(time);

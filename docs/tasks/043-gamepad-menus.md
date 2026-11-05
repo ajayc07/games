@@ -39,10 +39,10 @@ Everything a child needs outside a level can be done with a gamepad (and, as a f
 - Unit tests as above, then the browser with a real or emulated gamepad (Chrome's DevTools can fake one, or a small test hook that injects `navigator.getGamepads`). Screenshots at 844x390 and 1280x800 of the focus ring on the picker, the map (a dot, the cave mouth, a fixed button), the result screen and the parent view, in `_sources/review/043/`.
 - The parent checks on the Android TV with a controller (TV Bro or a cast) and records what the TV browser does and does not pass through.
 
-## Result (Code fills in at the end)
-- What changed:
-- Files touched:
-- Deviations from plan (and why):
-- How verified:
-- Open issues / risks:
-- Suggested next:
+## Result
+- What changed: a gamepad (and the TV remote's arrows and OK, and a Bluetooth keyboard) now drives every menu. The pad is turned into the keyboard presses the menus already understood (`menuPad.ts`, `padBridge.ts`): D-pad or stick = arrows, A = Space (confirm, Next), B = Escape (back, Home), X = R (Replay), Select held in a level = the 1 s exit hold, Start + Select held on the map = the parent gear's 3 s hold. The map got a focus model (`mapFocus.ts`): Down reaches Practice / Zen / Stickers, Up the cave mouth or the palette, Left on the first Cave dot the meadow arch, with a yellow focus ring. In a level the pad is read directly as before; the menu layer is suspended there. Pad-only play counts as activity (no idle wave or auto-pause) and a press wakes the auto-pause.
+- Files touched: new `core/input/menuPad.ts`, `menuPad.test.ts`, `padBridge.ts`, `core/map/mapFocus.ts`, `mapFocus.test.ts`; edited `main.ts`, `shell/idleSleep.ts`, `core/levels/LevelScene.ts`, `core/map/MapScene.ts`, `core/rewards/StickerScene.ts`, `docs/architecture/ui-input-audio.md`, `docs/PROGRESS.md`, this file.
+- Deviations from plan (and why): the parent view's rows are not navigable by pad (the parent uses touch or a mouse; B / Escape closes it); judged not worth the work for a parent-only screen. The win screen has no visible focus ring (A is simply Next, the pulsing button). Pads are not required to report the "standard" mapping check (the standard button numbers are used as they are). No Input Lab change.
+- How verified: typecheck, all tests, build. New tests: the mapping, repeat, suspension, the "held when a level ends" guard and the focus graph. In the browser (headless Edge, a fake `navigator.getGamepads`, 844x390): picker (move, A, A) to the map; map hops, Down / Left / Right to the buttons and A to open Practice, B back; Up to the palette and the cave mouth, A into the Cave, Left to the arch, A back; a level started with A, walked with the D-pad, three B presses (power) left it running, Select held 1.5 s left to the map; Start + Select 0.8 s did nothing and 3.4 s opened the parent view, B closed it; the win screen of cave-boss (`?boss=0`) reached with the D-pad, X replayed. Screenshots in `_sources/review/043/` (git-ignored).
+- Open issues / risks: not tried with a real controller or a TV browser (the fake pad only proves the code path); a real gamepad press is not a browser user gesture, so audio and fullscreen still need one tap or key; some controllers report different button numbers (non-standard mappings fall back to the standard numbers and may be wrong); a long auto-repeat on the map hops one dot per repeat; the TV load problem is separate and not addressed.
+- Suggested next: tablet / laptop test with a real controller, then decide on the TV (a low-power mode) or more worlds.
