@@ -61,6 +61,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | post-plan (nothing starts without the parent's say-so) | Tablet test of Grass 5-6, parent view and Practice (basic pass worked 2026-10-25); unique per-colour traits, surprise map dot, polish bundle (Task 019: footsteps, landing thump, idle wave), left/right target mode, gentle auto-difficulty, weather skins (docs/IDEAS.md); git-history rewrite; more worlds (Cave, Sky, Castle) | Open |
 
 ## Pending for next session
+0. **Newest:** Tasks 037-042 (the Cave, its enemies, the boss, zen enemies, the day/night cycle) are all built; the whole Cave (`?level=cave-1` to `cave-boss`) needs a tablet test (checklists under Parent action items). After that the open choice is more worlds (Sky, Castle) or tuning from what he does. The items below are older and kept for the tablet checks.
 1. Task 014 (charging pad, hex-nut coin, rainbow rim) is done and pushed (D-056). Task 014b (bigger pad with a light column, `?rainbow=1` proof) is done and pushed (D-057). The planned work is complete.
    Optional next: Task 019 polish bundle (footsteps, landing thump, idle wave), not drafted. Variety plan in order (D-059): blocks and pads (done), night world (done), car power-up (done, D-061), magnet and rocket boots (done, D-062).
    Parent housekeeping: stop the Vite dev server still running on port 5173 (D-054, D-056).
