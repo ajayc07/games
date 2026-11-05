@@ -27,6 +27,8 @@ import bug1 from './bug-1.json';
 import cave1 from './cave-1.json';
 import cave2 from './cave-2.json';
 import cave3 from './cave-3.json';
+import cave4 from './cave-4.json';
+import cave5 from './cave-5.json';
 import { varyLevel, withRainbowBubble } from '../../../core/levels/variety';
 import { BUG, bugErrors } from '../../../core/levels/bugs';
 import { ENEMIES, enemyCoins, enemyErrors } from '../../../core/levels/enemies';
@@ -821,13 +823,15 @@ describe('Night theme (Task 016, D-060)', () => {
 
 describe('Cave world (Task 037, D-085)', () => {
   const cave = worlds.find((w) => w.id === 'cave')!;
-  it('is a branch of Grass at grass-6 that opens after grass-6 is cleared, with cave-1, cave-2 and cave-3 in order', () => {
-    expect(cave.levels).toEqual(['cave-1', 'cave-2', 'cave-3']);
+  it('is a branch of Grass at grass-6 that opens after grass-6 is cleared, with cave-1 to cave-5 in order', () => {
+    expect(cave.levels).toEqual(['cave-1', 'cave-2', 'cave-3', 'cave-4', 'cave-5']);
     expect(cave.branchFrom).toEqual({ world: 'grass', fork: 'grass-6' });
     expect(cave.unlock).toEqual({ afterLevel: 'grass-6' });
     expect(nextLevelId(worlds, 'cave-1')).toBe('cave-2');
     expect(nextLevelId(worlds, 'cave-2')).toBe('cave-3');
-    expect(nextLevelId(worlds, 'cave-3')).toBeNull();
+    expect(nextLevelId(worlds, 'cave-3')).toBe('cave-4');
+    expect(nextLevelId(worlds, 'cave-4')).toBe('cave-5');
+    expect(nextLevelId(worlds, 'cave-5')).toBeNull();
     expect(worlds.find((w) => w.id === 'grass')!.levels).not.toContain('cave-1');
   });
 
@@ -1009,5 +1013,116 @@ describe('Cave enemies and levels 2-3 (Task 038, D-085)', () => {
   it('a scripted bot finishes cave-2 and cave-3 ignoring the enemies, as written and on 200 grids with the rainbow bubble', () => {
     botsFinish(parseLevelOrThrow(cave2, 'cave-2'));
     botsFinish(parseLevelOrThrow(cave3, 'cave-3'));
+  });
+});
+
+describe('Cave levels 4 and 5 (Task 039, D-085)', () => {
+  const load = (data: unknown, id: string) => {
+    const level = parseLevelOrThrow(data, id);
+    return { level, e: extractEntities(level.grid) };
+  };
+  const common = (level: ReturnType<typeof parseLevelOrThrow>, e: ReturnType<typeof extractEntities>) => {
+    expect(level.world).toBe('cave');
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump', 'power']);
+    expect(level.controls.demo).toBe(false);
+    expect(level.variety).toBe(false);
+    expect(enemyErrors(level.grid)).toEqual([]);
+    expect(e.start.col).toBe(6);
+    expect(e.pickups.length).toBe(1);
+    expect(e.bubbles.length).toBeGreaterThanOrEqual(4);
+    for (const b of e.bubbles) {
+      expect(b.kind).toBe('small');
+      expect([e.start.row, e.start.row - 1]).toContain(b.row);
+    }
+    for (const c of [...e.coins, ...e.bubbles, ...e.enemies]) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    for (const en of e.enemies) {
+      expect(Math.abs(en.col - e.start.col)).toBeGreaterThanOrEqual(10);
+      expect(Math.abs(en.col - e.goal.col)).toBeGreaterThanOrEqual(8);
+    }
+    const gaps = gapsOfRow(e);
+    const reach = walkingJumpReach(PHYSICS.walkSpeed);
+    for (const g of gaps) {
+      expect(g.length).toBeLessThanOrEqual(2);
+      expect(reach.standing).toBeGreaterThanOrEqual(gapNeed(g.length) + 40);
+      expect(e.coins.some((c) => c.col >= g[0] - 2 && c.col <= g[g.length - 1] + 2 && c.row < e.start.row - 1), 'a coin arc over the gap').toBe(true);
+      expect(e.goal.col - g[g.length - 1]).toBeGreaterThanOrEqual(7);
+      // No enemy patrol next to a gap: the validator wants flat ground beside each patrol; this checks the distance too.
+      for (const en of e.enemies) expect(Math.min(Math.abs(g[0] - en.col), Math.abs(g[g.length - 1] - en.col))).toBeGreaterThanOrEqual(6);
+    }
+    for (let i = 1; i < gaps.length; i++) expect(gaps[i][0] - gaps[i - 1][gaps[i - 1].length - 1] - 1).toBeGreaterThanOrEqual(8);
+    return gaps;
+  };
+  const stars = (level: ReturnType<typeof parseLevelOrThrow>, e: ReturnType<typeof extractEntities>) => {
+    const loose = e.coins.length + BUBBLE.coins.small * e.bubbles.length;
+    const total = loose + enemyCoins(e.enemies);
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.two).toBeGreaterThanOrEqual(Math.round(total * 0.4));
+    expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
+    expect(loose).toBeGreaterThanOrEqual(level.stars.three); // three stars never need an enemy
+    expect(e.coins.length).toBeLessThan(level.stars.two); // coins alone give one star
+    return total;
+  };
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const botsFinish = (level: ReturnType<typeof parseLevelOrThrow>) => {
+    const first = runBot(extractEntities(level.grid), { jumpForCoins: true });
+    expect(first.finished).toBe(true);
+    const times: number[] = [first.seconds];
+    for (let seed = 1; seed <= 200; seed++) {
+      const r = runBot(extractEntities(withRainbowBubble(level, seed).grid), { jumpForCoins: true });
+      expect(r.finished, `seed ${seed}`).toBe(true);
+      times.push(r.seconds);
+    }
+    return median(times);
+  };
+
+  it('cave-4 "Crystal Bridges": about 95 tiles, a bat and a beetle apart, three gaps, step blocks, a magnet orb, no demo', () => {
+    const { level, e } = load(cave4, 'cave-4');
+    expect(themeForWorld(level.world)).toBe(caveTheme);
+    expect(e.cols).toBeGreaterThanOrEqual(90);
+    expect(e.cols).toBeLessThanOrEqual(100);
+    const gaps = common(level, e);
+    expect(gaps.length).toBe(3);
+    expect(e.enemies.map((x) => x.kind).sort()).toEqual(['bat', 'beetle']);
+    expect(e.pickups[0].kind).toBe('magnet');
+    expect(e.blocks.length).toBeGreaterThanOrEqual(4);
+    // Blocks rest on ground or a block, stacks are at most BLOCK_MAX_TILES, and no step is taller than that (so all can be climbed).
+    for (const b of e.blocks) {
+      expect(e.solid[b.row + 1][b.col]).toBe(true);
+      let height = 0;
+      for (let r = b.row; r < e.rows && e.blocks.some((x) => x.col === b.col && x.row === r); r++) height++;
+      expect(height).toBeLessThanOrEqual(BLOCK_MAX_TILES);
+      for (const en of e.enemies) expect(Math.abs(en.col - b.col)).toBeGreaterThanOrEqual(7);
+      for (const g of gaps) expect(Math.min(...g.map((c) => Math.abs(c - b.col)))).toBeGreaterThanOrEqual(4);
+    }
+    const top = (col: number) => e.solid.findIndex((row) => row[col]);
+    for (let c = 1; c < e.cols; c++) {
+      if (e.solid[e.start.row + 1][c] && e.solid[e.start.row + 1][c - 1]) expect(Math.abs(top(c) - top(c - 1))).toBeLessThanOrEqual(BLOCK_MAX_TILES);
+    }
+    for (const c of e.coins) expect(e.solid[c.row][c.col], `coin ${c.col}:${c.row} in a block`).toBe(false);
+    expect(stars(level, e)).toBe(e.coins.length + 3 * e.bubbles.length + 8 + 6);
+  });
+
+  it('cave-5 "Cave Run": about 100 tiles, a bug, a bat pair and a beetle, a Flash orb before them all, a bubble run for the rainbow coins, no demo', () => {
+    const { level, e } = load(cave5, 'cave-5');
+    expect(themeForWorld(level.world)).toBe(caveTheme);
+    expect(e.cols).toBeGreaterThanOrEqual(95);
+    expect(e.cols).toBeLessThanOrEqual(105);
+    const gaps = common(level, e);
+    expect(gaps.length).toBe(3);
+    expect(e.enemies.map((x) => x.kind).sort()).toEqual(['bat', 'bat', 'beetle', 'bug']);
+    expect(e.pickups[0].kind).toBe('flash');
+    expect(e.pickups[0].col).toBeLessThan(Math.min(...e.enemies.map((x) => x.col)) - 8);
+    // Five small bubbles within 10 columns, just after the orb, where Flash pops them by running (rainbow coins).
+    const near = e.bubbles.filter((b) => b.col > e.pickups[0].col && b.col <= e.pickups[0].col + 12);
+    expect(near.length).toBeGreaterThanOrEqual(5);
+    expect(stars(level, e)).toBe(e.coins.length + 3 * e.bubbles.length + 5 + 8 + 6 + 6);
+  });
+
+  it('a scripted bot finishes cave-4 and cave-5 ignoring the enemies; its median time is close to Grass 5-6', () => {
+    const t4 = botsFinish(parseLevelOrThrow(cave4, 'cave-4'));
+    const t5 = botsFinish(parseLevelOrThrow(cave5, 'cave-5'));
+    console.log(`cave-4 median bot seconds ${t4.toFixed(1)}, cave-5 ${t5.toFixed(1)}`);
+    expect(t4).toBeLessThan(60);
+    expect(t5).toBeLessThan(60);
   });
 });
