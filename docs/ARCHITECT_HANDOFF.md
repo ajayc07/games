@@ -1,7 +1,7 @@
 # Architect handoff (for a new Claude Desktop session)
 
 Read this first if you are a new Claude Desktop session taking over as the **architect** of Athi's Game.
-Last updated: 2026-10-28 (after the 012 review).
+Last updated: 2026-11-03. NOTE: the 'Where things stand' bullet below is stale; Tasks 015-033 are done (see PROGRESS.md). Tasks 034, 035 and 019 are done and reviewed (D-077 to D-083); no new task is queued. Next step is the parent's tablet play, then decide from what Athiran does.
 
 ## Roles and workflow
 - **You (Claude Desktop) = architect.** You plan, write task files, review summaries and review screenshots. You do not write the game code.
