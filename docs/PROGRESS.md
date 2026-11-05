@@ -41,7 +41,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 042 | Enemies in zen: Bolt Bug, Rock Beetle, Glow Bat on flat stretches away from the swap windows (D-085) | Done |
 | 039 | Cave levels 4-5: cave-4 "Crystal Bridges", cave-5 "Cave Run" (D-085) | Done |
 | 040 | Cave Guardian boss: arena, 10 chest-crystal hits, crumble, gate, big crystal sticker, crowned Cave (D-085) | Done |
-| 043 | Gamepad (and TV remote) navigation for the menus: picker, map, Practice, stickers, result, parent view; for an Android TV with a controller | Drafted, not started (`docs/tasks/043-gamepad-menus.md`) |
+| 043 | Gamepad (and TV remote) navigation for the menus: picker, map, Practice, stickers, result, parent view; for an Android TV with a controller | Drafted, **parked** (`docs/tasks/043-gamepad-menus.md`): the parent will plug a controller into a laptop instead of using the TV. The TV browser exited after the level pick (suspected load: a 2x canvas and 2x generated textures; no low-power mode exists); a TV / low-power mode is an idea, not drafted |
 | 036 | Idle routine: wave, then push-ups, then a taunt, then rest (D-084) | Done |
 | 034 | Flash power-up and power-up rules (Mega Robo combines with nothing) (D-078, D-079) | Done |
 | 035 | Bolt Bug, a small harmless villain, and level bug-1 (D-080, D-082) | Done |
