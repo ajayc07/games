@@ -29,6 +29,8 @@ import cave2 from './cave-2.json';
 import cave3 from './cave-3.json';
 import cave4 from './cave-4.json';
 import cave5 from './cave-5.json';
+import caveBoss from './cave-boss.json';
+import { BOSS, BOSS_COINS, bossErrors } from '../../../core/levels/boss';
 import { varyLevel, withRainbowBubble } from '../../../core/levels/variety';
 import { BUG, bugErrors } from '../../../core/levels/bugs';
 import { ENEMIES, enemyCoins, enemyErrors } from '../../../core/levels/enemies';
@@ -823,15 +825,17 @@ describe('Night theme (Task 016, D-060)', () => {
 
 describe('Cave world (Task 037, D-085)', () => {
   const cave = worlds.find((w) => w.id === 'cave')!;
-  it('is a branch of Grass at grass-6 that opens after grass-6 is cleared, with cave-1 to cave-5 in order', () => {
-    expect(cave.levels).toEqual(['cave-1', 'cave-2', 'cave-3', 'cave-4', 'cave-5']);
+  it('is a branch of Grass at grass-6 that opens after grass-6 is cleared, with cave-1 to cave-5 and the boss in order', () => {
+    expect(cave.levels).toEqual(['cave-1', 'cave-2', 'cave-3', 'cave-4', 'cave-5', 'cave-boss']);
+    expect(cave.finalLevelStarsRequired).toBe(10);
     expect(cave.branchFrom).toEqual({ world: 'grass', fork: 'grass-6' });
     expect(cave.unlock).toEqual({ afterLevel: 'grass-6' });
     expect(nextLevelId(worlds, 'cave-1')).toBe('cave-2');
     expect(nextLevelId(worlds, 'cave-2')).toBe('cave-3');
     expect(nextLevelId(worlds, 'cave-3')).toBe('cave-4');
     expect(nextLevelId(worlds, 'cave-4')).toBe('cave-5');
-    expect(nextLevelId(worlds, 'cave-5')).toBeNull();
+    expect(nextLevelId(worlds, 'cave-5')).toBe('cave-boss');
+    expect(nextLevelId(worlds, 'cave-boss')).toBeNull();
     expect(worlds.find((w) => w.id === 'grass')!.levels).not.toContain('cave-1');
   });
 
@@ -1124,5 +1128,40 @@ describe('Cave levels 4 and 5 (Task 039, D-085)', () => {
     console.log(`cave-4 median bot seconds ${t4.toFixed(1)}, cave-5 ${t5.toFixed(1)}`);
     expect(t4).toBeLessThan(60);
     expect(t5).toBeLessThan(60);
+  });
+});
+
+describe('cave-boss "Cave Guardian" (Task 040, D-085)', () => {
+  it('a flat 36-tile arena with the Guardian in the middle, a car orb and a magnet orb before it, the pad behind it, no gaps and no demo', () => {
+    const level = parseLevelOrThrow(caveBoss, 'cave-boss');
+    const e = extractEntities(level.grid);
+    expect(themeForWorld(level.world)).toBe(caveTheme);
+    expect(level.controls.enabled).toEqual(['left', 'right', 'jump', 'power']);
+    expect(level.controls.demo).toBe(false);
+    expect(level.variety).toBe(false);
+    expect(bossErrors(level.grid)).toEqual([]);
+    expect(e.cols).toBeGreaterThanOrEqual(BOSS.minArena);
+    expect(e.cols).toBeLessThanOrEqual(40);
+    expect(e.boss).toEqual({ col: 20, row: e.start.row });
+    expect(e.enemies.length).toBe(0);
+    expect(e.bubbles.length).toBe(0);
+    expect(e.blocks.length + e.pads.length).toBe(0);
+    expect(gapsOfRow(e)).toEqual([]);
+    expect(e.pickups.map((p) => p.kind).sort()).toEqual(['car', 'magnet']);
+    for (const p of e.pickups) expect(p.col).toBeLessThan(e.boss!.col - 5 - BOSS.margin);
+    expect(e.goal.col).toBeGreaterThan(e.boss!.col + 5 + BOSS.margin);
+    for (const c of e.coins) expect(Math.abs(c.col - e.goal.col)).toBeGreaterThanOrEqual(2);
+    // Stars: the Guardian's 40 coins always give three stars; the loose coins are a bonus.
+    const total = e.coins.length + BOSS_COINS;
+    expect(level.stars.two).toBeLessThan(level.stars.three);
+    expect(level.stars.three).toBeLessThanOrEqual(Math.round(total * 0.85));
+    expect(level.stars.three).toBeLessThanOrEqual(BOSS_COINS);
+    expect(e.coins.length).toBeLessThan(level.stars.two);
+  });
+
+  it('no other level has a Guardian, and zen and Practice never do (they never use the letter)', () => {
+    for (const [id, data] of [['cave-1', cave1], ['cave-3', cave3], ['cave-5', cave5], ['grass-6', grass6]] as const) {
+      expect(extractEntities(parseLevelOrThrow(data, id).grid).boss, id).toBeNull();
+    }
   });
 });

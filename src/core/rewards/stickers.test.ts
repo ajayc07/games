@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STICKERS, STICKER_COUNT, cleanStickers, earnsSticker, nextSticker, stickerById } from './stickers';
+import { GUARDIAN_STICKER, STICKERS, STICKER_COUNT, cleanStickers, earnsSticker, nextSticker, stickerById } from './stickers';
 
 describe('stickers (Task 031, D-074)', () => {
   it('24 distinct stickers, twelve shapes twice, ids in order', () => {
@@ -11,6 +11,16 @@ describe('stickers (Task 031, D-074)', () => {
     expect(STICKERS[0].color).not.toBe(STICKERS[12].color);
     expect(stickerById('s05')?.shape).toBe('sun');
     expect(stickerById('nope')).toBeUndefined();
+  });
+
+  it('the Cave Guardian sticker (Task 040) is a 25th, special one: never handed out by nextSticker, kept by cleanStickers', () => {
+    expect(GUARDIAN_STICKER.id).toBe('g01');
+    expect(GUARDIAN_STICKER.shape).toBe('crystal');
+    expect(STICKERS.some((s) => s.id === 'g01')).toBe(false);
+    expect(stickerById('g01')).toBe(GUARDIAN_STICKER);
+    expect(nextSticker([])).toBe('s01');
+    expect(cleanStickers(['g01', 's02', 'g01'])).toEqual(['s02', 'g01']);
+    expect(earnsSticker('guardian', null, 0)).toBe(true);
   });
 
   it('the next sticker is the first one he does not have, null when he has them all', () => {

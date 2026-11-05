@@ -124,6 +124,14 @@ export class ProgressStore {
     return true;
   }
 
+  /** Notes that he has beaten a world's boss (Task 040) and saves. Returns true the first time ever. */
+  markWorldCleared(worldId: string): boolean {
+    if (this.current.worldsCleared.includes(worldId)) return false;
+    this.current = { ...this.current, worldsCleared: [...this.current.worldsCleared, worldId] };
+    this.scheduleSave();
+    return true;
+  }
+
   /** The parent opens (or closes again) a branch world at once (Task 037) and saves. */
   setWorldOpened(worldId: string, opened: boolean): void {
     const has = this.current.openedWorlds.includes(worldId);

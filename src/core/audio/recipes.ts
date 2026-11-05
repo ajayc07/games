@@ -109,6 +109,46 @@ export const DEFAULT_RECIPES = {
       { freq: 2637, at: 0.2, dur: 0.2, type: 'sine', gain: 0.3 },
     ],
   },
+  // Cave Guardian (Task 040). A quiet low footfall, a crystal "ting" with a soft stone knock on each hit, a long happy crumble (a falling
+  // rumble over a rising sparkle), a deep gate rumble that ends in a bright chime, and a longer win tune.
+  golemStep: { tones: [{ freq: 90, to: 55, dur: 0.14, type: 'sine', gain: 0.28 }, { freq: 150, to: 80, dur: 0.05, type: 'triangle', gain: 0.1 }] },
+  golemHit: {
+    tones: [
+      { freq: 180, to: 110, dur: 0.1, type: 'triangle', gain: 0.5 },
+      { freq: 1320, to: 1560, at: 0.02, dur: 0.22, type: 'sine', gain: 0.4 },
+      { freq: 1980, at: 0.06, dur: 0.2, type: 'sine', gain: 0.22 },
+    ],
+  },
+  golemCrumble: {
+    tones: [
+      { freq: 160, to: 45, dur: 0.9, type: 'triangle', gain: 0.5 },
+      { freq: 110, to: 40, at: 0.1, dur: 0.8, type: 'triangle', gain: 0.1 },
+      { freq: 784, to: 1175, at: 0.25, dur: 0.18, type: 'sine', gain: 0.35 },
+      { freq: 988, to: 1480, at: 0.4, dur: 0.18, type: 'sine', gain: 0.35 },
+      { freq: 1319, to: 1976, at: 0.55, dur: 0.18, type: 'sine', gain: 0.35 },
+      { freq: 1760, at: 0.72, dur: 0.4, type: 'sine', gain: 0.3 },
+    ],
+  },
+  gateOpen: {
+    tones: [
+      { freq: 70, to: 110, dur: 1.2, type: 'triangle', gain: 0.45 },
+      { freq: 55, to: 90, dur: 1.2, type: 'triangle', gain: 0.08 },
+      { freq: 1046, at: 1.1, dur: 0.25, type: 'sine', gain: 0.4 },
+      { freq: 1568, at: 1.25, dur: 0.4, type: 'sine', gain: 0.35 },
+    ],
+  },
+  guardianWin: {
+    tones: [
+      { freq: 523, dur: 0.18, type: 'triangle', gain: 0.5 },
+      { freq: 659, at: 0.16, dur: 0.18, type: 'triangle', gain: 0.5 },
+      { freq: 784, at: 0.32, dur: 0.18, type: 'triangle', gain: 0.5 },
+      { freq: 1047, at: 0.48, dur: 0.3, type: 'triangle', gain: 0.5 },
+      { freq: 784, at: 0.85, dur: 0.16, type: 'sine', gain: 0.4 },
+      { freq: 1047, at: 1.0, dur: 0.16, type: 'sine', gain: 0.4 },
+      { freq: 1319, at: 1.15, dur: 0.16, type: 'sine', gain: 0.4 },
+      { freq: 1568, at: 1.3, dur: 0.6, type: 'sine', gain: 0.45 },
+    ],
+  },
   // Flash (Task 034): a quick bright zip when he takes the orb, and a quiet whoosh now and then while he runs fast.
   flashZip: {
     tones: [

@@ -39,6 +39,8 @@ export interface GridEntities {
   bugs: Cell[];
   /** Every enemy (`g` Bolt Bug, `k` Rock Beetle, `w` Glow Bat, Task 038) in reading order; the bugs are in `bugs` too. */
   enemies: Array<Cell & { kind: EnemyKind }>;
+  /** The Cave Guardian (`G`, Task 040): the middle of its walk, on the ground row; null when the level has none. */
+  boss: Cell | null;
 }
 
 /** Splits a validated grid into what the scene needs. Assumes parseLevel() accepted it. */
@@ -56,6 +58,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
   const bigTaken = new Set<string>();
   let start: Cell = { col: 0, row: 0 };
   let goal: Cell = { col: 0, row: 0 };
+  let boss: Cell | null = null;
   for (let row = 0; row < rows; row++) {
     const line: boolean[] = [];
     for (let col = 0; col < cols; col++) {
@@ -66,6 +69,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
       else if (ch in PICKUP_CHARS) pickups.push({ col, row, kind: PICKUP_CHARS[ch as keyof typeof PICKUP_CHARS] });
       if (ch === 'g') bugs.push({ col, row });
       if (ch === 'g' || ch === 'k' || ch === 'w') enemies.push({ col, row, kind: ch === 'g' ? 'bug' : ch === 'k' ? 'beetle' : 'bat' });
+      if (ch === 'G') boss = { col, row };
       if (ch === 'c') coins.push({ col, row });
       else if (ch === 'o') bubbles.push({ kind: 'small', col, row });
       else if (ch === 'h') bubbles.push({ kind: 'high', col, row });
@@ -80,7 +84,7 @@ export function extractEntities(grid: readonly string[]): GridEntities {
     }
     solid.push(line);
   }
-  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads, pickups, bugs, enemies };
+  return { cols, rows, solid, coins, bubbles, start, goal, blocks, pads, pickups, bugs, enemies, boss };
 }
 
 /**

@@ -4,7 +4,7 @@ import Phaser from 'phaser';
 import { getLayout, type Layout } from '../ui/layout';
 import { audio } from '../audio/AudioManager';
 import { drawEmptySlot, drawSticker } from './stickerArt';
-import { STICKERS } from './stickers';
+import { GUARDIAN_STICKER, STICKERS, type StickerDef } from './stickers';
 import { stickerBookLayout, type StickerBookLayout } from './stickerLayout';
 
 export interface StickerSceneData {
@@ -23,6 +23,8 @@ export class StickerScene extends Phaser.Scene {
   private slots: Phaser.GameObjects.Container[] = [];
   private back!: Phaser.GameObjects.Container;
   private done = false;
+  /** The stickers of the book: the 24 regular ones, plus the Cave Guardian's once he has it (Task 040). */
+  private defs: StickerDef[] = [...STICKERS];
 
   constructor() {
     super(StickerScene.KEY);
@@ -38,7 +40,8 @@ export class StickerScene extends Phaser.Scene {
     this.layout = getLayout();
     this.sky = this.add.graphics().setDepth(-10);
     const owned = new Set(this.data0.owned);
-    STICKERS.forEach((def, i) => {
+    this.defs = owned.has(GUARDIAN_STICKER.id) ? [...STICKERS, GUARDIAN_STICKER] : [...STICKERS];
+    this.defs.forEach((def, i) => {
       const g = this.add.graphics();
       const root = this.add.container(0, 0, [g]);
       root.setData('has', owned.has(def.id));
@@ -67,7 +70,7 @@ export class StickerScene extends Phaser.Scene {
   }
 
   private relayout(l: Layout): void {
-    this.geo = stickerBookLayout(l.width, l.height, l.insets);
+    this.geo = stickerBookLayout(l.width, l.height, l.insets, this.defs.length);
     const g = this.sky.clear();
     g.fillGradientStyle(0xffd180, 0xffd180, 0xfff3e0, 0xfff3e0, 1).fillRect(0, 0, l.width, l.height);
     g.fillStyle(0x7cd34a, 1).fillRect(0, l.height - 60, l.width, 60);
@@ -76,7 +79,7 @@ export class StickerScene extends Phaser.Scene {
       root.setPosition(s.x, s.y);
       const gr = root.list[0] as Phaser.GameObjects.Graphics;
       gr.clear();
-      if (root.getData('has')) drawSticker(gr, STICKERS[i], s.r);
+      if (root.getData('has')) drawSticker(gr, this.defs[i], s.r);
       else drawEmptySlot(gr, s.r);
       root.setSize(s.r * 2, s.r * 2);
       (root.input?.hitArea as Phaser.Geom.Rectangle | undefined)?.setTo(0, 0, s.r * 2, s.r * 2);

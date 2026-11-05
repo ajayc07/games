@@ -5,7 +5,18 @@ import { MemoryBackend, type KVBackend } from './backends';
 
 describe('progress record', () => {
   it('a fresh record has the D-036 shape', () => {
-    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null, bugBeaten: false, enemiesBeaten: [], openedWorlds: [] });
+    expect(freshRecord()).toEqual({ version: PROGRESS_VERSION, chosenCharacterId: null, look: null, levels: {}, settings: {}, stickers: [], zenDay: null, bugBeaten: false, enemiesBeaten: [], openedWorlds: [], worldsCleared: [] });
+  });
+
+  it('worlds cleared (Task 040): saved once, cleaned, kept on a progress reset', async () => {
+    const store = await ProgressStore.open('robo', { backends: [new MemoryBackend()] });
+    expect(store.markWorldCleared('cave')).toBe(true);
+    expect(store.markWorldCleared('cave')).toBe(false);
+    expect(store.record.worldsCleared).toEqual(['cave']);
+    expect(resetLevels({ ...freshRecord(), worldsCleared: ['cave'] }).worldsCleared).toEqual(['cave']);
+    expect(parseRecord(JSON.stringify({ version: 1, worldsCleared: ['cave', 'cave', 5, ''] })).record.worldsCleared).toEqual(['cave']);
+    expect(parseRecord(JSON.stringify({ version: 1, worldsCleared: 'cave' })).record.worldsCleared).toEqual([]);
+    expect(parseRecord(JSON.stringify({ version: 1 })).record.worldsCleared).toEqual([]);
   });
 
   it('keeps the best stars and coins, never lowers them', () => {

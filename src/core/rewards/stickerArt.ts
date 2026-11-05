@@ -83,6 +83,11 @@ export function drawSticker(g: G, def: Pick<StickerDef, 'shape' | 'color'>, r: n
       });
       break;
     }
+    case 'crystal':
+      poly([[0, -1.1], [0.8, -0.3], [0.8, 0.45], [0, 1.1], [-0.8, 0.45], [-0.8, -0.3]]);
+      g.fillStyle(def.color, 1).fillTriangle(-0.55 * s, -0.25 * s, 0.1 * s, -0.25 * s, -0.2 * s, 0.55 * s);
+      g.fillStyle(def.color, 1).fillTriangle(0.15 * s, -0.55 * s, 0.5 * s, -0.1 * s, 0.15 * s, 0.35 * s);
+      break;
     case 'bolt':
       poly([[0.25, -1.05], [-0.65, 0.15], [-0.08, 0.15], [-0.3, 1.05], [0.65, -0.25], [0.06, -0.25]]);
       break;

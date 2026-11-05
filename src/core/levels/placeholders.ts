@@ -551,3 +551,93 @@ function generate(
   g.generateTexture(key, Math.ceil(w * TEX_RES), Math.ceil(h * TEX_RES));
   g.destroy();
 }
+
+/**
+ * The Cave Guardian (Task 040): a big, friendly-grumpy rock golem drawn in code. Pieces (logical px): `body` 176 x 196 (head and torso in one,
+ * big round sleepy eyes, cute-grumpy brows, a small downturned mouth, an empty round socket on the chest), `arm` 40 x 112 and `leg` 52 x 70
+ * (one picture each, used twice), and the `crystal` 50 x 66 that sits in the chest socket and is the target. `gate` is the closed rock door
+ * (112 x 262) and `gateBack` the glowing opening behind it (128 x 270); `wall` a jagged rock column for the ends of the arena.
+ */
+export const GOLEM_KEYS = { body: 'golem-body', arm: 'golem-arm', leg: 'golem-leg', crystal: 'golem-crystal', gate: 'cave-gate', gateBack: 'cave-gate-back', wall: 'cave-wall' } as const;
+export const GOLEM_BODY = { w: 176, h: 196, socketX: 88, socketY: 132, shoulderY: 96, shoulderDx: 96 } as const;
+const GOLEM_OUTLINE = 0x2b3550;
+
+export function makeGolemTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists(GOLEM_KEYS.body)) {
+    generate(scene, GOLEM_KEYS.body, GOLEM_BODY.w, GOLEM_BODY.h, (g) => {
+      // Torso and head: a dark outline, grey-blue rock, a lighter top and a few darker plates.
+      g.fillStyle(GOLEM_OUTLINE, 1).fillRoundedRect(2, 64, 172, 132, 38).fillRoundedRect(30, 0, 116, 86, 34);
+      g.fillStyle(0x7d88a6, 1).fillRoundedRect(7, 69, 162, 122, 34).fillRoundedRect(35, 5, 106, 76, 30);
+      g.fillStyle(0xa3aecb, 1).fillRoundedRect(46, 10, 56, 22, 11).fillRoundedRect(16, 74, 52, 20, 10);
+      g.fillStyle(0x5b6585, 1).fillRoundedRect(112, 150, 48, 34, 14).fillRoundedRect(18, 160, 34, 24, 10);
+      g.lineStyle(3, 0x5b6585, 1).lineBetween(26, 120, 44, 140).lineBetween(150, 100, 132, 124).lineBetween(70, 52, 78, 70);
+      // The chest socket for the crystal: a dark rim and a deep inside.
+      g.fillStyle(GOLEM_OUTLINE, 1).fillEllipse(GOLEM_BODY.socketX, GOLEM_BODY.socketY, 66, 82);
+      g.fillStyle(0x1b2236, 1).fillEllipse(GOLEM_BODY.socketX, GOLEM_BODY.socketY, 56, 72);
+      // Big round sleepy eyes: white, a heavy upper lid (rock-coloured), kind pupils and brows slanting down to the middle (grumpy, never fierce).
+      for (const [x, dir] of [[62, 1], [114, -1]] as const) {
+        g.fillStyle(0xffffff, 1).fillCircle(x, 44, 17);
+        g.lineStyle(3, GOLEM_OUTLINE, 1).strokeCircle(x, 44, 17);
+        g.fillStyle(0x263238, 1).fillCircle(x + dir * 2, 49, 8);
+        g.fillStyle(0xffffff, 1).fillCircle(x + dir * 2 + 3, 46, 2.6);
+        g.fillStyle(0x7d88a6, 1).fillRect(x - 18, 25, 36, 18);
+        g.lineStyle(4, GOLEM_OUTLINE, 1).lineBetween(x - 17, 43, x + 17, 43);
+        g.lineStyle(5, GOLEM_OUTLINE, 1).lineBetween(x - dir * 19, 22, x + dir * 15, 30);
+      }
+      g.lineStyle(4, GOLEM_OUTLINE, 1).beginPath().arc(88, 82, 14, Math.PI * 1.15, Math.PI * 1.85).strokePath();
+      g.fillStyle(0xf48fb1, 0.55).fillCircle(42, 66, 8).fillCircle(134, 66, 8);
+    });
+  }
+  if (!scene.textures.exists(GOLEM_KEYS.arm)) {
+    generate(scene, GOLEM_KEYS.arm, 40, 112, (g) => {
+      g.fillStyle(GOLEM_OUTLINE, 1).fillRoundedRect(1, 0, 38, 84, 17).fillCircle(20, 90, 21);
+      g.fillStyle(0x7d88a6, 1).fillRoundedRect(5, 4, 30, 76, 14).fillCircle(20, 90, 17);
+      g.fillStyle(0xa3aecb, 1).fillRoundedRect(9, 8, 10, 28, 5);
+      g.lineStyle(3, 0x5b6585, 1).lineBetween(12, 84, 28, 84).lineBetween(14, 94, 26, 94);
+    });
+  }
+  if (!scene.textures.exists(GOLEM_KEYS.leg)) {
+    generate(scene, GOLEM_KEYS.leg, 52, 70, (g) => {
+      g.fillStyle(GOLEM_OUTLINE, 1).fillRoundedRect(1, 0, 50, 70, 16);
+      g.fillStyle(0x6a7596, 1).fillRoundedRect(5, 4, 42, 62, 13);
+      g.fillStyle(0x8e99b8, 1).fillRoundedRect(9, 8, 14, 22, 6);
+    });
+  }
+  if (!scene.textures.exists(GOLEM_KEYS.crystal)) {
+    generate(scene, GOLEM_KEYS.crystal, 50, 66, (g) => {
+      const pts = (a: number[][]) => a.map(([x, y]) => new Phaser.Geom.Point(x, y));
+      g.fillStyle(0x155a7a, 1).fillPoints(pts([[25, 0], [48, 20], [48, 46], [25, 66], [2, 46], [2, 20]]), true);
+      g.fillStyle(0x62e8ff, 1).fillPoints(pts([[25, 5], [43, 22], [43, 44], [25, 60], [7, 44], [7, 22]]), true);
+      g.fillStyle(0xc8fbff, 1).fillPoints(pts([[25, 5], [7, 22], [25, 34]]), true);
+      g.fillStyle(0xffffff, 0.9).fillPoints(pts([[14, 20], [20, 14], [22, 26], [16, 32]]), true);
+      g.lineStyle(2, 0x155a7a, 0.9).lineBetween(25, 34, 43, 22).lineBetween(25, 34, 25, 60).lineBetween(25, 34, 7, 44);
+    });
+  }
+  if (!scene.textures.exists(GOLEM_KEYS.gateBack)) {
+    generate(scene, GOLEM_KEYS.gateBack, 128, 270, (g) => {
+      g.fillStyle(GOLEM_OUTLINE, 1).fillRoundedRect(0, 0, 128, 270, { tl: 64, tr: 64, bl: 0, br: 0 });
+      g.fillStyle(0x07102a, 1).fillRoundedRect(10, 10, 108, 260, { tl: 54, tr: 54, bl: 0, br: 0 });
+      g.fillStyle(0x16508a, 0.9).fillRoundedRect(24, 70, 80, 200, { tl: 40, tr: 40, bl: 0, br: 0 });
+      g.fillStyle(0x6fe0ff, 0.6).fillRoundedRect(42, 150, 44, 120, { tl: 22, tr: 22, bl: 0, br: 0 });
+    });
+  }
+  if (!scene.textures.exists(GOLEM_KEYS.gate)) {
+    generate(scene, GOLEM_KEYS.gate, 112, 262, (g) => {
+      g.fillStyle(GOLEM_OUTLINE, 1).fillRoundedRect(0, 0, 112, 262, { tl: 56, tr: 56, bl: 0, br: 0 });
+      g.fillStyle(0x6d7897, 1).fillRoundedRect(5, 5, 102, 257, { tl: 51, tr: 51, bl: 0, br: 0 });
+      g.fillStyle(0x8e99b8, 1).fillRoundedRect(14, 14, 84, 40, { tl: 36, tr: 36, bl: 8, br: 8 });
+      g.lineStyle(4, 0x4a5575, 1).lineBetween(56, 70, 56, 262).lineBetween(14, 130, 98, 130).lineBetween(14, 200, 98, 200);
+      for (const [x, y] of [[24, 90], [88, 90], [24, 160], [88, 160], [24, 230], [88, 230]]) g.fillStyle(0xa3aecb, 1).fillCircle(x, y, 6);
+      // A dim crystal inlay (it lights up when the gate opens).
+      g.fillStyle(0x3b6f86, 1).fillPoints([new Phaser.Geom.Point(56, 80), new Phaser.Geom.Point(70, 104), new Phaser.Geom.Point(56, 128), new Phaser.Geom.Point(42, 104)], true);
+    });
+  }
+  if (!scene.textures.exists(GOLEM_KEYS.wall)) {
+    generate(scene, GOLEM_KEYS.wall, 90, 300, (g) => {
+      const pts = [[90, 300], [90, 0], [40, 0], [48, 40], [30, 80], [44, 130], [26, 190], [40, 240], [28, 300]].map(([x, y]) => new Phaser.Geom.Point(x, y));
+      g.fillStyle(GOLEM_OUTLINE, 1).fillPoints(pts, true);
+      g.fillStyle(0x4a5575, 1).fillPoints(pts.map((p) => new Phaser.Geom.Point(p.x * 0.92 + 8, p.y)), true);
+      g.fillStyle(0x66719a, 1).fillRoundedRect(52, 30, 28, 40, 10).fillRoundedRect(46, 150, 34, 50, 10);
+    });
+  }
+}

@@ -4,7 +4,8 @@
 import type { EnemyKind } from '../levels/enemies';
 
 export const STICKER_SHAPES = ['star', 'heart', 'rocket', 'moon', 'sun', 'flower', 'car', 'robot', 'gear', 'crown', 'rainbow', 'bolt'] as const;
-export type StickerShape = (typeof STICKER_SHAPES)[number];
+/** The twelve shapes of the regular stickers, and the Guardian's `crystal`. */
+export type StickerShape = (typeof STICKER_SHAPES)[number] | 'crystal';
 
 export interface StickerDef {
   id: string;
@@ -24,7 +25,13 @@ export const STICKERS: readonly StickerDef[] = Array.from({ length: STICKER_SHAP
 
 export const STICKER_COUNT = STICKERS.length;
 
-const byId = new Map(STICKERS.map((s) => [s.id, s]));
+/**
+ * The Cave Guardian's sticker (Task 040): a big crystal badge. It is not part of the sequence `nextSticker` hands out; it is earned only by
+ * beating the Guardian (once), and the sticker book gets a 25th slot once he has it.
+ */
+export const GUARDIAN_STICKER: StickerDef = { id: 'g01', shape: 'crystal', color: 0x00acc1 };
+
+const byId = new Map([...STICKERS, GUARDIAN_STICKER].map((s) => [s.id, s]));
 
 export const stickerById = (id: string): StickerDef | undefined => byId.get(id);
 
@@ -38,11 +45,11 @@ export function nextSticker(owned: readonly string[]): string | null {
 export function cleanStickers(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const have = new Set(raw.filter((x): x is string => typeof x === 'string'));
-  return STICKERS.filter((s) => have.has(s.id)).map((s) => s.id);
+  return [...STICKERS, GUARDIAN_STICKER].filter((s) => have.has(s.id)).map((s) => s.id);
 }
 
-/** `mega`, `finish`, or the kind of an enemy he beat (`bug`, `beetle`, `bat`; Tasks 035 and 038). */
-export type StickerReason = 'mega' | 'finish' | EnemyKind;
+/** `mega`, `finish`, `guardian` (Task 040), or the kind of an enemy he beat (`bug`, `beetle`, `bat`; Tasks 035 and 038). */
+export type StickerReason = 'mega' | 'finish' | 'guardian' | EnemyKind;
 
 /** Does this event earn a sticker? A finish earns one the first time a level is cleared and the first time it gets 3 stars. */
 export function earnsSticker(reason: StickerReason, before: { stars: number } | null, stars: number): boolean {

@@ -36,6 +36,8 @@ export interface BranchSpec {
   wasOpen?: boolean;
   /** Stars earned in that world and the most it can give (for later crowns, Tasks 038-040). */
   stars?: { stars: number; max: number };
+  /** He has beaten that world's boss (Task 040): the mouth wears a gold crown. */
+  crowned?: boolean;
 }
 
 export interface MapSceneData {
@@ -66,6 +68,8 @@ export interface MapSceneData {
   onBack?: () => void;
   /** Arrived through a mouth or an arch: fade in from the dark. */
   fadeIn?: boolean;
+  /** This world's boss is beaten (Task 040): a gold crown sits over the last dot of the path. */
+  crowned?: boolean;
   /** Stand on this dot instead of the current one (coming back through the arch, he stands at the fork). */
   startAt?: number;
 }
@@ -169,6 +173,13 @@ export class MapScene extends Phaser.Scene {
     // Before the arrival animation, show the dots as they were before the level's result.
     const shown = this.data0.arrival?.before ?? this.dots;
     shown.forEach((d, i) => this.dotViews.push(this.makeDot(i, d)));
+    if (this.data0.crowned && this.dotViews.length > 0) {
+      const last = this.geo.dots[this.dotViews.length - 1];
+      const cg = this.add.graphics().setPosition(last.x, last.y - 96).setDepth(DEPTH.dots + 1);
+      drawCrown(cg, 0, 0, 1.7);
+      this.world.add(cg);
+      this.tweens.add({ targets: cg, y: cg.y - 8, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
     this.data0.teasers.forEach((icon, i) => this.teaserViews.push(this.makeTeaser(i, icon)));
     (this.data0.branches ?? []).forEach((b, i) => this.mouthViews.push(this.makeMouth(i, b)));
     if (this.data0.onBack && this.geo.back) this.backView = this.makeBackArch(this.geo.back);
@@ -419,6 +430,7 @@ export class MapScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 0.45).fillTriangle(x - hw * 0.1, y + len * 0.5, x - hw, y + len * 0.5, x, y - len * 0.5);
       g.lineStyle(3, 0x2c3552, 1).strokeTriangle(x - hw, y + len * 0.5, x + hw, y + len * 0.5, x, y - len * 0.5);
     }
+    if (b.crowned) drawCrown(g, 0, -H - 26, 1.5);
     const root = this.add.container(p.x, p.y, [g]).setDepth(DEPTH.dots);
     let halo: Phaser.GameObjects.Image | null = null;
     const lockedAtFirst = !b.open || b.wasOpen === false;
@@ -846,4 +858,16 @@ function drawTeaserIcon(g: Phaser.GameObjects.Graphics, icon: TeaserIcon, x: num
     g.fillStyle(0x795548, 1).fillRoundedRect(x - 10, y + 10, 20, 22, { tl: 10, tr: 10, bl: 0, br: 0 });
     g.lineStyle(2, 0x9e9e9e, 1).lineBetween(x - 4, y - 46, x - 4, y - 22);
   }
+}
+
+/** A little gold crown with three gems (Task 040), centred on (x, y); `k` scales it (1 = about 60 px wide). */
+function drawCrown(g: Phaser.GameObjects.Graphics, x: number, y: number, k: number): void {
+  const p = (pts: Array<[number, number]>) => pts.map(([a, b]) => new Phaser.Geom.Point(x + a * k, y + b * k));
+  const body = p([[-30, 18], [-34, -14], [-16, 2], [0, -22], [16, 2], [34, -14], [30, 18]]);
+  g.fillStyle(0x7a4f00, 1).fillPoints(p([[-33, 22], [-38, -18], [-16, 0], [0, -27], [16, 0], [38, -18], [33, 22]]), true);
+  g.fillStyle(0xffd54f, 1).fillPoints(body, true);
+  g.fillStyle(0xfff3b0, 0.8).fillRect(x - 24 * k, y + 8 * k, 48 * k, 4 * k);
+  g.fillStyle(0xe53935, 1).fillCircle(x, y + 3 * k, 5 * k);
+  g.fillStyle(0x29b6f6, 1).fillCircle(x - 18 * k, y + 8 * k, 3.6 * k).fillCircle(x + 18 * k, y + 8 * k, 3.6 * k);
+  g.fillStyle(0xffffff, 1).fillCircle(x - 34 * k, y - 15 * k, 3 * k).fillCircle(x + 34 * k, y - 15 * k, 3 * k).fillCircle(x, y - 24 * k, 3 * k);
 }

@@ -15,7 +15,7 @@ import { useVariety, varietyModeFrom, varietySeedFrom, varyLevel, withRainbowBub
 import { audio } from '../../core/audio/AudioManager';
 import { StickerScene, type StickerSceneData } from '../../core/rewards/StickerScene';
 import { spentToday, todayKey, zenRemainingMs, resolveZenLimit } from '../../core/settings/zenTime';
-import { earnsSticker, nextSticker, type StickerReason } from '../../core/rewards/stickers';
+import { GUARDIAN_STICKER, earnsSticker, nextSticker, type StickerReason } from '../../core/rewards/stickers';
 import {
   bindSettings,
   resolveButtonScale,
@@ -189,6 +189,7 @@ function branchSpecs(s: Session, world: WorldDef, before: ProgressRecord | null)
     open: branchOpen(b, rec.levels, { unlockAll: all, openedWorlds: rec.openedWorlds }),
     wasOpen: before ? branchOpen(b, before.levels, { unlockAll: all, openedWorlds: before.openedWorlds }) : undefined,
     stars: worldStars(b, rec.levels),
+    crowned: rec.worldsCleared.includes(b.id),
   }));
 }
 
@@ -209,6 +210,7 @@ function openMap(s: Session, world0?: string, startAt?: number): void {
     teasers: worlds.filter((w) => w.levels.length === 0 && TEASER_ICONS[w.id]).map((w) => TEASER_ICONS[w.id]),
     branches: branchSpecs(s, world, arrival && from >= 0 ? arrival.before : null),
     onBranch: (id) => openMap(s, id),
+    crowned: s.store.record.worldsCleared.includes(world.id),
     // Coming back through the arch, he stands at the fork dot, next to the mouth he went in by.
     onBack: parent ? () => openMap(s, parent.id, forkIndex(parent, world)) : undefined,
     fadeIn: !!world0,
@@ -245,6 +247,14 @@ function openStickers(s: Session): void {
  */
 function awardSticker(s: Session, reason: StickerReason, before: { stars: number } | null, stars: number): string | null {
   if (!earnsSticker(reason, before, stars)) return null;
+  // The Cave Guardian (Task 040): the Cave wears its crown for good, and the big crystal sticker is his once.
+  if (reason === 'guardian') {
+    s.store.markWorldCleared('cave');
+    if (s.store.record.stickers.includes(GUARDIAN_STICKER.id)) return null;
+    s.store.addSticker(GUARDIAN_STICKER.id);
+    void s.store.flush();
+    return GUARDIAN_STICKER.id;
+  }
   // The first Bolt Bug, Rock Beetle and Glow Bat he ever beats (Tasks 035, 038): one sticker each, once.
   if (reason !== 'mega' && reason !== 'finish' && !s.store.markEnemyBeaten(reason)) return null;
   const id = nextSticker(s.store.record.stickers);

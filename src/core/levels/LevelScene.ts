@@ -20,6 +20,9 @@ import { CarSprite } from './CarSprite';
 import { makeCarTextures, carTextureKeys, makePowerOrbTextures, POWER_ORB_KEYS, FLASH_GHOST_KEY } from './placeholders';
 import { BOOTS, FLASH, MAGNET, inMagnetRange, pullStep, type PickupKind } from './powerups';
 import { EnemyField } from './EnemyField';
+import { BossField } from './BossField';
+import { BOSS, BOSS_COINS, bossFromSearch } from './boss';
+import { GOLEM_KEYS, makeGolemTextures } from './placeholders';
 import type { AvatarSfx } from '../avatar/AvatarDriver';
 import { LAND_THUMP_ID, pickStepVariant, stepSoundId } from '../audio/steps';
 import { idleSecondsFrom } from '../../shell/idle';
@@ -66,7 +69,7 @@ export interface LevelSceneData {
   /** Called at the goal, before the win screen, so progress is kept even if the child quits right away. */
   onResult?: (result: { stars: number; coins: number }) => void;
   /** A sticker is earned (Task 031): called when the coin bar fills (`mega`) and at a finish (`finish`, after onResult) with the stars; returns the sticker id to show, or null for none. */
-  onSticker?: (reason: 'mega' | 'finish' | EnemyKind, stars: number) => string | null;
+  onSticker?: (reason: 'mega' | 'finish' | 'guardian' | EnemyKind, stars: number) => string | null;
   /** How the player is drawn; default `?look=` / robot. */
   look?: LookName;
   /** Reopen the avatar picker (small icon on the win screen) until the map has its own button. */
@@ -302,8 +305,10 @@ export class LevelScene extends Phaser.Scene {
     this.buildGround();
     this.buildObstacles();
     this.buildCoins();
+    const childrenBeforeGoal = this.children.list.length;
     if (this.level.zen) this.goalX = Number.POSITIVE_INFINITY; // no flag: the world never ends
     else this.buildGoal();
+    if (this.bossWanted()) this.buildArena(childrenBeforeGoal);
     this.lookName = this.data0.look ?? lookFromUrl();
     this.size = sizeFromUrl();
     this.motionFx = new MotionFx(this, DEPTH.player - 1, this.size);
@@ -313,9 +318,10 @@ export class LevelScene extends Phaser.Scene {
     this.buildPickups();
     this.bubbles = this.makeBubbleField();
     this.enemies = this.makeEnemyField();
+    this.boss = this.makeBoss();
     if (this.level.controls.enabled.includes('power')) this.blaster = this.makeBlaster();
     this.buildHud();
-    this.plan = megaPlan({ zen: !!this.level.zen, practice: !!this.data0.practice, buttons: this.level.controls.enabled, hasPickups: this.grid.pickups.length > 0, totalCoins: this.coins.length + this.bubbles.totalCoins + (this.enemies?.totalCoins ?? 0) });
+    this.plan = megaPlan({ zen: !!this.level.zen, practice: !!this.data0.practice, buttons: this.level.controls.enabled, hasPickups: this.grid.pickups.length > 0, totalCoins: this.coins.length + this.bubbles.totalCoins + (this.enemies?.totalCoins ?? 0) + (this.bossWanted() ? BOSS_COINS : 0) });
     this.coinBar = new CoinBar(this, DEPTH.hud);
     // Hold-to-exit (1 s, D-036): hidden during the demo and on the win screen.
     this.exitBtn = new HoldButton(this, () => this.afterStep(this.data0.onHome), DEPTH.exit);
@@ -371,6 +377,7 @@ export class LevelScene extends Phaser.Scene {
     this.updateCar(time);
     this.updatePowers(time);
     this.updateBugs(time);
+    this.updateBoss(time);
     this.ghost?.updateAvatar(time, dt);
     this.updateShots(time, dt * 1000);
     this.updatePractice(time);
@@ -766,6 +773,110 @@ export class LevelScene extends Phaser.Scene {
       if (quick) this.enemies.popByTouch(e.index, now);
       else if (!this.player.flying && this.bugBump.touch(now, b.center.x, e.x, this.player.facing)) this.enemies.bumped(e.index, now);
     }
+  }
+
+  // ---------- the Cave Guardian (Task 040, D-085) ----------
+
+  private boss: BossField | null = null;
+  private gateOpen = false;
+  /** The pad and its light, hidden until the Guardian is beaten (the gate opens). */
+  private hiddenGoal: Phaser.GameObjects.GameObject[] = [];
+  private realGoalX = 0;
+  private gate: { door: Phaser.GameObjects.Image; back: Phaser.GameObjects.Image; glow: Phaser.GameObjects.Image } | null = null;
+
+  /** A boss arena (a `G` in the grid): never in zen or Practice. */
+  private bossWanted(): boolean {
+    return !!this.grid.boss && !this.level.zen && !this.data0.practice;
+  }
+
+  /**
+   * The arena's look: a rock wall at the left end and the closed rock gate at the right end, and the pad hidden until the gate opens.
+   * With `?boss=0` there is no fight and the gate is open from the start.
+   */
+  private buildArena(goalFrom: number): void {
+    const goalTo = this.children.list.length;
+    const base = this.startFeet();
+    makeGolemTextures(this);
+    this.add.image(26, base + 8, GOLEM_KEYS.wall).setOrigin(1, 1).setDisplaySize(90, 300).setDepth(DEPTH.goal - 1);
+    const gx = this.worldW - 64 - 6;
+    const back = this.add.image(gx, base, GOLEM_KEYS.gateBack).setOrigin(0.5, 1).setDisplaySize(128, 270).setDepth(DEPTH.goal - 1.2);
+    const glow = this.add.image(gx, base - 70, 'fx-glow').setTint(0x7fe8ff).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(260, 300).setDepth(DEPTH.goal - 1.1).setAlpha(0);
+    const door = this.add.image(gx, base - 262, GOLEM_KEYS.gate).setOrigin(0.5, 0).setDisplaySize(112, 262).setDepth(DEPTH.goal - 1);
+    this.gate = { door, back, glow };
+    // The pad and its light were just built: hide them until the gate opens (the goal cannot be reached before).
+    this.hiddenGoal = this.children.list.slice(goalFrom, goalTo);
+    this.realGoalX = this.goalX;
+    for (const o of this.hiddenGoal) (o as unknown as { setVisible(v: boolean): void }).setVisible(false);
+    this.goalX = Number.POSITIVE_INFINITY;
+  }
+
+  private makeBoss(): BossField | null {
+    if (!this.bossWanted()) return null;
+    if (!bossFromSearch(location.search)) {
+      this.openGate(false);
+      return null;
+    }
+    return new BossField(this, {
+      cell: this.grid.boss!,
+      tile: this.tile,
+      gridTop: this.gridTop,
+      depth: DEPTH.bubbles,
+      sparkle: this.sparkle,
+      spawnCoins: (now, x, y, n) => this.bubbles.spawnCoins(now, x, y, n, true),
+      onBeaten: () => {
+        // The Guardian crumbles; its sticker (a big one, the first time) and the "world cleared" crown are the universe's to save.
+        const sticker = this.data0.onSticker?.('guardian', 0);
+        if (sticker) this.time.delayedCall(1300, () => showStickerPop(this, sticker, DEPTH.hud + 5, this.layout.width / 2, this.layout.height * 0.36, 150));
+        this.time.delayedCall(BOSS.crumbleMs - 200, () => this.openGate(true));
+      },
+    });
+  }
+
+  /** The gate rolls up with a rumble and the charging pad appears. */
+  private openGate(animated: boolean): void {
+    if (this.gateOpen) return;
+    this.gateOpen = true;
+    const g = this.gate;
+    if (g) {
+      if (animated) {
+        audio.play('gateOpen');
+        this.cameras.main.shake(BOSS.gateMs, 0.003);
+        this.tweens.add({ targets: g.door, scaleY: 0.02, duration: BOSS.gateMs, ease: 'Sine.easeIn' });
+        this.tweens.add({ targets: g.glow, alpha: 0.7, duration: BOSS.gateMs, ease: 'Sine.easeOut' });
+        this.time.delayedCall(BOSS.gateMs * 0.8, () => this.sparkle.explode(30, g.back.x, g.back.y - 120));
+      } else {
+        g.door.setScale(g.door.scaleX, 0.02);
+        g.glow.setAlpha(0.7);
+      }
+    }
+    // The pad and its light were built hidden; now it shows and the goal works.
+    this.goalX = this.realGoalX || this.goalX;
+    for (const o of this.hiddenGoal) (o as unknown as { setVisible(v: boolean): void }).setVisible(true);
+    if (animated) {
+      for (const o of this.hiddenGoal) {
+        const a = o as unknown as { alpha?: number; setAlpha?: (v: number) => void };
+        if (typeof a.alpha === 'number' && a.setAlpha) {
+          const target = a.alpha;
+          a.setAlpha(0);
+          this.tweens.add({ targets: o, alpha: target, duration: 600, delay: BOSS.gateMs * 0.5 });
+        }
+      }
+    }
+    this.hiddenGoal = [];
+  }
+
+  /** Every frame: the Guardian walks; in play a touch as Mega, a car or Flash is one hit, otherwise a gentle bump (never when he flies). */
+  private updateBoss(now: number): void {
+    const boss = this.boss;
+    if (!boss) return;
+    const b = this.player.body;
+    boss.update(now, this.mode === 'play' ? b.center.x : undefined);
+    if (this.mode !== 'play' || boss.beaten || !boss.touches(b)) return;
+    const quick = this.megaOn || this.carOn() || this.flashOn;
+    if (!quick && this.player.flying) return;
+    if (!this.bugBump.touch(now, b.center.x, boss.x, this.player.facing)) return;
+    if (quick) boss.hit(now);
+    else boss.bumped(now);
   }
 
   private bubbleWalls(p: Player): { minX: number; maxX: number } {
@@ -1676,7 +1787,7 @@ export class LevelScene extends Phaser.Scene {
       this.blaster.update(now, dtMs, input, this.shooterOf(this.player));
       if (this.mode === 'play' || this.mode === 'respawn') {
         for (const s of this.blaster.flying()) {
-          if (this.bubbles.tryHit(s.x, s.y, SHOT.radius, now, true) >= 0 || (this.enemies?.tryShot(s.x, s.y, SHOT.radius, now) ?? -1) >= 0) this.blaster.hit(s);
+          if (this.bubbles.tryHit(s.x, s.y, SHOT.radius, now, true) >= 0 || (this.enemies?.tryShot(s.x, s.y, SHOT.radius, now) ?? -1) >= 0 || (this.boss?.tryShot(s.x, s.y, SHOT.radius, now) ?? false)) this.blaster.hit(s);
         }
       }
     }
@@ -2010,6 +2121,12 @@ export class LevelScene extends Phaser.Scene {
     this.time.delayedCall(900, () => bolts.destroy());
     this.confetti.explode(70, this.goalX, this.beaconY);
     this.time.delayedCall(250, () => this.confetti.explode(50, player.body.center.x, player.body.top));
+    if (this.gate) {
+      // Beating the Cave Guardian (Task 040): a longer tune and a second shower of crystal confetti.
+      audio.play('guardianWin');
+      this.time.delayedCall(500, () => this.confetti.explode(90, this.goalX, this.beaconY));
+      this.time.delayedCall(900, () => this.sparkle.explode(40, this.goalX, this.padTopY - 40));
+    }
   }
 
   private afterStep(fn: () => void): void {
@@ -2053,9 +2170,11 @@ export class LevelScene extends Phaser.Scene {
         bottom: this.player.body.bottom,
         grounded: this.player.grounded,
         coins: this.coinCount,
-        totalCoins: this.coins.length + this.bubbles.totalCoins + (this.enemies?.totalCoins ?? 0),
+        totalCoins: this.coins.length + this.bubbles.totalCoins + (this.enemies?.totalCoins ?? 0) + (this.bossWanted() ? BOSS_COINS : 0),
         bugs: this.enemies?.state().filter((e) => e.kind === 'bug'),
         enemies: this.enemies?.state(),
+        boss: this.boss?.state() ?? null,
+        gateOpen: this.gateOpen,
         gridCoins: this.coins.length,
         shots: this.blaster && {
           inFlight: this.blaster.cannon.inFlight,
