@@ -82,12 +82,12 @@ export function zenSegmentSeed(seed: number, lap: number): number {
   return (seed + Math.imul(lap, 7919) + Math.imul(lap, lap)) >>> 0;
 }
 
-type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap' | 'enemy' | 'gapShoot' | 'stairShoot' | 'padShoot' | 'gauntlet';
+type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap' | 'enemy' | 'gapShoot' | 'stairShoot' | 'padShoot' | 'gauntlet' | 'frenzy' | 'padChain' | 'rainbowRun' | 'treasure';
 
 /** Weighted draw: shooting is the most common thing to do, then high bubbles; the rest are the occasional change. */
 const MOTIFS: readonly Motif[] = ['shoot', 'shoot', 'shoot', 'shoot', 'air', 'air', 'arc', 'pad', 'big', 'rest', 'steps', 'steps', 'steps', 'gap', 'gap', 'gap', 'gap'];
 /**
- * The difficulty ramp (Task 047). Below `ZEN_RAMP.start` coins he plays the gentle mix above. After that, every `step` coins
+ * The difficulty ramp (Task 045). Below `ZEN_RAMP.start` coins he plays the gentle mix above. After that, every `step` coins
  * one new combo is added to the mix, one button at a time: tier 1 walk + jump + shoot at a gap, tier 2 climb + shoot at the
  * stairs, tier 3 bounce pad + shoot high, tier 4 a chain of them with the enemies a little closer together. Pure rule.
  */
@@ -98,13 +98,21 @@ export function zenTier(coins: number): number {
   return Math.min(ZEN_RAMP.maxTier, 1 + Math.floor((coins - ZEN_RAMP.start) / ZEN_RAMP.step));
 }
 
+/**
+ * Set-pieces for a long play (Task 047): from `ZEN_FLAIR_COINS` coins on the mix gets four exciting stretches (a bubble frenzy,
+ * a chain of bounce pads, a run of rainbow bubbles, a big bubble with a treasure) and power-ups come a little more often.
+ */
+export const ZEN_FLAIR_COINS = 500;
+const FLAIR: readonly Motif[] = ['frenzy', 'padChain', 'rainbowRun', 'treasure'];
+
 const COMBO_BY_TIER: readonly Motif[] = ['gapShoot', 'stairShoot', 'padShoot', 'gauntlet'];
 
 /** The motif pool for a tier: tier 0 is exactly the original mix; higher tiers drop the resting motif and add two entries per combo unlocked. */
-function motifPool(tier: number): readonly Motif[] {
-  if (tier <= 0) return MOTIFS;
+function motifPool(tier: number, flair = false): readonly Motif[] {
+  if (tier <= 0 && !flair) return MOTIFS;
   const pool: Motif[] = MOTIFS.filter((m) => m !== 'rest');
   for (let t = 0; t < tier && t < COMBO_BY_TIER.length; t++) pool.push(COMBO_BY_TIER[t], COMBO_BY_TIER[t]);
+  if (flair) for (const m of FLAIR) pool.push(m, m);
   return pool;
 }
 
@@ -128,8 +136,10 @@ export interface ZenOptions {
   carry?: { grid: readonly string[]; dir: 1 | -1 };
   /** `?enemies=1`: the first enemy comes as early as it may (only for the very first segment, for testing). */
   forceEnemy?: boolean;
-  /** Difficulty tier from `zenTier(coins)` (Task 047). 0 = the gentle mix. */
+  /** Difficulty tier from `zenTier(coins)` (Task 045). 0 = the gentle mix. */
   tier?: number;
+  /** A long play (Task 047): add the set-pieces and bring power-ups a little closer together. */
+  flair?: boolean;
 }
 
 export interface ZenSegment {
@@ -325,6 +335,43 @@ function gauntlet(c: Cells, from: number): number {
   return col;
 }
 
+/** A frenzy: ten small bubbles two tiles apart with a coin over each, to shoot while walking (mash Power, it is harmless). */
+function frenzy(c: Cells, from: number): number {
+  let col = from + 1;
+  for (let i = 0; i < 10; i++, col += 2) {
+    c.put(col, i % 2 ? ROW.up : ROW.low, 'o');
+    c.put(col, ROW.high, 'c');
+  }
+  return col + 1;
+}
+
+/** Three bounce pads in a row with a trail of coins in the air above them: bounce, bounce, bounce. */
+function padChain(c: Cells, from: number): number {
+  for (let i = 0; i < 3; i++) {
+    const x = from + 2 + i * 6;
+    c.put(x, 8, '^');
+    c.put(x, 4, 'c');
+    c.put(x + 1, 3, 'c');
+    c.put(x + 2, 3, 'c');
+    c.put(x + 3, 4, 'c');
+  }
+  return from + 22;
+}
+
+/** Four rainbow bubbles, each worth a lot, spaced so that he has to shoot, walk and shoot. */
+function rainbowRun(c: Cells, from: number): number {
+  for (let i = 0; i < 4; i++) c.put(from + 2 + i * 4, i % 2 ? ROW.low : ROW.up, 'r');
+  return from + 20;
+}
+
+/** A big bubble (three shots) and a high one behind it with a coin arch: a treasure to work for. */
+function treasure(c: Cells, from: number): number {
+  const end = big(c, from);
+  c.put(end + 2, ROW.high, 'h');
+  for (const [dc, row] of [[0, 7], [1, 6], [2, 6], [3, 7]] as const) c.put(end + 1 + dc, row, 'c');
+  return end + 7;
+}
+
 /** One enemy in the middle of a stretch of flat ground: the patrol and its clear tiles are reserved, nothing else is put there. */
 function enemy(c: Cells, from: number, kind: EnemyKind): number {
   const reach = enemyReach(kind);
@@ -403,7 +450,8 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   const c = new Cells(rng, lo, hi, options.first ? { from: ZEN.startCol - 6, to: ZEN.firstContent } : null);
   const motifs: ZenSegment['motifs'] = [];
   const tier = options.tier ?? 0;
-  const pool = motifPool(tier);
+  const flair = options.flair === true;
+  const pool = motifPool(tier, flair);
   // From tier 2 the enemies come a little closer together (35-50 tiles instead of 45-60).
   const everyMin = tier >= 2 ? ZEN_ENEMY.every.min - 10 : ZEN_ENEMY.every.min;
   const everyMax = tier >= 2 ? ZEN_ENEMY.every.max - 10 : ZEN_ENEMY.every.max;
@@ -479,7 +527,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
       motifs.push(`power-${kind}`);
       if (second) motifs.push('double');
       col = powerSet(c, col, kind, second) + c.int(2, 4);
-      setDue = col + c.int(24, 44);
+      setDue = col + (flair ? c.int(16, 32) : c.int(24, 44));
       needBubbles = true;
       continue;
     }
@@ -508,6 +556,10 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
     else if (m === 'stairShoot') col = stairShoot(c, col);
     else if (m === 'padShoot') col = padShoot(c, col);
     else if (m === 'gauntlet') col = gauntlet(c, col);
+    else if (m === 'frenzy') col = frenzy(c, col);
+    else if (m === 'padChain') col = padChain(c, col);
+    else if (m === 'rainbowRun') col = rainbowRun(c, col);
+    else if (m === 'treasure') col = treasure(c, col);
     else col = rest(c, col);
     col += c.int(2, 3);
   }

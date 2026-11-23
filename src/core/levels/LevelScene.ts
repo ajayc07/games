@@ -51,7 +51,7 @@ import { BubbleField } from './BubbleField';
 import { SHOT } from './shots';
 import { resolveAvatar } from '../avatar/config';
 import type { PracticeMode } from './practice';
-import { generateZen, zenRebase, zenSegmentSeed, zenTier } from './zen';
+import { generateZen, zenRebase, zenSegmentSeed, zenTier, ZEN_FLAIR_COINS } from './zen';
 import { FALL_BUZZ, vibrate } from '../ui/haptics';
 import { PracticeRun } from '../practice/PracticeRun';
 import { resultHandlerFor, walkAssistOn } from '../practice/practiceResult';
@@ -1772,13 +1772,25 @@ export class LevelScene extends Phaser.Scene {
   /** Counts coins (walked over, or flown in from a popped bubble) and bumps the HUD counter. */
   private addCoins(n: number, special = false): void {
     if (n <= 0) return;
+    const before = this.coinCount;
     this.coinCount += n;
+    // Zen (Task 047): every 100 coins a little celebration, so a long play keeps its sparkle.
+    if (this.level.zen && Math.floor(this.coinCount / 100) > Math.floor(before / 100)) this.zenMilestone();
     this.hud.count.setText(String(this.coinCount));
     this.tweens.killTweensOf(this.hud.count);
     this.hud.count.setScale(1);
     // A rainbow coin gives a bigger bump (Task 024).
     this.tweens.add({ targets: this.hud.count, scale: special ? 1.7 : 1.3, duration: special ? 150 : 110, yoyo: true });
     this.feedBar(n);
+  }
+
+  /** A burst of confetti, a jingle and a rumble for every 100 coins in zen. */
+  private zenMilestone(): void {
+    const b = this.player.body;
+    audio.play('stickerGet');
+    this.confetti.explode(60, b.center.x, b.center.y - 80);
+    this.sparkle.explode(24, b.center.x, b.center.y - 40);
+    this.tweens.add({ targets: this.hud.count, scale: 2, duration: 220, yoyo: true });
   }
 
   /** Every coin also fills the Mega Robo bar (it never drains, not even on a fall). */
@@ -1919,7 +1931,7 @@ export class LevelScene extends Phaser.Scene {
     this.addCoins(this.bubbles.flushCoins());
     this.blaster?.clear();
     this.clearContent();
-    const seg = generateZen(zenSegmentSeed(this.zenSeed, this.zenLap), this.level.world, { carry: { grid: carry, dir }, tier: zenTier(this.coinCount) });
+    const seg = generateZen(zenSegmentSeed(this.zenSeed, this.zenLap), this.level.world, { carry: { grid: carry, dir }, tier: zenTier(this.coinCount), flair: this.coinCount >= ZEN_FLAIR_COINS });
     this.level = { ...this.level, grid: seg.config.grid };
     this.grid = extractEntities(seg.config.grid);
     for (const o of this.groundObjs) o.destroy();

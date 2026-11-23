@@ -41,6 +41,7 @@ Everything through Task 011 and the docs trim is pushed to `origin/main`; Tasks 
 | 042 | Enemies in zen: Bolt Bug, Rock Beetle, Glow Bat on flat stretches away from the swap windows (D-085) | Done |
 | 039 | Cave levels 4-5: cave-4 "Crystal Bridges", cave-5 "Cave Run" (D-085) | Done |
 | 040 | Cave Guardian boss: arena, 10 chest-crystal hits, crumble, gate, big crystal sticker, crowned Cave (D-085) | Done |
+| 047 | Zen after 500 coins: four set-pieces, closer power-ups, a celebration every 100 coins | Done (`docs/tasks/047-zen-flair-500.md`) |
 | 046 | Fix: Cave Guardian gate stayed closed on a replay (stale gate state) | Done (`docs/tasks/046-fix-guardian-gate-replay.md`) |
 | 045 | Flight Up/Down keys, d-pad and stick; gamepad rumble; rarer Mega Robo in zen (bigger bar plus a quiet time); zen difficulty ramp after 300 coins | Done (`docs/tasks/045-flight-keys-rumble-mega-pacing-zen-ramp.md`) |
 | 044 | Remaining gamepad buttons: Y, LB, RB, LT, RT mapped to actions | Done (`docs/tasks/044-gamepad-extra-buttons.md`) |
