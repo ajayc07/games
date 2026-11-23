@@ -21,6 +21,11 @@ export const PAD_BUTTON_BINDINGS: Readonly<Record<number, Action>> = {
   0: 'jump', // A / Cross
   1: 'power', // B / Circle
   2: 'power', // X / Square
+  3: 'jump', // Y / Triangle
+  4: 'left', // left bumper
+  5: 'right', // right bumper
+  6: 'power', // left trigger
+  7: 'jump', // right trigger
   14: 'left', // d-pad left
   15: 'right', // d-pad right
 };

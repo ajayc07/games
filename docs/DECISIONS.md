@@ -26,7 +26,7 @@ New decisions (D-050 onwards) are written in full at the bottom of this file; fo
 
 ## Screen, input and physics
 - **D-013 / D-017** Logical height 720; logical width flexes 960 to 1920 (MAX_WIDTH 1920); gameplay-critical content fits the central 960x720 safe area; UI is anchored to screen edges/corners and respects device insets.
-- **D-015** One input abstraction (actions `left`, `right`, `jump`, `power`). Touch buttons track each pointer continuously (a thumb can slide between buttons); mashing harmless. Keys: Left = ArrowLeft/A, Right = ArrowRight/D, Jump = Space/ArrowUp/W, Power = X/Z/Shift. Gamepad: d-pad or left stick, A = jump, X or B = power.
+- **D-015** One input abstraction (actions `left`, `right`, `jump`, `power`). Touch buttons track each pointer continuously (a thumb can slide between buttons); mashing harmless. Keys: Left = ArrowLeft/A, Right = ArrowRight/D, Jump = Space/ArrowUp/W, Power = X/Z/Shift. Gamepad: d-pad or left stick, A / Y / RT = jump, B / X / LT = power, LB = left, RB = right (Task 044).
 - **D-021** One shared physics file: run 200, walk 220 (ramp 60 ms up / 80 ms down), gravity 1800, jump velocity 760 (peak 2.5 tiles), coyote about 120 ms, jump buffer about 150 ms, fixed jump height.
 - **D-029** Walking: hold = move at constant speed, release = stop, both held = stand, facing flips at once (hysteresis), soft level-end walls, no sliding.
 - **D-045** Physics facts: a jump lasts 0.84 s and carries about 186 px running, 179-189 px from standing; 1-tile gap needs 44 px, 2-tile 108 px (71 px margin), 3-tile 172 px (7 px margin, too tight): gaps are 1 or 2 tiles only. Body 40 px wide. At least 7 tiles of ground between gaps (8 in Grass 5).
