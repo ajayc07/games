@@ -1,6 +1,7 @@
 // A short buzz where the browser supports it (Android Chrome and similar; iOS Safari has none, so nothing happens there).
 // Never throws and never needs the caller to check: the game plays the same without it. The parent view can switch it off.
 import { settings } from '../settings/settings';
+import { rumblePattern } from './padRumble';
 
 /** Is vibration offered by this browser at all? (iOS Safari: no.) */
 export function vibrationSupported(): boolean {
@@ -11,6 +12,7 @@ export function vibrationSupported(): boolean {
 export function vibrate(pattern: number | number[], force = false): boolean {
   try {
     if (!force && !settings.vibration()) return false;
+    rumblePattern(pattern); // a connected controller buzzes too (Task 048)
     if (vibrationSupported()) return navigator.vibrate(pattern);
   } catch {
     // Some browsers refuse without a recent touch; ignore.

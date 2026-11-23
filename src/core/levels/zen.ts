@@ -82,10 +82,32 @@ export function zenSegmentSeed(seed: number, lap: number): number {
   return (seed + Math.imul(lap, 7919) + Math.imul(lap, lap)) >>> 0;
 }
 
-type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap' | 'enemy';
+type Motif = 'shoot' | 'air' | 'arc' | 'pad' | 'big' | 'rest' | 'steps' | 'gap' | 'enemy' | 'gapShoot' | 'stairShoot' | 'padShoot' | 'gauntlet';
 
 /** Weighted draw: shooting is the most common thing to do, then high bubbles; the rest are the occasional change. */
 const MOTIFS: readonly Motif[] = ['shoot', 'shoot', 'shoot', 'shoot', 'air', 'air', 'arc', 'pad', 'big', 'rest', 'steps', 'steps', 'steps', 'gap', 'gap', 'gap', 'gap'];
+/**
+ * The difficulty ramp (Task 047). Below `ZEN_RAMP.start` coins he plays the gentle mix above. After that, every `step` coins
+ * one new combo is added to the mix, one button at a time: tier 1 walk + jump + shoot at a gap, tier 2 climb + shoot at the
+ * stairs, tier 3 bounce pad + shoot high, tier 4 a chain of them with the enemies a little closer together. Pure rule.
+ */
+export const ZEN_RAMP = { start: 300, step: 150, maxTier: 4 } as const;
+
+export function zenTier(coins: number): number {
+  if (!(coins >= ZEN_RAMP.start)) return 0;
+  return Math.min(ZEN_RAMP.maxTier, 1 + Math.floor((coins - ZEN_RAMP.start) / ZEN_RAMP.step));
+}
+
+const COMBO_BY_TIER: readonly Motif[] = ['gapShoot', 'stairShoot', 'padShoot', 'gauntlet'];
+
+/** The motif pool for a tier: tier 0 is exactly the original mix; higher tiers drop the resting motif and add two entries per combo unlocked. */
+function motifPool(tier: number): readonly Motif[] {
+  if (tier <= 0) return MOTIFS;
+  const pool: Motif[] = MOTIFS.filter((m) => m !== 'rest');
+  for (let t = 0; t < tier && t < COMBO_BY_TIER.length; t++) pool.push(COMBO_BY_TIER[t], COMBO_BY_TIER[t]);
+  return pool;
+}
+
 /** Motifs with no bubbles in them: bubbles always come next. */
 const QUIET: readonly Motif[] = ['arc', 'pad', 'rest', 'steps', 'gap'];
 
@@ -106,6 +128,8 @@ export interface ZenOptions {
   carry?: { grid: readonly string[]; dir: 1 | -1 };
   /** `?enemies=1`: the first enemy comes as early as it may (only for the very first segment, for testing). */
   forceEnemy?: boolean;
+  /** Difficulty tier from `zenTier(coins)` (Task 047). 0 = the gentle mix. */
+  tier?: number;
 }
 
 export interface ZenSegment {
@@ -263,6 +287,44 @@ function gap(c: Cells, from: number): number {
   return g + width + 3;
 }
 
+/** Tier 1: small bubbles to shoot on the way to a gap and after it, so walking, jumping and shooting happen together. */
+function gapShoot(c: Cells, from: number): number {
+  const width: 1 | 2 = c.chance(0.5) ? 1 : 2;
+  const g = Math.max(from + 5, c.lastGapEnd + 1 + MIN_GROUND);
+  if (g + width + MIN_GROUND > c.hi) return shoot(c, from, 12);
+  c.gaps.push({ col: g, width });
+  c.put(g - 4, ROW.low, 'o');
+  c.put(g - 1, ROW.up, 'c');
+  for (let i = 0; i < width; i++) c.put(g + i, ROW.high, 'c');
+  c.put(g + width + 3, ROW.low, 'o');
+  c.lastGapEnd = g + width - 1;
+  return g + width + 5;
+}
+
+/** Tier 2: the toy stairs with a small bubble to shoot before them and a high one after them. */
+function stairShoot(c: Cells, from: number): number {
+  c.put(from, ROW.low, 'o');
+  const end = steps(c, from + 2);
+  c.put(end + 1, ROW.high, 'h');
+  return end + 4;
+}
+
+/** Tier 3: a bounce pad with a high bubble above it, to shoot at the top of the bounce, and a small one after it. */
+function padShoot(c: Cells, from: number): number {
+  const end = pad(c, from);
+  c.put(from + 5, 4, 'h');
+  c.put(end + 1, ROW.low, 'o');
+  return end + 4;
+}
+
+/** Tier 4: two of the gap combos in a row with a bubble between them. */
+function gauntlet(c: Cells, from: number): number {
+  let col = gapShoot(c, from);
+  c.put(col + 1, ROW.up, 'o');
+  col = gapShoot(c, col + 3);
+  return col;
+}
+
 /** One enemy in the middle of a stretch of flat ground: the patrol and its clear tiles are reserved, nothing else is put there. */
 function enemy(c: Cells, from: number, kind: EnemyKind): number {
   const reach = enemyReach(kind);
@@ -340,6 +402,11 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
   // The very first segment keeps the area around his start clear (he starts in the middle, content to both sides).
   const c = new Cells(rng, lo, hi, options.first ? { from: ZEN.startCol - 6, to: ZEN.firstContent } : null);
   const motifs: ZenSegment['motifs'] = [];
+  const tier = options.tier ?? 0;
+  const pool = motifPool(tier);
+  // From tier 2 the enemies come a little closer together (35-50 tiles instead of 45-60).
+  const everyMin = tier >= 2 ? ZEN_ENEMY.every.min - 10 : ZEN_ENEMY.every.min;
+  const everyMax = tier >= 2 ? ZEN_ENEMY.every.max - 10 : ZEN_ENEMY.every.max;
 
   const kinds: PickupKind[] = [];
   const nextKind = (): PickupKind => {
@@ -385,7 +452,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
         const from0 = col;
         const end = enemy(c, col, kind);
         // 45-60 tiles from this enemy's middle to the next one's due place (never within 20: the patrol stretch is at most 13 wide).
-        enemyDue = end - enemyReach(kind) - 1 + c.int(ZEN_ENEMY.every.min, ZEN_ENEMY.every.max);
+        enemyDue = end - enemyReach(kind) - 1 + c.int(everyMin, everyMax);
         // The enemy's stretch is time off the power-up clock too, so enemies do not thin out the orbs.
         setDue -= end - from0 + 2;
         col = end + c.int(2, 3);
@@ -425,7 +492,7 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
       continue;
     }
     let m: Motif;
-    do m = needBubbles ? (c.chance(0.65) ? 'shoot' : 'air') : MOTIFS[c.int(0, MOTIFS.length - 1)];
+    do m = needBubbles ? (c.chance(0.65) ? 'shoot' : 'air') : pool[c.int(0, pool.length - 1)];
     while (m === last && m !== 'shoot');
     last = m;
     needBubbles = QUIET.includes(m);
@@ -437,6 +504,10 @@ export function generateZen(seed: number, world = 'grass', options: ZenOptions =
     else if (m === 'big') col = big(c, col);
     else if (m === 'steps') col = steps(c, col);
     else if (m === 'gap') col = gap(c, col);
+    else if (m === 'gapShoot') col = gapShoot(c, col);
+    else if (m === 'stairShoot') col = stairShoot(c, col);
+    else if (m === 'padShoot') col = padShoot(c, col);
+    else if (m === 'gauntlet') col = gauntlet(c, col);
     else col = rest(c, col);
     col += c.int(2, 3);
   }

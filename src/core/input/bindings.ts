@@ -32,3 +32,9 @@ export const PAD_BUTTON_BINDINGS: Readonly<Record<number, Action>> = {
 
 /** Left stick deadzone for left/right. */
 export const PAD_AXIS_THRESHOLD = 0.5;
+
+/** Flying (Task 045): extra "down" and "up" inputs that are not actions. Keys, and the standard-mapping d-pad buttons. */
+export const FLY_DOWN_KEYS: readonly string[] = ['ArrowDown', 'KeyS'];
+export const FLY_UP_KEYS: readonly string[] = ['ArrowUp', 'KeyW'];
+export const PAD_FLY_DOWN_BUTTON = 13;
+export const PAD_FLY_UP_BUTTON = 12;

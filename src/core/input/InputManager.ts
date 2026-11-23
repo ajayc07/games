@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import type { Action } from '../types';
 import { ActionState, type ActionEvent, type InputConfig } from './actionState';
-import { KEY_BINDINGS, PAD_AXIS_THRESHOLD, PAD_BUTTON_BINDINGS } from './bindings';
+import { FLY_DOWN_KEYS, FLY_UP_KEYS, KEY_BINDINGS, PAD_AXIS_THRESHOLD, PAD_BUTTON_BINDINGS, PAD_FLY_DOWN_BUTTON, PAD_FLY_UP_BUTTON } from './bindings';
 import { LOGICAL_HEIGHT } from '../ui/layoutMath';
 
 export type { ActionEvent, InputConfig } from './actionState';
@@ -166,18 +166,23 @@ export class InputManager extends Phaser.Events.EventEmitter {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (this.reserved.has(e.code)) return;
     const action = KEY_BINDINGS[e.code] ?? null;
-    if (action) e.preventDefault(); // no page scroll on Space/arrows
+    if (action || FLY_DOWN_KEYS.includes(e.code)) e.preventDefault(); // no page scroll on Space/arrows
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) this.heldKeys.add(e.code);
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     this.state.set(`key:${e.code}`, action, e.timeStamp);
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
+    this.heldKeys.delete(e.code);
     this.state.release(`key:${e.code}`, e.timeStamp);
   };
 
   // ---------- focus ----------
 
-  private onBlur = (): void => this.releaseAll();
+  private onBlur = (): void => {
+    this.heldKeys.clear();
+    this.releaseAll();
+  };
 
   private onVisibility = (): void => {
     if (document.visibilityState !== 'visible') this.releaseAll();
@@ -189,6 +194,8 @@ export class InputManager extends Phaser.Events.EventEmitter {
     const pads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : [];
     const now = performance.now();
     const seen = new Set<string>();
+    let up = false;
+    let down = false;
     for (const pad of pads) {
       if (!pad || !pad.connected) continue;
       const p = `pad:${pad.index}:`;
@@ -198,6 +205,9 @@ export class InputManager extends Phaser.Events.EventEmitter {
         seen.add(id);
         this.state.set(id, PAD_BUTTON_BINDINGS[i] ?? null, now);
       });
+      const y = pad.axes[1] ?? 0;
+      if (pad.buttons[PAD_FLY_UP_BUTTON]?.pressed || y < -PAD_AXIS_THRESHOLD) up = true;
+      if (pad.buttons[PAD_FLY_DOWN_BUTTON]?.pressed || y > PAD_AXIS_THRESHOLD) down = true;
       const x = pad.axes[0] ?? 0;
       if (x < -PAD_AXIS_THRESHOLD) {
         seen.add(`${p}axis-left`);
@@ -209,9 +219,26 @@ export class InputManager extends Phaser.Events.EventEmitter {
     }
     for (const id of this.padSources) if (!seen.has(id)) this.state.release(id, now);
     this.padSources = seen;
+    this.padUp = up;
+    this.padDown = down;
   }
 
   private padSources = new Set<string>();
+
+  // Flying (Task 045): the Up / Down arrows (or W / S), the d-pad and the left stick steer him up and down. Not actions.
+  private readonly heldKeys = new Set<string>();
+  private padUp = false;
+  private padDown = false;
+
+  /** Is an "up" input held (Up arrow, W, d-pad up, stick up)? */
+  get flyUpHeld(): boolean {
+    return this.padUp || FLY_UP_KEYS.some((k) => this.heldKeys.has(k));
+  }
+
+  /** Is a "down" input held (Down arrow, S, d-pad down, stick down)? */
+  get flyDownHeld(): boolean {
+    return this.padDown || FLY_DOWN_KEYS.some((k) => this.heldKeys.has(k));
+  }
 
   // ---------- helpers ----------
 

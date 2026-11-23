@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { MEGA, addToBar, barFraction, megaPlan, narrowGaps, zenCapacity } from './mega';
+import { MEGA, addToBar, barFraction, megaPlan, narrowGaps, zenCapacity, zenCooldownMs } from './mega';
 
 describe('Mega Robo rules (Task 030, D-073)', () => {
-  it('zen: 50 coins for the first three fills, then 75, then 100, and so on up to a limit', () => {
-    expect([0, 1, 2].map(zenCapacity)).toEqual([50, 50, 50]);
-    expect([3, 4, 5].map(zenCapacity)).toEqual([75, 75, 75]);
-    expect([6, 9].map(zenCapacity)).toEqual([100, 125]);
+  it('zen: 60 coins for the first fill, then 80, 100 and so on up to a limit, with a growing quiet time between fills (Task 046)', () => {
+    expect([0, 1, 2].map(zenCapacity)).toEqual([60, 80, 100]);
+    expect([6, 7].map(zenCapacity)).toEqual([180, 200]);
+    expect(zenCooldownMs(1)).toBe(100_000);
+    expect(zenCooldownMs(2)).toBe(125_000);
+    expect(zenCooldownMs(99)).toBe(MEGA.zenCooldownMaxMs);
     expect(zenCapacity(500)).toBe(MEGA.zenMax);
-    expect(zenCapacity(-1)).toBe(50);
+    expect(zenCapacity(-1)).toBe(60);
   });
 
   it('stages: no Mega Robo in the early levels, in power-up levels or in Practice; late levels fill once at 70% of the coins', () => {
@@ -23,8 +25,8 @@ describe('Mega Robo rules (Task 030, D-073)', () => {
     expect(megaPlan({ ...base, buttons: ['left', 'right', 'jump', 'power'], totalCoins: 5 }).capacity(0)).toBe(MEGA.minCapacity);
     const zen = megaPlan({ ...base, zen: true, buttons: ['left', 'right', 'jump', 'power'], hasPickups: true });
     expect(zen.enabled).toBe(true);
-    expect(zen.capacity(0)).toBe(50);
-    expect(zen.capacity(3)).toBe(75);
+    expect(zen.capacity(0)).toBe(60);
+    expect(zen.capacity(3)).toBe(120);
     expect(zen.maxFills).toBe(Infinity);
   });
 

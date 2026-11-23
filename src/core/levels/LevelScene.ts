@@ -51,7 +51,7 @@ import { BubbleField } from './BubbleField';
 import { SHOT } from './shots';
 import { resolveAvatar } from '../avatar/config';
 import type { PracticeMode } from './practice';
-import { generateZen, zenRebase, zenSegmentSeed } from './zen';
+import { generateZen, zenRebase, zenSegmentSeed, zenTier } from './zen';
 import { FALL_BUZZ, vibrate } from '../ui/haptics';
 import { PracticeRun } from '../practice/PracticeRun';
 import { resultHandlerFor, walkAssistOn } from '../practice/practiceResult';
@@ -261,6 +261,7 @@ export class LevelScene extends Phaser.Scene {
     this.restLeaving = false;
     this.megaOn = false;
     this.megaFills = 0;
+    this.megaQuietUntil = 0;
     this.megaPending = false;
     this.megaGlow = null;
     this.coinBar = null;
@@ -975,6 +976,8 @@ export class LevelScene extends Phaser.Scene {
   private barCoins = 0;
   private plan: MegaPlan = megaPlan({ zen: false, practice: true, buttons: [], hasPickups: false, totalCoins: 0 });
   private megaFills = 0;
+  /** Scene time before which the bar cannot start the next Mega Robo (Task 046). */
+  private megaQuietUntil = 0;
   /** The bar is on screen: this level has one and he has not used it up. */
   private barOn(): boolean {
     return this.plan.enabled && this.megaFills < this.plan.maxFills;
@@ -1159,6 +1162,7 @@ export class LevelScene extends Phaser.Scene {
   private endMega(sound = true): void {
     if (!this.megaOn) return;
     this.megaOn = false;
+    this.megaQuietUntil = this.time.now + this.plan.cooldownMs(this.megaFills);
     this.megaTimer.stop();
     this.player.look.setBoost(1);
     this.applySpeed(this.carOn());
@@ -1706,8 +1710,8 @@ export class LevelScene extends Phaser.Scene {
         : walkDirection(input.isDown('left'), input.isDown('right'));
     for (const a of ['left', 'right', 'jump', 'power'] as const) if (input.justPressed(a)) this.pressedOnce.add(a);
     const pressed = input.justPressed('jump');
-    // Flying (Task 028): Left (or the Jump key) is up, Right is down; nothing else steers him.
-    const fly = this.player.flying ? flyDirection(input.isDown('left') || input.isDown('jump'), input.isDown('right')) : undefined;
+    // Flying (Task 028, 045): Left, Jump or an Up input is up, Right or a Down input (arrow, S, d-pad, stick) is down; nothing else steers him.
+    const fly = this.player.flying ? flyDirection(input.isDown('left') || input.isDown('jump') || input.flyUpHeld, input.isDown('right') || input.flyDownHeld) : undefined;
     // A bump from a Bolt Bug (Task 035) walks him gently away for a moment; his facing stays.
     const bump = this.enemies && fly === undefined ? this.bugBump.move(now) : 0;
     const r = this.player.step(now, { move: fly === undefined ? (bump !== 0 ? bump : move) : 0, noTurn: bump !== 0, jumpPressed: pressed && fly === undefined, fly, walls: fly === undefined && !this.megaOn ? this.bubbleWalls(this.player) : undefined }, dtMs);
@@ -1779,6 +1783,11 @@ export class LevelScene extends Phaser.Scene {
     this.barCoins = r.coins;
     this.coinBar?.pulse(now);
     if (!r.full) return;
+    // Zen (Task 046): too soon after the last Mega Robo, the bar waits one coin short of full and fills when the quiet time is over.
+    if (now < this.megaQuietUntil) {
+      this.barCoins = this.barCap() - 1;
+      return;
+    }
     if (this.mode === 'play') this.startMega(now);
     else this.megaPending = true;
   }
@@ -1904,7 +1913,7 @@ export class LevelScene extends Phaser.Scene {
     this.addCoins(this.bubbles.flushCoins());
     this.blaster?.clear();
     this.clearContent();
-    const seg = generateZen(zenSegmentSeed(this.zenSeed, this.zenLap), this.level.world, { carry: { grid: carry, dir } });
+    const seg = generateZen(zenSegmentSeed(this.zenSeed, this.zenLap), this.level.world, { carry: { grid: carry, dir }, tier: zenTier(this.coinCount) });
     this.level = { ...this.level, grid: seg.config.grid };
     this.grid = extractEntities(seg.config.grid);
     for (const o of this.groundObjs) o.destroy();

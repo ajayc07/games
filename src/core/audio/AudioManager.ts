@@ -4,6 +4,7 @@ import { COMBO_STEPS, comboRecipe, comboSoundId, DEFAULT_RECIPES, POP_STEPS, pop
 import { LAND_THUMP, LAND_THUMP_ID, stepRecipe, stepSoundId, stepVariants, type StepKind } from './steps';
 import { DEFAULT_LIMITS, VoiceLimiter } from './voiceLimiter';
 import { PendingQueue } from './pendingQueue';
+import { rumbleForSound } from '../ui/padRumble';
 
 export interface SoundDef {
   /** URL of an audio file. If missing or it fails to load, `synth` is used. */
@@ -91,6 +92,7 @@ export class AudioManager {
    * once it runs, if that is within about 300 ms (so the very first jump is heard). Muted = nothing.
    */
   play(id: string): void {
+    rumbleForSound(id); // a connected controller buzzes for it (Task 048); separate from the sound, so mute does not stop it
     try {
       if (this.muted) return;
       const ctx = this.ctx;

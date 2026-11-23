@@ -15,19 +15,28 @@ export const MEGA = {
   /** The bar never needs fewer coins than this. */
   minCapacity: 12,
   /** Zen: the first fills need this many coins, and every `zenTierFills` fills the need grows by `zenStep`, up to `zenMax`. */
-  zenBase: 50,
-  zenStep: 25,
-  zenTierFills: 3,
+  zenBase: 60,
+  zenStep: 20,
+  zenTierFills: 1,
   zenMax: 200,
+  /** Zen (Task 046): after a Mega Robo ends, the next one cannot start for this long, however many coins he has. It grows with every fill up to a cap. */
+  zenCooldownBaseMs: 100_000,
+  zenCooldownStepMs: 25_000,
+  zenCooldownMaxMs: 240_000,
   /** Walking into a bubble pops it: how far from his chest a bubble counts as touched, and how often it can pop. */
   popReach: 120,
   popEveryMs: 150,
 } as const;
 
-/** Coins the zen bar needs for its next fill, after `fills` fills so far: 50, 50, 50, then 75 x3, then 100 x3, and so on. */
+/** Coins the zen bar needs for its next fill, after `fills` fills so far: 60, 80, 100, ... up to 200. */
 export function zenCapacity(fills: number): number {
   const tier = Math.floor(Math.max(0, fills) / MEGA.zenTierFills);
   return Math.min(MEGA.zenMax, MEGA.zenBase + MEGA.zenStep * tier);
+}
+
+/** Zen: the quiet time after Mega Robo number `fills` ends (100 s, then 125 s, 150 s ... up to 240 s) before the next may start. */
+export function zenCooldownMs(fills: number): number {
+  return Math.min(MEGA.zenCooldownMaxMs, MEGA.zenCooldownBaseMs + MEGA.zenCooldownStepMs * Math.max(0, fills - 1));
 }
 
 export interface MegaPlan {
@@ -35,6 +44,8 @@ export interface MegaPlan {
   enabled: boolean;
   /** Coins for the next fill after `fills` fills so far. */
   capacity(fills: number): number;
+  /** Quiet time after a Mega Robo ends (after `fills` fills) in which the bar cannot fill up and start the next one. 0 = none. */
+  cooldownMs(fills: number): number;
   /** No more fills after this many (Infinity in zen). */
   maxFills: number;
 }
@@ -45,11 +56,11 @@ export interface MegaPlan {
  * gets harder to earn as he plays on.
  */
 export function megaPlan(o: { zen: boolean; practice: boolean; buttons: readonly string[]; hasPickups: boolean; totalCoins: number }): MegaPlan {
-  if (o.practice) return { enabled: false, capacity: () => Infinity, maxFills: 0 };
-  if (o.zen) return { enabled: true, capacity: zenCapacity, maxFills: Number.POSITIVE_INFINITY };
+  if (o.practice) return { enabled: false, capacity: () => Infinity, cooldownMs: () => 0, maxFills: 0 };
+  if (o.zen) return { enabled: true, capacity: zenCapacity, cooldownMs: zenCooldownMs, maxFills: Number.POSITIVE_INFINITY };
   const allFour = ['left', 'right', 'jump', 'power'].every((b) => o.buttons.includes(b));
   const cap = Math.max(MEGA.minCapacity, Math.round(o.totalCoins * MEGA.fillShare));
-  return { enabled: allFour && !o.hasPickups, capacity: () => cap, maxFills: 1 };
+  return { enabled: allFour && !o.hasPickups, capacity: () => cap, cooldownMs: () => 0, maxFills: 1 };
 }
 
 export interface BarStep {
