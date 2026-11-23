@@ -250,6 +250,12 @@ export class LevelScene extends Phaser.Scene {
     this.bootsTimer.stop();
     this.megaTimer.stop();
     this.enemies = null;
+    // The Guardian's gate starts closed on every play (the scene object is reused, so a gate opened last time must not stay open).
+    this.boss = null;
+    this.gate = null;
+    this.gateOpen = false;
+    this.hiddenGoal = [];
+    this.realGoalX = 0;
     this.bugBump.reset();
     this.flashTimer.stop();
     this.flashOn = false;
